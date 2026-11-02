@@ -1,0 +1,322 @@
+import Foundation
+import Raylib
+
+/// A draggable window frame with a title bar, close button, and optional toolbar and title editing.
+public final class WindowFrame {
+    /// How tall the title bar is.
+    public static let titleHeight: Int = 30
+
+    private static let titleSize: Int = 16
+
+    private static let toolbarSize: Int = 14
+
+    private static let problemSize: Int = 10
+
+    private static let toolbarPadding: Int = 10
+
+    private static let toolbarGap: Int = 4
+
+    private static let margin: Int = 8
+
+    private static let closeRadius: Int = 6
+
+    private static let closeHit: Int = 20
+
+    private static let editWidth: Int = 260
+
+    private static let ellipsis: String = "..."
+
+    private let placement = WindowPlacement(titleBarHeight: WindowFrame.titleHeight)
+
+    private let titleField: TextField
+
+    private let theme: InterfaceTheme
+
+    private var _title: String
+
+    private var _toolbar: [String] = []
+
+    // The title as drawn, cut to fit the bar, worked out again only when the title or room changes.
+    private var shownTitle: String = ""
+
+    private var shownFor: String? = nil
+
+    private var shownRoom: Float = -1.0
+
+    /// Creates a frame with a title and maximum editable title length.
+    public init(
+        title: String,
+        maximumTitleLength: Int = 80,
+        theme: InterfaceTheme = .standard
+    ) {
+        precondition(maximumTitleLength > 0, "maximumTitleLength must be positive")
+        _title = title
+        self.theme = theme
+        titleField = TextField(
+            text: title,
+            maximumLength: maximumTitleLength,
+            fontSize: WindowFrame.titleSize,
+            theme: theme
+        )
+    }
+
+    /// What the frame's input in a frame came to.
+    public enum Action {
+        /// Nothing the window needs to act on.
+        case none
+        /// The close button was clicked.
+        case close
+        /// A toolbar item was clicked; `clickedToolbarIndex` identifies it.
+        case toolbarItemSelected
+        /// A new title was entered.
+        case renamed
+    }
+
+    /// The window's title.
+    public var title: String {
+        get {
+            _title
+        }
+        set {
+            _title = newValue
+            if !isEditingTitle {
+                titleField.text = _title
+            }
+        }
+    }
+
+    /// Whether the user can edit the title in place.
+    public var allowsTitleEditing: Bool = false
+
+    /// Returns a validation message for an invalid edited title, or `nil` when it is valid.
+    public var validateTitle: ((String) -> String?)?
+
+    /// Whether the user is editing the title. While editing, the keyboard is reserved for it.
+    public private(set) var isEditingTitle: Bool = false
+
+    /// The validation message shown after the user submits an invalid title.
+    public private(set) var titleValidationMessage: String?
+
+    /// The toolbar's items, ordered from left to right.
+    public var toolbarItems: [String] {
+        get { _toolbar }
+        set { _toolbar = newValue }
+    }
+
+    /// The selected toolbar item, or `nil` when no item is selected.
+    public var selectedToolbarIndex: Int?
+
+    /// The index of the toolbar item last clicked.
+    public private(set) var clickedToolbarIndex: Int?
+
+    /// Whether the user is dragging the window.
+    public var isDragging: Bool {
+        placement.isDragging
+    }
+
+    /// The area under the title bar, where the window draws its own content.
+    public static func content(in bounds: Rectangle) -> Rectangle {
+        var contentBounds = bounds
+        contentBounds.y += Float(titleHeight)
+        contentBounds.height = max(0.0, bounds.height - Float(titleHeight))
+        return contentBounds
+    }
+
+    /// Returns bounds at the saved position or `start`, constrained to the screen.
+    public func place(size: Vector2, at start: Vector2) -> Rectangle {
+        placement.bounds(size: size, initialOrigin: start)
+    }
+
+    /// Starts a drag on the title bar or selected toolbar item, but not on the close button,
+    /// an unselected toolbar item, or an editable title.
+    public func beginDragging(at point: Vector2, within bounds: Rectangle) -> Bool {
+        let toolbarIndex = toolAt(point, bounds)
+        if Self.isCloseButton(at: point, in: bounds)
+            || (toolbarIndex >= 0 && selectedToolbarIndex != toolbarIndex)
+            || (allowsTitleEditing && CheckCollisionPointRec(point, titleBounds(bounds))) {
+            return false
+        }
+        return placement.beginDragging(at: point, within: bounds)
+    }
+
+    /// Moves the window with the pointer while the button is held, and lets it go when it isn't.
+    public func drag(to point: Vector2, isHeld: Bool, windowSize: Vector2) {
+        placement.drag(to: point, isHeld: isHeld, windowSize: windowSize)
+    }
+
+    /// For a window nothing else drags: starts a drag on a press on the bar, and moves the window
+    /// while the button is held. Returns whether the window is being dragged.
+    public func followPointer(in bounds: Rectangle) -> Bool {
+        let mouse = GetMousePosition()
+        if !isDragging, IsMouseButtonPressed(MouseButton.left) {
+            _ = beginDragging(at: mouse, within: bounds)
+        }
+        if isDragging {
+            drag(
+                to: mouse,
+                isHeld: IsMouseButtonDown(MouseButton.left),
+                windowSize: Vector2(x: bounds.width, y: bounds.height)
+            )
+        }
+        return isDragging
+    }
+
+    /// Returns whether `point` is on the close button.
+    public static func isCloseButton(at point: Vector2, in bounds: Rectangle) -> Bool {
+        CheckCollisionPointRec(point, closeBounds(bounds))
+    }
+
+    /// Drops an edit of the title, as closing the window does.
+    public func cancelEdit() {
+        isEditingTitle = false
+        titleValidationMessage = nil
+        titleField.text = _title
+    }
+
+    /// Takes this frame's clicks on the bar, and the typing while the title is edited. Call it
+    /// before the window's own input: while `IsEditingTitle` was true at the start of
+    /// the frame, the keyboard was the title's, and the window should leave Enter and Escape alone.
+    public func update(in bounds: Rectangle) -> WindowFrame.Action {
+        let mouse = GetMousePosition()
+        let pressed = IsMouseButtonPressed(MouseButton.left)
+        if isEditingTitle {
+            return updateEdit(bounds, mouse, pressed)
+        }
+        if !pressed {
+            return WindowFrame.Action.none
+        }
+        if Self.isCloseButton(at: mouse, in: bounds) {
+            return WindowFrame.Action.close
+        }
+        let tool = toolAt(mouse, bounds)
+        if tool >= 0 {
+            guard selectedToolbarIndex != tool else {
+                return .none
+            }
+            clickedToolbarIndex = tool
+            return .toolbarItemSelected
+        }
+        if allowsTitleEditing, CheckCollisionPointRec(mouse, titleBounds(bounds)) {
+            titleField.text = _title
+            titleValidationMessage = nil
+            isEditingTitle = true
+        }
+        return WindowFrame.Action.none
+    }
+
+    /// Draws the window's background, border, and title bar; the window draws its content over `Content`.
+    public func draw(in bounds: Rectangle) {
+        let mouse = GetMousePosition()
+        DrawRectangleRec(bounds, theme.panel)
+        var bar = bounds
+        bar.height = Float(WindowFrame.titleHeight)
+        DrawRectangleRec(bar, theme.titleBar)
+        DrawLine(Int(clamping: bounds.x), Int(clamping: bounds.y + Float(WindowFrame.titleHeight)), Int(clamping: bounds.x + bounds.width), Int(clamping: bounds.y + Float(WindowFrame.titleHeight)), theme.border)
+        DrawRectangleLinesEx(bounds, 1.0, theme.border)
+        // The close button: a red dot, marked with an x while the pointer is over it, as macOS has it.
+        let close = WindowFrame.closeBounds(bounds)
+        let (centerX, centerY) = (Int(clamping: close.x + Float(WindowFrame.closeHit / 2)), Int(clamping: close.y + Float(WindowFrame.closeHit / 2)))
+        DrawCircle(centerX, centerY, Float(WindowFrame.closeRadius), theme.closeButton)
+        if CheckCollisionPointRec(mouse, close) {
+            DrawLine(centerX - 3, centerY - 3, centerX + 3, centerY + 3, theme.closeMark)
+            DrawLine(centerX - 3, centerY + 3, centerX + 3, centerY - 3, theme.closeMark)
+        }
+        for i in 0..<_toolbar.count {
+            let item = toolBounds(bounds, i)
+            if selectedToolbarIndex == i {
+                DrawRectangleRec(item, theme.selectedItem)
+            }
+            let color = selectedToolbarIndex == i ? theme.accent : CheckCollisionPointRec(mouse, item) ? theme.text : theme.secondaryText
+            DrawText(_toolbar[i], Int(clamping: item.x) + WindowFrame.toolbarPadding, Int(clamping: item.y + ((item.height - Float(WindowFrame.toolbarSize)) / 2)), WindowFrame.toolbarSize, color)
+        }
+        let title = titleBounds(bounds)
+        if isEditingTitle {
+            titleField.draw(in: title, isFocused: true)
+            if let titleValidationMessage {
+                DrawText(titleValidationMessage, Int(clamping: title.x), Int(clamping: bounds.y + Float(WindowFrame.titleHeight) + 2), WindowFrame.problemSize, theme.error)
+            }
+            return
+        }
+        let shown = shown(title.width)
+        let width = MeasureText(shown, WindowFrame.titleSize)
+        let titleColor = allowsTitleEditing && CheckCollisionPointRec(mouse, title) ? theme.accent : theme.text
+        DrawText(shown, Int(clamping: title.x + ((title.width - Float(width)) / 2)), Int(clamping: bounds.y + Float((WindowFrame.titleHeight - WindowFrame.titleSize) / 2)), WindowFrame.titleSize, titleColor)
+    }
+
+    private func updateEdit(_ bounds: Rectangle, _ mouse: Vector2, _ pressed: Bool) -> WindowFrame.Action {
+        if IsKeyPressed(KeyboardKey.escape) || (pressed && !CheckCollisionPointRec(mouse, titleBounds(bounds))) {
+            cancelEdit()
+            return .none
+        }
+        if titleField.update() {
+            titleValidationMessage = nil
+        }
+        if !IsKeyPressed(KeyboardKey.enter), !IsKeyPressed(KeyboardKey.kpEnter) {
+            return .none
+        }
+        let edited = titleField.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        titleValidationMessage = validateTitle?(edited)
+        if titleValidationMessage != nil {
+            return .none
+        }
+        _title = edited
+        isEditingTitle = false
+        return .renamed
+    }
+
+    // The title as it fits the room, cut with an ellipsis when it doesn't; kept until either changes.
+    private func shown(_ room: Float) -> String {
+        if shownFor == _title, shownRoom == room {
+            return shownTitle
+        }
+        (shownFor, shownRoom) = (_title, room)
+        shownTitle = _title
+        if Float(MeasureText(_title, WindowFrame.titleSize)) > room {
+            var length = _title.count
+            while length > 0 && Float(MeasureText(String(_title.prefix(length)) + WindowFrame.ellipsis, WindowFrame.titleSize)) > room {
+                length -= 1
+            }
+            shownTitle = String(_title.prefix(length)) + WindowFrame.ellipsis
+        }
+        return shownTitle
+    }
+
+    private static func closeBounds(_ bounds: Rectangle) -> Rectangle {
+        Rectangle(x: bounds.x + Float(margin) - 2, y: bounds.y + Float((titleHeight - closeHit) / 2), width: Float(closeHit), height: Float(closeHit))
+    }
+
+    // The title sits between the close button and the toolbar: centred in the window when it fits
+    // there, as macOS has it, and otherwise in all the room between them.
+    private func titleBounds(_ bounds: Rectangle) -> Rectangle {
+        let left = bounds.x + Float(WindowFrame.margin) + Float(WindowFrame.closeHit) + Float(WindowFrame.margin)
+        let right = _toolbar.count > 0 ? toolBounds(bounds, 0).x - Float(WindowFrame.margin) : bounds.x + bounds.width - Float(WindowFrame.margin)
+        let between = max(0.0, right - left)
+        let side = max(left - bounds.x, bounds.x + bounds.width - right)
+        let centred = max(0.0, bounds.width - (side * 2))
+        let wanted = isEditingTitle ? WindowFrame.editWidth : MeasureText(_title, WindowFrame.titleSize)
+        let (x, room) = centred >= Float(wanted) ? (bounds.x + ((bounds.width - centred) / 2), centred) : (left, between)
+        return Rectangle(x: x, y: bounds.y + 3, width: room, height: Float(WindowFrame.titleHeight - 6))
+    }
+
+    private func toolAt(_ point: Vector2, _ bounds: Rectangle) -> Int {
+        for i in 0..<_toolbar.count {
+            if CheckCollisionPointRec(point, toolBounds(bounds, i)) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    // The items run leftward from the bar's right end, the last first, as the button row does.
+    private func toolBounds(_ bounds: Rectangle, _ index: Int) -> Rectangle {
+        var right = bounds.x + bounds.width - Float(WindowFrame.margin)
+        for i in stride(from: _toolbar.count - 1, through: 0, by: -1) {
+            let width = MeasureText(_toolbar[i], WindowFrame.toolbarSize) + (WindowFrame.toolbarPadding * 2)
+            if i == index {
+                return Rectangle(x: right - Float(width), y: bounds.y + 4, width: Float(width), height: Float(WindowFrame.titleHeight - 8))
+            }
+            right -= Float(width + WindowFrame.toolbarGap)
+        }
+        return Rectangle()
+    }
+}
