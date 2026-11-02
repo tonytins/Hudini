@@ -9,6 +9,38 @@ import Foundation
 import Hudini
 import Raylib
 
+func drawHudIcon(_ index: Int, _ bounds: Rectangle, _ color: Color) {
+    let centerX = Int(bounds.x + (bounds.width / 2))
+    let centerY = Int(bounds.y + (bounds.height / 2))
+    switch index {
+    case 0:
+        DrawRectangle(centerX - 4, centerY - 12, 8, 8, color)
+        DrawRectangle(centerX - 7, centerY - 2, 14, 12, color)
+        DrawRectangle(centerX - 6, centerY + 12, 5, 6, color)
+        DrawRectangle(centerX + 1, centerY + 12, 5, 6, color)
+    case 1:
+        DrawRectangle(centerX - 12, centerY - 10, 24, 4, color)
+        DrawRectangle(centerX - 8, centerY - 14, 16, 4, color)
+        DrawRectangle(centerX - 4, centerY - 18, 8, 4, color)
+        DrawRectangleLinesEx(
+            Rectangle(x: Float(centerX - 9), y: Float(centerY - 6), width: 18, height: 20),
+            2,
+            color
+        )
+        DrawRectangle(centerX - 3, centerY + 5, 6, 9, color)
+    case 2:
+        DrawRectangle(centerX - 13, centerY - 2, 8, 16, color)
+        DrawRectangle(centerX - 3, centerY - 11, 8, 25, color)
+        DrawRectangle(centerX + 7, centerY - 6, 8, 20, color)
+    case 3:
+        DrawText("$", centerX - 7, centerY - 14, 28, color)
+    default:
+        DrawRectangle(centerX - 12, centerY - 3, 6, 6, color)
+        DrawRectangle(centerX - 3, centerY - 3, 6, 6, color)
+        DrawRectangle(centerX + 6, centerY - 3, 6, 6, color)
+    }
+}
+
 var screenshot: String?
 var arguments = CommandLine.arguments.dropFirst()
 while let argument = arguments.popFirst() {
@@ -49,6 +81,8 @@ let confirm = ConfirmPanel(theme: theme)
 var asking: Question?
 let notice = NoticePanel(theme: theme)
 let buttons = ["Cancel", "Apply"]
+let hudModeCount = 5
+var selectedHudMode = 0
 let form = FormLayout(
     fields: [
         .init(label: "Name", control: name),
@@ -65,6 +99,12 @@ while running && !WindowShouldClose() {
     let content = WindowFrame.content(in: bounds)
     form.layout(in: content)
     let mouse = GetMousePosition()
+    let screenBounds = Rectangle(
+        x: 0,
+        y: 0,
+        width: Float(GetScreenWidth()),
+        height: Float(GetScreenHeight())
+    )
 
     if let question = asking {
         switch confirm.update() {
@@ -81,23 +121,30 @@ while running && !WindowShouldClose() {
             break
         }
     } else if !notice.isOpen {
-        _ = frame.followPointer(in: bounds)
-        switch frame.update(in: bounds) {
-        case .close:
-            confirm.ask(title: "Close", message: "Close settings without saving?", confirmTitle: "Close", cancelTitle: "Keep")
-            asking = .close
-        case .toolbarItemSelected: frame.selectedToolbarIndex = frame.clickedToolbarIndex
-        default: break
-        }
-        if IsMouseButtonPressed(.left) {
-            if CheckCollisionPointRec(mouse, name.bounds) { focusOnName = true }
-            if CheckCollisionPointRec(mouse, description.bounds) { focusOnName = false }
-            if ButtonRow.buttonIndex(at: mouse, endingAt: form.buttonRowCorner, labels: buttons) == 1 {
-                confirm.ask(title: "Apply", message: "Save the changes to \(name.text)?", confirmTitle: "Save", cancelTitle: "Back")
-                asking = .apply
+        let clickedHudMode = IsMouseButtonPressed(.left)
+            ? IconToolbar.buttonIndex(at: mouse, itemCount: hudModeCount, in: screenBounds)
+            : nil
+        if let clickedHudMode {
+            selectedHudMode = clickedHudMode
+        } else {
+            _ = frame.followPointer(in: bounds)
+            switch frame.update(in: bounds) {
+            case .close:
+                confirm.ask(title: "Close", message: "Close settings without saving?", confirmTitle: "Close", cancelTitle: "Keep")
+                asking = .close
+            case .toolbarItemSelected: frame.selectedToolbarIndex = frame.clickedToolbarIndex
+            default: break
             }
+            if IsMouseButtonPressed(.left) {
+                if CheckCollisionPointRec(mouse, name.bounds) { focusOnName = true }
+                if CheckCollisionPointRec(mouse, description.bounds) { focusOnName = false }
+                if ButtonRow.buttonIndex(at: mouse, endingAt: form.buttonRowCorner, labels: buttons) == 1 {
+                    confirm.ask(title: "Apply", message: "Save the changes to \(name.text)?", confirmTitle: "Save", cancelTitle: "Back")
+                    asking = .apply
+                }
+            }
+            _ = focusOnName ? name.update() : description.update()
         }
-        _ = focusOnName ? name.update() : description.update()
     }
     _ = notice.update()
 
@@ -108,6 +155,14 @@ while running && !WindowShouldClose() {
     name.draw(isFocused: focusOnName)
     description.draw(isFocused: !focusOnName)
     ButtonRow.draw(labels: buttons, endingAt: form.buttonRowCorner, mousePosition: mouse, theme: theme)
+    IconToolbar.draw(
+        itemCount: hudModeCount,
+        selectedIndex: selectedHudMode,
+        mousePosition: mouse,
+        in: screenBounds,
+        theme: theme,
+        drawIcon: drawHudIcon
+    )
     if asking != nil { confirm.draw() }
     notice.draw()
     EndDrawing()

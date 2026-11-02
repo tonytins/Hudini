@@ -8,6 +8,7 @@ form layout.
 ## Features
 
 - Draggable windows with merged title bars and selectable toolbar items
+- Bottom-left icon toolbar with host-owned selection and custom icon drawing
 - Editable window titles with optional validation
 - Single-line and multiline text fields
 - Confirmation and notice panels

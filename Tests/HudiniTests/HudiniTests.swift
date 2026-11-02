@@ -123,3 +123,24 @@ import Testing
     layout.layout(in: Rectangle(x: 10, y: 20, width: 320, height: 240))
     #expect(name.bounds == layout.fields[0].controlBounds)
 }
+
+@Test func iconToolbarAnchorsButtonsAtTheBottomLeft() {
+    let screen = Rectangle(x: 0, y: 0, width: 800, height: 600)
+    let toolbar = IconToolbar.bounds(itemCount: 3, in: screen)
+    let first = IconToolbar.buttonBounds(at: 0, itemCount: 3, in: screen)
+    let last = IconToolbar.buttonBounds(at: 2, itemCount: 3, in: screen)
+
+    #expect(toolbar == Rectangle(x: 12, y: 534, width: 146, height: 54))
+    #expect(first == Rectangle(x: 18, y: 540, width: 42, height: 42))
+    #expect(last == Rectangle(x: 110, y: 540, width: 42, height: 42))
+    #expect(IconToolbar.buttonBounds(at: 3, itemCount: 3, in: screen) == nil)
+}
+
+@Test func iconToolbarReportsOnlyButtonHits() {
+    let screen = Rectangle(x: 0, y: 0, width: 800, height: 600)
+
+    #expect(IconToolbar.buttonIndex(at: Vector2(x: 30, y: 550), itemCount: 3, in: screen) == 0)
+    #expect(IconToolbar.buttonIndex(at: Vector2(x: 62, y: 550), itemCount: 3, in: screen) == nil)
+    #expect(IconToolbar.buttonIndex(at: Vector2(x: 790, y: 10), itemCount: 3, in: screen) == nil)
+    #expect(IconToolbar.buttonIndex(at: Vector2(x: 30, y: 550), itemCount: 0, in: screen) == nil)
+}
