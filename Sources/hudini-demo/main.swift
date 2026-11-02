@@ -49,6 +49,14 @@ let confirm = ConfirmPanel(theme: theme)
 var asking: Question?
 let notice = NoticePanel(theme: theme)
 let buttons = ["Cancel", "Apply"]
+let formFields = [
+    FormLayout.Field(label: "Name", controlHeight: Float(name.height)),
+    FormLayout.Field(label: "Description", controlHeight: Float(description.height(forLineCount: 4)))
+]
+let form = FormLayout(
+    fields: formFields,
+    footerHeight: Float(ButtonRow.rowHeight + 10)
+)
 var focusOnName = true
 
 var frames = 0
@@ -56,9 +64,9 @@ var running = true
 while running && !WindowShouldClose() {
     let bounds = frame.place(size: Vector2(x: 420, y: 300), at: Vector2(x: 60, y: 60))
     let content = WindowFrame.content(in: bounds)
-    let nameBox = Rectangle(x: content.x + 10, y: content.y + 34, width: content.width - 20, height: Float(name.height))
-    let descriptionBox = Rectangle(x: content.x + 10, y: nameBox.y + nameBox.height + 30, width: content.width - 20, height: Float(description.height(forLineCount: 4)))
-    let corner = Vector2(x: content.x + content.width - 10, y: content.y + content.height - 10)
+    form.layout(in: content)
+    let nameBounds = form.fields[0].controlBounds
+    let descriptionBounds = form.fields[1].controlBounds
     let mouse = GetMousePosition()
 
     if let question = asking {
@@ -85,9 +93,9 @@ while running && !WindowShouldClose() {
         default: break
         }
         if IsMouseButtonPressed(.left) {
-            if CheckCollisionPointRec(mouse, nameBox) { focusOnName = true }
-            if CheckCollisionPointRec(mouse, descriptionBox) { focusOnName = false }
-            if ButtonRow.buttonIndex(at: mouse, endingAt: corner, labels: buttons) == 1 {
+            if CheckCollisionPointRec(mouse, nameBounds) { focusOnName = true }
+            if CheckCollisionPointRec(mouse, descriptionBounds) { focusOnName = false }
+            if ButtonRow.buttonIndex(at: mouse, endingAt: form.buttonRowCorner, labels: buttons) == 1 {
                 confirm.ask(title: "Apply", message: "Save the changes to \(name.text)?", confirmTitle: "Save", cancelTitle: "Back")
                 asking = .apply
             }
@@ -99,11 +107,10 @@ while running && !WindowShouldClose() {
     BeginDrawing()
     ClearBackground(Color(r: 54, g: 84, b: 120, a: 255))
     frame.draw(in: bounds)
-    DrawText("Name", Int(content.x) + 10, Int(content.y) + 12, 16, theme.secondaryText)
-    name.draw(in: nameBox, isFocused: focusOnName)
-    DrawText("Description", Int(content.x) + 10, Int(nameBox.y + nameBox.height) + 8, 16, theme.secondaryText)
-    description.draw(in: descriptionBox, isFocused: !focusOnName)
-    ButtonRow.draw(labels: buttons, endingAt: corner, mousePosition: mouse, theme: theme)
+    form.drawLabels(theme: theme)
+    name.draw(in: nameBounds, isFocused: focusOnName)
+    description.draw(in: descriptionBounds, isFocused: !focusOnName)
+    ButtonRow.draw(labels: buttons, endingAt: form.buttonRowCorner, mousePosition: mouse, theme: theme)
     if asking != nil { confirm.draw() }
     notice.draw()
     EndDrawing()

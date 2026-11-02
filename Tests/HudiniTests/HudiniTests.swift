@@ -77,3 +77,25 @@ import Testing
     #expect(custom.accent == customAccent)
     #expect(custom.panel == standard.panel)
 }
+
+@Test func formLayoutStacksLabeledControlsAndReservesFooterSpace() {
+    let layout = FormLayout(
+        fields: [
+            .init(label: "Name", controlHeight: 24),
+            .init(label: "Description", controlHeight: 60)
+        ],
+        footerHeight: 40
+    )
+    layout.layout(in: Rectangle(x: 10, y: 20, width: 300, height: 200))
+
+    #expect(layout.fields[0].labelPosition == Vector2(x: 20, y: 32))
+    #expect(layout.fields[0].controlBounds == Rectangle(x: 20, y: 54, width: 280, height: 24))
+    #expect(layout.fields[1].labelPosition == Vector2(x: 20, y: 86))
+    #expect(layout.fields[1].controlBounds == Rectangle(x: 20, y: 108, width: 280, height: 60))
+    #expect(layout.buttonRowCorner == Vector2(x: 300, y: 210))
+
+    layout.layout(in: Rectangle(x: 30, y: 40, width: 400, height: 220))
+    #expect(layout.fields[0].labelPosition == Vector2(x: 40, y: 52))
+    #expect(layout.fields[0].controlBounds == Rectangle(x: 40, y: 74, width: 380, height: 24))
+    #expect(layout.buttonRowCorner == Vector2(x: 420, y: 250))
+}
