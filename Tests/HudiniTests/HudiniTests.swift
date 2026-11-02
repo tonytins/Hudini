@@ -125,15 +125,15 @@ import Testing
 }
 
 @Test func iconToolbarAnchorsButtonsAtTheBottomLeft() {
-    let screen = Rectangle(x: 0, y: 0, width: 800, height: 600)
-    let toolbar = IconToolbar.bounds(itemCount: 3, in: screen)
-    let first = IconToolbar.buttonBounds(at: 0, itemCount: 3, in: screen)
-    let last = IconToolbar.buttonBounds(at: 2, itemCount: 3, in: screen)
+    let panel = Rectangle(x: 12, y: 504, width: 776, height: 84)
+    let toolbar = IconToolbar.bounds(itemCount: 3, in: panel)
+    let first = IconToolbar.buttonBounds(at: 0, itemCount: 3, in: panel)
+    let last = IconToolbar.buttonBounds(at: 2, itemCount: 3, in: panel)
 
-    #expect(toolbar == Rectangle(x: 12, y: 534, width: 146, height: 54))
-    #expect(first == Rectangle(x: 18, y: 540, width: 42, height: 42))
-    #expect(last == Rectangle(x: 110, y: 540, width: 42, height: 42))
-    #expect(IconToolbar.buttonBounds(at: 3, itemCount: 3, in: screen) == nil)
+    #expect(toolbar == Rectangle(x: 24, y: 522, width: 146, height: 54))
+    #expect(first == Rectangle(x: 30, y: 528, width: 42, height: 42))
+    #expect(last == Rectangle(x: 122, y: 528, width: 42, height: 42))
+    #expect(IconToolbar.buttonBounds(at: 3, itemCount: 3, in: panel) == nil)
 }
 
 @Test func iconToolbarReportsOnlyButtonHits() {

@@ -102,7 +102,8 @@ CloseWindow()
 ```
 
 See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable example with
-text editing, toolbar selection, form layout, confirmation, and notices.
+text editing, toolbar selection, form layout, confirmation, and notices. The
+demo also explores a game interface inspired by The Sims.
 
 ## Supported Versions
 

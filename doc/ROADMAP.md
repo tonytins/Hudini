@@ -6,6 +6,10 @@ leaving room for game-specific interaction and Hudini's own visual language.
 The goal is to help a game build a clear, cohesive interface without hiding
 raylib or growing a general-purpose application UI framework.
 
+The demo explores an interface inspired by The Sims while Hudini remains a
+reusable, raylib-friendly library. Its API should support different kinds of
+games without imposing one game's layout or interaction model.
+
 Milestones use names from Apple's cat-named Mac OS X releases. The names are
 inspiration only; this project is independent and is not affiliated with Apple.
 Only Cheetah has planned work. Future milestones will be added when their scope
@@ -25,12 +29,16 @@ the library small, Swift-like, and easy to customize.
   update the demo to use it.
 - [x] Bind form fields directly to controls so layout assigns their bounds and
   callers can draw them without repeating frame lookups.
+- [x] Add a host-controlled icon toolbar and a single, fixed-height HUD panel
+  to the demo.
 - [x] Let a selected toolbar item also serve as a window drag area.
 
 ### Still to explore
 
-- [ ] Try the current API in its intended host game and note which call sites
-  still need repetitive setup or geometry calculations.
+- [ ] Continue building the Sims-inspired demo HUD with reusable components
+  while keeping game-specific composition in the demo.
+- [ ] Try the current API in host games and note which call sites still need
+  repetitive setup or geometry calculations.
 - [ ] Simplify the remaining common window and control setup where a focused
   Hudini helper improves the call site. Keep direct raylib drawing available
   for custom layouts and visuals.

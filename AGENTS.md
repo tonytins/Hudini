@@ -28,3 +28,14 @@ them, and `Tests/HudiniTests` covers their behavior.
   callers use a component.
 
 See [REVIEW.md](REVIEW.md) for the project's review checklist.
+
+## Personal Configuration
+
+Keep personal preferences and machine-specific guidance in git-ignored
+`*.local` files or directories, rather than in shared project instructions.
+Check for relevant local guidance before environment-specific work. You can
+create or update these files for details such as:
+
+- Coding preferences
+- Local build and development environment
+- Personal shortcuts or workflows

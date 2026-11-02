@@ -83,6 +83,8 @@ let notice = NoticePanel(theme: theme)
 let buttons = ["Cancel", "Apply"]
 let hudModeCount = 5
 var selectedHudMode = 0
+let hudPanelHeight: Float = 84
+let hudPanelInset: Float = 12
 let form = FormLayout(
     fields: [
         .init(label: "Name", control: name),
@@ -105,6 +107,12 @@ while running && !WindowShouldClose() {
         width: Float(GetScreenWidth()),
         height: Float(GetScreenHeight())
     )
+    let hudPanelBounds = Rectangle(
+        x: hudPanelInset,
+        y: screenBounds.height - hudPanelHeight - hudPanelInset,
+        width: max(0, screenBounds.width - (hudPanelInset * 2)),
+        height: hudPanelHeight
+    )
 
     if let question = asking {
         switch confirm.update() {
@@ -122,7 +130,7 @@ while running && !WindowShouldClose() {
         }
     } else if !notice.isOpen {
         let clickedHudMode = IsMouseButtonPressed(.left)
-            ? IconToolbar.buttonIndex(at: mouse, itemCount: hudModeCount, in: screenBounds)
+            ? IconToolbar.buttonIndex(at: mouse, itemCount: hudModeCount, in: hudPanelBounds)
             : nil
         if let clickedHudMode {
             selectedHudMode = clickedHudMode
@@ -150,6 +158,8 @@ while running && !WindowShouldClose() {
 
     BeginDrawing()
     ClearBackground(Color(r: 54, g: 84, b: 120, a: 255))
+    DrawRectangleRec(hudPanelBounds, theme.panel)
+    DrawRectangleLinesEx(hudPanelBounds, 1, theme.border)
     frame.draw(in: bounds)
     form.drawLabels(theme: theme)
     name.draw(isFocused: focusOnName)
@@ -159,8 +169,9 @@ while running && !WindowShouldClose() {
         itemCount: hudModeCount,
         selectedIndex: selectedHudMode,
         mousePosition: mouse,
-        in: screenBounds,
+        in: hudPanelBounds,
         theme: theme,
+        showsBackground: false,
         drawIcon: drawHudIcon
     )
     if asking != nil { confirm.draw() }
