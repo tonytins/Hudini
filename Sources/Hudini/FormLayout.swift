@@ -1,5 +1,17 @@
 import Raylib
 
+/// A control that can be positioned by a `FormLayout`.
+public protocol FormLayoutControl: AnyObject {
+    /// The control's default height in a form.
+    var formHeight: Float { get }
+
+    /// The control's most recently assigned bounds.
+    var bounds: Rectangle { get }
+
+    /// Assigns the bounds calculated by a form.
+    func place(in bounds: Rectangle)
+}
+
 /// Calculates label and control positions for a vertically stacked form.
 public final class FormLayout {
     private static let labelFontSize: Int = 16
@@ -17,13 +29,24 @@ public final class FormLayout {
     /// A labeled control's height in the form.
     public struct Field {
         public let label: String
-        public let controlHeight: Float
+        public let control: any FormLayoutControl
+        public let height: Float
 
-        /// Creates a field description.
-        public init(label: String, controlHeight: Float) {
-            precondition(controlHeight > 0, "controlHeight must be positive")
+        /// Creates a field using the control's default form height.
+        public init(label: String, control: any FormLayoutControl) {
+            let height = control.formHeight
+            precondition(height > 0, "control formHeight must be positive")
             self.label = label
-            self.controlHeight = controlHeight
+            self.control = control
+            self.height = height
+        }
+
+        /// Creates a field with a custom control height.
+        public init(label: String, control: any FormLayoutControl, height: Float) {
+            precondition(height > 0, "height must be positive")
+            self.label = label
+            self.control = control
+            self.height = height
         }
     }
 
@@ -73,7 +96,10 @@ public final class FormLayout {
     ///
     /// Repeated calls with unchanged bounds do not recalculate the layout.
     public func layout(in bounds: Rectangle) {
-        guard lastBounds != bounds else {
+        if lastBounds == bounds {
+            for (description, field) in zip(descriptions, fields) {
+                description.control.place(in: field.controlBounds)
+            }
             return
         }
         precondition(
@@ -91,14 +117,15 @@ public final class FormLayout {
                 x: bounds.x + horizontalInset,
                 y: controlY,
                 width: bounds.width - (horizontalInset * 2),
-                height: description.controlHeight
+                height: description.height
             )
+            description.control.place(in: controlBounds)
             fields.append(FieldFrames(
                 label: description.label,
                 labelPosition: labelPosition,
                 controlBounds: controlBounds
             ))
-            top = controlY + description.controlHeight + fieldSpacing
+            top = controlY + description.height + fieldSpacing
         }
 
         let fieldsBottom = fields.last.map { $0.controlBounds.y + $0.controlBounds.height }

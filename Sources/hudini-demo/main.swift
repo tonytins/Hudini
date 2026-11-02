@@ -49,12 +49,11 @@ let confirm = ConfirmPanel(theme: theme)
 var asking: Question?
 let notice = NoticePanel(theme: theme)
 let buttons = ["Cancel", "Apply"]
-let formFields = [
-    FormLayout.Field(label: "Name", controlHeight: Float(name.height)),
-    FormLayout.Field(label: "Description", controlHeight: Float(description.height(forLineCount: 4)))
-]
 let form = FormLayout(
-    fields: formFields,
+    fields: [
+        .init(label: "Name", control: name),
+        .init(label: "Description", control: description)
+    ],
     footerHeight: Float(ButtonRow.rowHeight + 10)
 )
 var focusOnName = true
@@ -65,8 +64,6 @@ while running && !WindowShouldClose() {
     let bounds = frame.place(size: Vector2(x: 420, y: 300), at: Vector2(x: 60, y: 60))
     let content = WindowFrame.content(in: bounds)
     form.layout(in: content)
-    let nameBounds = form.fields[0].controlBounds
-    let descriptionBounds = form.fields[1].controlBounds
     let mouse = GetMousePosition()
 
     if let question = asking {
@@ -93,8 +90,8 @@ while running && !WindowShouldClose() {
         default: break
         }
         if IsMouseButtonPressed(.left) {
-            if CheckCollisionPointRec(mouse, nameBounds) { focusOnName = true }
-            if CheckCollisionPointRec(mouse, descriptionBounds) { focusOnName = false }
+            if CheckCollisionPointRec(mouse, name.bounds) { focusOnName = true }
+            if CheckCollisionPointRec(mouse, description.bounds) { focusOnName = false }
             if ButtonRow.buttonIndex(at: mouse, endingAt: form.buttonRowCorner, labels: buttons) == 1 {
                 confirm.ask(title: "Apply", message: "Save the changes to \(name.text)?", confirmTitle: "Save", cancelTitle: "Back")
                 asking = .apply
@@ -108,8 +105,8 @@ while running && !WindowShouldClose() {
     ClearBackground(Color(r: 54, g: 84, b: 120, a: 255))
     frame.draw(in: bounds)
     form.drawLabels(theme: theme)
-    name.draw(in: nameBounds, isFocused: focusOnName)
-    description.draw(in: descriptionBounds, isFocused: !focusOnName)
+    name.draw(isFocused: focusOnName)
+    description.draw(isFocused: !focusOnName)
     ButtonRow.draw(labels: buttons, endingAt: form.buttonRowCorner, mousePosition: mouse, theme: theme)
     if asking != nil { confirm.draw() }
     notice.draw()

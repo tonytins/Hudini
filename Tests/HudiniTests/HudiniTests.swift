@@ -79,10 +79,12 @@ import Testing
 }
 
 @Test func formLayoutStacksLabeledControlsAndReservesFooterSpace() {
+    let name = TextField(maximumLength: 20)
+    let description = TextField(maximumLength: 80)
     let layout = FormLayout(
         fields: [
-            .init(label: "Name", controlHeight: 24),
-            .init(label: "Description", controlHeight: 60)
+            .init(label: "Name", control: name, height: 24),
+            .init(label: "Description", control: description, height: 60)
         ],
         footerHeight: 40
     )
@@ -90,12 +92,34 @@ import Testing
 
     #expect(layout.fields[0].labelPosition == Vector2(x: 20, y: 32))
     #expect(layout.fields[0].controlBounds == Rectangle(x: 20, y: 54, width: 280, height: 24))
+    #expect(name.bounds == layout.fields[0].controlBounds)
     #expect(layout.fields[1].labelPosition == Vector2(x: 20, y: 86))
     #expect(layout.fields[1].controlBounds == Rectangle(x: 20, y: 108, width: 280, height: 60))
+    #expect(description.bounds == layout.fields[1].controlBounds)
     #expect(layout.buttonRowCorner == Vector2(x: 300, y: 210))
 
     layout.layout(in: Rectangle(x: 30, y: 40, width: 400, height: 220))
     #expect(layout.fields[0].labelPosition == Vector2(x: 40, y: 52))
     #expect(layout.fields[0].controlBounds == Rectangle(x: 40, y: 74, width: 380, height: 24))
     #expect(layout.buttonRowCorner == Vector2(x: 420, y: 250))
+}
+
+@Test func formLayoutPlacesBoundControls() {
+    let name = TextField(text: "Player", maximumLength: 24)
+    let description = TextArea(text: "A place to explore.", maximumLength: 200, width: 300)
+    let layout = FormLayout(fields: [
+        .init(label: "Name", control: name),
+        .init(label: "Description", control: description)
+    ])
+
+    layout.layout(in: Rectangle(x: 10, y: 20, width: 320, height: 240))
+
+    #expect(name.bounds == layout.fields[0].controlBounds)
+    #expect(description.bounds == layout.fields[1].controlBounds)
+    #expect(name.bounds.height == Float(name.height))
+    #expect(description.bounds.height == Float(description.height(forLineCount: 4)))
+
+    name.place(in: Rectangle())
+    layout.layout(in: Rectangle(x: 10, y: 20, width: 320, height: 240))
+    #expect(name.bounds == layout.fields[0].controlBounds)
 }

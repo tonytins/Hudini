@@ -3,7 +3,7 @@ import Raylib
 
 /// A multiline text box that wraps input to its width and keeps the caret at the end.
 /// The built-in raylib font draws printable ASCII, so other characters are ignored.
-public final class TextArea {
+public final class TextArea: FormLayoutControl {
     private static let padding: Int = 6
 
     private static let lineGap: Int = 4
@@ -19,6 +19,9 @@ public final class TextArea {
     private var lines: [String] = []
 
     private let theme: InterfaceTheme
+
+    /// The area's most recently assigned bounds.
+    public private(set) var bounds = Rectangle()
 
     /// Creates a box with a character limit, font size, and wrapping width.
     public init(
@@ -55,6 +58,16 @@ public final class TextArea {
     /// Returns the height required to display the given number of lines.
     public func height(forLineCount lineCount: Int) -> Int {
         (lineCount * (fontSize + TextArea.lineGap)) - TextArea.lineGap + (TextArea.padding * 2)
+    }
+
+    /// The area's default four-line height when used in a `FormLayout`.
+    public var formHeight: Float {
+        Float(height(forLineCount: 4))
+    }
+
+    /// Assigns the area's bounds, for example when placing it in a `FormLayout`.
+    public func place(in bounds: Rectangle) {
+        self.bounds = bounds
     }
 
     /// Takes this frame's typing and reports whether the text changed.
@@ -95,6 +108,11 @@ public final class TextArea {
             let caretY = Int(clamping: bounds.y) + TextArea.padding + ((max(lines.count, 1) - 1 - first) * (fontSize + TextArea.lineGap))
             DrawRectangle(x + MeasureText(last, fontSize) + 2, caretY, 2, fontSize, theme.text)
         }
+    }
+
+    /// Draws the area in its most recently assigned bounds.
+    public func draw(isFocused: Bool) {
+        draw(in: bounds, isFocused: isFocused)
     }
 
     private func wrap() {

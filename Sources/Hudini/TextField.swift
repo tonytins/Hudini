@@ -4,7 +4,7 @@ import Raylib
 /// A one-line text box: it takes typed characters while it has focus, and Backspace removes the
 /// last one, repeating while held. Raylib's built-in font draws only printable ASCII, so other
 /// characters are not taken.
-public final class TextField {
+public final class TextField: FormLayoutControl {
     private static let defaultFontSize: Int = 20
 
     private static let padding: Int = 6
@@ -18,6 +18,9 @@ public final class TextField {
     private let fontSize: Int
 
     private let theme: InterfaceTheme
+
+    /// The field's most recently assigned bounds.
+    public private(set) var bounds = Rectangle()
 
     /// Creates a field that accepts at most `maximumLength` characters.
     public init(
@@ -64,6 +67,16 @@ public final class TextField {
         fontSize + (TextField.padding * 2)
     }
 
+    /// The field's default height when used in a `FormLayout`.
+    public var formHeight: Float {
+        Float(height)
+    }
+
+    /// Assigns the field's bounds, for example when placing it in a `FormLayout`.
+    public func place(in bounds: Rectangle) {
+        self.bounds = bounds
+    }
+
     /// Takes this frame's typing and reports whether the text changed.
     public func update() -> Bool {
         let length = _text.count
@@ -92,6 +105,11 @@ public final class TextField {
             let caretX = x + MeasureText(text, fontSize) + 2
             DrawRectangle(caretX, y, 2, fontSize, theme.text)
         }
+    }
+
+    /// Draws the field in its most recently assigned bounds.
+    public func draw(isFocused: Bool) {
+        draw(in: bounds, isFocused: isFocused)
     }
 
     private func add(_ c: Character) {

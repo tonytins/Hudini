@@ -23,6 +23,8 @@ the library small, Swift-like, and easy to customize.
   `InterfaceTheme`, while keeping the original palette as the standard theme.
 - [x] Add an initial `FormLayout` for vertically stacked, labeled controls, and
   update the demo to use it.
+- [x] Bind form fields directly to controls so layout assigns their bounds and
+  callers can draw them without repeating frame lookups.
 - [x] Let a selected toolbar item also serve as a window drag area.
 
 ### Still to explore
