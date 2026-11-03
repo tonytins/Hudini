@@ -2,7 +2,7 @@
 // here stay with what doesn't draw: the camera's math and what the text boxes accept.
 
 import Foundation
-import Hudini
+@testable import Hudini
 import Raylib
 import Testing
 
@@ -628,6 +628,22 @@ private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangl
     #expect(oldest == Rectangle(x: 11, y: 101, width: 10, height: 25))
 }
 
+@Test func scrollingToAFractionMatchesTheThumbPosition() {
+    let (list, _) = scrollableList(itemCount: 20)
+
+    list.scroll(toFraction: 0)
+    #expect(list.scrollOffset == 15)
+    #expect(list.scrollFraction == 0)
+    list.scroll(toFraction: 1)
+    #expect(list.scrollOffset == 0)
+    list.scroll(toFraction: 0.6)
+    #expect(list.scrollOffset == 6)
+    list.scroll(toFraction: 5)
+    #expect(list.scrollOffset == 0)
+    list.scroll(toFraction: .nan)
+    #expect(list.scrollOffset == 0)
+}
+
 @Test func scrollThumbFillsTheTrackWhenEverythingFits() {
     let (list, _) = scrollableList(itemCount: 2)
     let thumb = list.scrollThumbBounds(in: Rectangle(x: 0, y: 0, width: 10, height: 52))
@@ -980,20 +996,105 @@ private func uis(_ text: String) throws -> UIScript {
     #expect(loaded.control(named: "Middle")?.alignment == .center)
 }
 
-@Test func uisTurnsPlacedSettingsIntoVisualsAndRegionsAndReportsTheRest() throws {
+@Test func uisKeepsEverySettingForGameCodeToRead() throws {
     let loaded = try uis("""
     <DefineImage "ArtImg" path="art.bmp">
-    <SetControlProperties "Backdrop" image="ArtImg" position=(1,2)>
+    <Begin><SetSharedProperties stringDir="UIText" stringTable=1 tint=(9,9,9)>
+    <SetControlProperties "Backdrop" image="artimg" position=(1,2)>
     <SetControlProperties "PeopleSetup" position=(5,6) size=(7,8) pageSize=16>
-    <SetControlProperties "Colors" normal=(1,1,1)>
-    <AddProgressBar "Loading" position=(0,0)>
+    <SetControlProperties "Colors" normal=(1,2,3) label="Pale">
+    <End>
     """)
 
-    #expect(loaded.visual(named: "Backdrop")?.image == "ArtImg")
-    #expect(loaded.control(named: "PeopleSetup")?.type == .region)
-    #expect(loaded.ignoredAttributes.map(\.attribute) == ["pagesize"])
-    #expect(loaded.conversionNotes.map(\.name) == ["Colors", "Loading"])
-    #expect(loaded.conversionNotes.map(\.line) == [4, 5])
+    let backdrop = try #require(loaded.setting(named: "BACKDROP"))
+    #expect(backdrop.name == "Backdrop")
+    #expect(backdrop.line == 3)
+    #expect(backdrop.image == "ArtImg")
+    #expect(backdrop.position == Vector2(x: 1, y: 2))
+    #expect(backdrop.size == nil)
+    #expect(backdrop.string("stringDir") == nil)
+    #expect(backdrop.numbers("Tint") == [9, 9, 9])
+
+    let people = try #require(loaded.setting(named: "PeopleSetup"))
+    #expect(people.size?.width == 7)
+    #expect(people.number("pageSize") == 16)
+
+    let colors = try #require(loaded.setting(named: "Colors"))
+    #expect(colors.numbers("normal") == [1, 2, 3])
+    #expect(colors.string("label") == "Pale")
+    #expect(colors.number("label") == nil)
+    #expect(colors.numbers("label") == nil)
+
+    #expect(loaded.setting(named: "Missing") == nil)
+    #expect(loaded.ignoredAttributes.isEmpty)
+    #expect(loaded.conversionNotes.isEmpty)
+}
+
+@Test func uisSettingsStayHiddenUntilTheHostAsks() throws {
+    let loaded = try uis("""
+    <DefineImage "ArtImg" path="art.bmp">
+    <SetControlProperties "Frame1" image="ArtImg" position=(1,2) size=(10,10)>
+    <SetControlProperties "Frame2" image="ArtImg" position=(1,2) size=(10,10)>
+    <SetControlProperties "Spot" position=(50,60) size=(10,10)>
+    <AddText "Plain" position=(0,0) size=(1,1)>
+    """)
+    let view = UIScriptView(script: loaded)
+    let inFrame = Vector2(x: 5, y: 5)
+    let inSpot = Vector2(x: 55, y: 65)
+
+    #expect(loaded.visual(named: "Frame1")?.isInitiallyHidden == true)
+    #expect(loaded.control(named: "Spot")?.type == .region)
+    #expect(loaded.control(named: "Spot")?.isInitiallyHidden == true)
+    #expect(loaded.control(named: "Plain")?.isInitiallyHidden == false)
+    #expect(view.isHidden(named: "Frame1"))
+    #expect(view.isHidden(named: "Spot"))
+    #expect(!view.isHidden(named: "Plain"))
+    #expect(!view.containsPoint(inFrame, origin: .zero))
+    #expect(!view.containsPoint(inSpot, origin: .zero))
+
+    view.setHidden(false, named: "Frame2")
+    view.setHidden(false, named: "Spot")
+    #expect(view.isHidden(named: "Frame1"))
+    #expect(view.containsPoint(inFrame, origin: .zero))
+    #expect(view.containsPoint(inSpot, origin: .zero))
+}
+
+@Test func uisReportsADuplicateOrUnnamedSetting() throws {
+    let loaded = try uis("""
+    <SetControlProperties "Spot" number=1>
+    <SetControlProperties "SPOT" number=2>
+    <SetControlProperties number=3>
+    """)
+
+    #expect(loaded.setting(named: "spot")?.number("number") == 1)
+    #expect(loaded.conversionNotes.map(\.line) == [2, 3])
+}
+
+@Test func uisReadsSlidersAndProgressBars() throws {
+    let loaded = try uis("""
+    <AddSlider "Across" position=(0,0) size=(100,10) orientation=0 minValue=2 maxValue=12>
+    <AddSlider "Down" position=(0,0) size=(10,100) orientation=1>
+    <AddSlider "Odd" position=(0,0) size=(10,100) orientation=7 minValue=5 maxValue=5>
+    <AddProgressBar "Score" position=(0,0) size=(100,10) maxValue=50>
+    <AddProgressBar "Unsized" position=(0,0)>
+    """)
+
+    #expect(loaded.control(named: "Across")?.orientation == .horizontal)
+    #expect(loaded.control(named: "Across")?.valueRange == 2...12)
+    #expect(loaded.control(named: "Down")?.orientation == .vertical)
+    #expect(loaded.control(named: "Down")?.valueRange == nil)
+    #expect(loaded.control(named: "Odd")?.orientation == nil)
+    #expect(loaded.control(named: "Odd")?.valueRange == nil)
+    #expect(loaded.control(named: "Score")?.type == .progressBar)
+    #expect(loaded.control(named: "Score")?.valueRange == 0...50)
+    #expect(loaded.conversionNotes.map(\.name) == ["Odd", "Odd", "Unsized"])
+}
+
+@Test func uisKeepsTagsWithoutAnEquivalentInItsNotes() throws {
+    let loaded = try uis("<AddMystery \"Thing\" position=(0,0)>")
+
+    #expect(loaded.controls.isEmpty)
+    #expect(loaded.conversionNotes.map(\.name) == ["Thing"])
 }
 
 @Test func uisReportsWhatItCannotRepresentWithoutFailing() throws {
@@ -1059,11 +1160,13 @@ func uisReadsEveryLocalFile() throws {
     var attributeCounts: [String: Int] = [:]
     var controlCount = 0
     var visualCount = 0
+    var settingCount = 0
     for file in files {
         do {
             let script = try UIScript(uisContentsOf: file)
             controlCount += script.controls.count
             visualCount += script.visuals.count
+            settingCount += script.settings.count
             for note in script.conversionNotes {
                 let message = note.message.replacingOccurrences(of: "'[^']*'", with: "'...'", options: .regularExpression)
                 noteCounts[message, default: 0] += 1
@@ -1075,7 +1178,7 @@ func uisReadsEveryLocalFile() throws {
             Issue.record("\(file.lastPathComponent): \(error.localizedDescription)")
         }
     }
-    print("Read \(files.count) .uis files: \(controlCount) controls, \(visualCount) visuals")
+    print("Read \(files.count) .uis files: \(controlCount) controls, \(visualCount) visuals, \(settingCount) settings")
     for (message, count) in noteCounts.sorted(by: { $0.value > $1.value }) {
         print("  \(count)x \(message)")
     }
@@ -1129,5 +1232,239 @@ func uisReadsEveryLocalFile() throws {
     #expect(loaded.control(named: "b")?.alignment == .left)
     #expect(throws: UIScriptError.invalidAttribute(element: "Text", attribute: "alignment", value: "middle", line: 1)) {
         try script("<Text name='a' \(tenByTen) alignment='middle'/>")
+    }
+}
+
+// MARK: Leopard view features
+
+private let sliders = """
+<Slider name='across' x='0' y='0' width='102' height='10' minValue='10' maxValue='20'/>
+<Slider name='down' x='200' y='0' width='10' height='102'/>
+<Slider name='forced' x='300' y='0' width='10' height='102' orientation='horizontal'/>
+<ProgressBar name='score' x='0' y='50' width='100' height='10' maxValue='50'/>
+<Button name='plain' x='0' y='100' width='10' height='10'/>
+"""
+
+@Test func uiScriptReadsSlidersAndProgressBars() throws {
+    let loaded = try script(sliders)
+
+    #expect(loaded.control(named: "across")?.valueRange == 10...20)
+    #expect(loaded.control(named: "down")?.valueRange == nil)
+    #expect(loaded.control(named: "forced")?.orientation == .horizontal)
+    #expect(loaded.control(named: "score")?.type == .progressBar)
+    #expect(loaded.control(named: "score")?.valueRange == 0...50)
+}
+
+@Test func uiScriptRejectsBadValueRangesAndOrientations() {
+    #expect(throws: UIScriptError.invalidValueRange(owner: "a")) {
+        try script("<Slider name='a' \(tenByTen) minValue='5' maxValue='5'/>")
+    }
+    #expect(throws: UIScriptError.invalidValueRange(owner: "a")) {
+        try script("<Text name='a' \(tenByTen) maxValue='5'/>")
+    }
+    #expect(throws: UIScriptError.invalidOrientation(owner: "a")) {
+        try script("<Text name='a' \(tenByTen) orientation='vertical'/>")
+    }
+    #expect(throws: UIScriptError.invalidAttribute(element: "Slider", attribute: "orientation", value: "sideways", line: 1)) {
+        try script("<Slider name='a' \(tenByTen) orientation='sideways'/>")
+    }
+}
+
+@Test func uiScriptReadsAFillColor() throws {
+    let loaded = try script("<Style name='s' fillColor='#102030'/>")
+
+    #expect(loaded.styles["s"]?.fillColor == Color(r: 16, g: 32, b: 48, a: 255))
+}
+
+@Test func valuesStartAtTheLowestAndStayInRange() throws {
+    let view = UIScriptView(script: try script(sliders))
+
+    #expect(view.value(named: "across") == 10)
+    #expect(view.value(named: "score") == 0)
+    #expect(view.value(named: "plain") == nil)
+
+    view.setValue(99, named: "across")
+    #expect(view.value(named: "across") == 20)
+    view.setValue(-99, named: "across")
+    #expect(view.value(named: "across") == 10)
+    view.setValue(.nan, named: "across")
+    #expect(view.value(named: "across") == 10)
+    view.setValue(25, named: "score")
+    #expect(view.value(named: "score") == 25)
+    view.setValue(5, named: "plain")
+    #expect(view.value(named: "plain") == nil)
+}
+
+@Test func sliderFractionStaysInsideTheTrack() {
+    func fraction(_ pointer: Float) -> Float {
+        UIScriptView.sliderFraction(pointer: pointer, trackStart: 100, trackLength: 102, thumbLength: 10, grab: 5)
+    }
+
+    #expect(fraction(0) == 0)
+    #expect(fraction(106) == 0)
+    #expect(fraction(151) == 0.5)
+    #expect(fraction(196) == 1)
+    #expect(fraction(999) == 1)
+    #expect(UIScriptView.sliderFraction(pointer: 5, trackStart: 0, trackLength: 10, thumbLength: 10, grab: 0) == 0)
+}
+
+@Test func draggingAHorizontalSliderReportsItsNewValue() throws {
+    let view = UIScriptView(script: try script(sliders))
+    let origin = Vector2(x: 1000, y: 1000)
+
+    // The track's middle: a press away from the thumb centers it on the pointer.
+    #expect(view.beginSliderDrag(at: Vector2(x: 1051, y: 1005), origin: origin))
+    #expect(view.dragSlider(to: Vector2(x: 1051, y: 1005), origin: origin) == .changed(control: "across", value: 15))
+    #expect(view.value(named: "across") == 15)
+
+    // A pointer that has not moved reports nothing.
+    #expect(view.dragSlider(to: Vector2(x: 1051, y: 1005), origin: origin) == nil)
+
+    // The drag continues outside the track, and vertical movement does not matter.
+    #expect(view.dragSlider(to: Vector2(x: 5000, y: 0), origin: origin) == .changed(control: "across", value: 20))
+}
+
+@Test func slidersFollowTheirOrientationOrShape() throws {
+    let view = UIScriptView(script: try script(sliders))
+
+    #expect(view.beginSliderDrag(at: Vector2(x: 205, y: 51), origin: .zero))
+    #expect(view.dragSlider(to: Vector2(x: 205, y: 51), origin: .zero) == .changed(control: "down", value: 0.5))
+
+    #expect(view.beginSliderDrag(at: Vector2(x: 305, y: 51), origin: .zero))
+    // This tall track is forced horizontal, so its little width leaves the thumb no room.
+    #expect(view.dragSlider(to: Vector2(x: 305, y: 51), origin: .zero) == nil)
+    #expect(view.value(named: "forced") == 0)
+}
+
+@Test func hiddenAndDisabledSlidersCannotBeDragged() throws {
+    let view = UIScriptView(script: try script(sliders))
+    let point = Vector2(x: 51, y: 5)
+
+    #expect(!view.beginSliderDrag(at: Vector2(x: 500, y: 500), origin: .zero))
+    view.setDisabled(true, named: "across")
+    #expect(!view.beginSliderDrag(at: point, origin: .zero))
+    view.setDisabled(false, named: "across")
+    view.setHidden(true, named: "across")
+    #expect(!view.beginSliderDrag(at: point, origin: .zero))
+    view.setHidden(false, named: "across")
+
+    #expect(view.beginSliderDrag(at: point, origin: .zero))
+    view.setHidden(true, named: "across")
+    #expect(view.dragSlider(to: point, origin: .zero) == nil)
+    #expect(view.value(named: "across") == 10)
+}
+
+@Test func setBoundsReplacesADocumentPositionAndOffsets() throws {
+    let view = UIScriptView(script: try script("""
+    <Region name='r' x='0' y='0' width='20' height='10' edgeOffsetRight='5'/>
+    """))
+
+    view.setBounds(Rectangle(x: 1, y: 2, width: 3, height: 4), named: "r")
+    #expect(view.bounds(named: "r", at: Vector2(x: 10, y: 20)) == Rectangle(x: 11, y: 22, width: 3, height: 4))
+}
+
+private let tooltipBody = """
+<String name='tip' table='t' index='1'/>
+<String name='empty' table='t' index='2'/>
+<Button name='under' x='0' y='0' width='50' height='50' tooltip='tip'/>
+<Button name='blank' x='100' y='0' width='50' height='50' tooltip='empty'/>
+<Button name='bare' x='200' y='0' width='50' height='50'/>
+<Text name='cover' x='0' y='0' width='10' height='10'/>
+"""
+
+private func tooltipView() throws -> UIScriptView {
+    UIScriptView(script: try script(tooltipBody), resolveString: { $0.index == 1 ? "Hello" : "" })
+}
+
+@Test func tooltipsWaitForThePointerToRest() throws {
+    let view = try tooltipView()
+    let over = Vector2(x: 25, y: 25)
+
+    view.updateTooltip(pointer: over, origin: .zero, elapsed: 0.2)
+    #expect(view.pendingTooltip == nil)
+    view.updateTooltip(pointer: over, origin: .zero, elapsed: 0.4)
+    #expect(view.pendingTooltip == "under")
+
+    // A held button starts the wait again.
+    view.updateTooltip(pointer: over, origin: .zero, elapsed: -.infinity)
+    #expect(view.pendingTooltip == nil)
+
+    view.updateTooltip(pointer: over, origin: .zero, elapsed: 1)
+    #expect(view.pendingTooltip == "under")
+    view.updateTooltip(pointer: Vector2(x: 500, y: 500), origin: .zero, elapsed: 1)
+    #expect(view.pendingTooltip == nil)
+    view.updateTooltip(pointer: over, origin: .zero, elapsed: 0.1)
+    #expect(view.pendingTooltip == nil)
+}
+
+@Test func onlyTheTopmostVisibleControlShowsItsTooltip() throws {
+    let view = try tooltipView()
+    let covered = Vector2(x: 5, y: 5)
+
+    view.updateTooltip(pointer: covered, origin: .zero, elapsed: 1)
+    #expect(view.pendingTooltip == nil)
+    view.setHidden(true, named: "cover")
+    view.updateTooltip(pointer: covered, origin: .zero, elapsed: 1)
+    #expect(view.pendingTooltip == "under")
+    view.setHidden(true, named: "under")
+    view.updateTooltip(pointer: covered, origin: .zero, elapsed: 1)
+    #expect(view.pendingTooltip == nil)
+
+    for point in [Vector2(x: 125, y: 25), Vector2(x: 225, y: 25)] {
+        view.updateTooltip(pointer: point, origin: .zero, elapsed: 1)
+        #expect(view.pendingTooltip == nil)
+    }
+}
+
+@Test func tooltipsStayOnScreen() {
+    let screen = Vector2(x: 200, y: 200)
+    let control = Rectangle(x: 10, y: 10, width: 20, height: 20)
+
+    let below = UIScriptView.tooltipBounds(textWidth: 50, below: control, screen: screen)
+    #expect(below == Rectangle(x: 10, y: 34, width: 58, height: 20))
+
+    let nearBottom = Rectangle(x: 10, y: 180, width: 20, height: 20)
+    let above = UIScriptView.tooltipBounds(textWidth: 50, below: nearBottom, screen: screen)
+    #expect(above.y == 156)
+
+    let nearRight = Rectangle(x: 190, y: 10, width: 10, height: 10)
+    #expect(UIScriptView.tooltipBounds(textWidth: 50, below: nearRight, screen: screen).x == 142)
+    #expect(UIScriptView.tooltipBounds(textWidth: 500, below: nearRight, screen: screen).x == 0)
+}
+
+@Test func clearFocusRemovesFocusFromTextFields() throws {
+    let view = UIScriptView(script: try script("<TextField name='a' \(tenByTen)/>"))
+    let field = try #require(view.textField(named: "a"))
+
+    field.setFocused(true)
+    #expect(field.isFocused)
+    view.clearFocus()
+    #expect(!field.isFocused)
+}
+
+@Test func theDemoStandWorksFromItsSettingsInEitherPlace() throws {
+    let stand = try UIScript(uisContentsOf: demoResource("lemonadestand.uis"))
+    let view = UIScriptView(script: stand)
+
+    #expect(stand.conversionNotes.isEmpty)
+    #expect(stand.ignoredAttributes.isEmpty)
+    #expect(stand.setting(named: "PanelPosition")?.position == Vector2(x: 165, y: 32))
+    #expect(view.isHidden(named: "StandOpenArt"))
+    #expect(view.isHidden(named: "StandClosedArt"))
+    #expect(stand.control(named: "PriceSlider")?.valueRange == 1...10)
+    #expect(stand.control(named: "StockBar")?.type == .progressBar)
+
+    // The document fixes nothing about where it goes, so its parts follow the origin.
+    let inPanel = try #require(view.bounds(named: "ServeButton", at: Vector2(x: 165, y: 640)))
+    let inWindow = try #require(view.bounds(named: "ServeButton", at: Vector2(x: 500, y: 90)))
+    #expect(inPanel.width == inWindow.width)
+    #expect(inWindow.x - inPanel.x == 335)
+}
+
+@Test func theDemoModePanelsLoadCleanly() throws {
+    for name in ["statspanel.xml", "optionspanel.xml"] {
+        let panel = try UIScript(contentsOf: demoResource(name))
+        #expect(panel.ignoredAttributes.isEmpty)
+        #expect(panel.window.size.height == 160)
     }
 }

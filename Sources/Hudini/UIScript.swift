@@ -34,6 +34,12 @@ public struct UIScript: Sendable {
     /// The controls in document order.
     public let controls: [Control]
 
+    /// Every `SetControlProperties` entry in a `.uis` file, keyed by lowercased name.
+    ///
+    /// Game code reads these by name. Use `setting(named:)` to look one up. This is always
+    /// empty for XML documents.
+    public let settings: [String: Setting]
+
     /// Attributes this reader did not recognize and ignored.
     ///
     /// Newer documents may add optional attributes, so these are not errors. A
@@ -81,6 +87,7 @@ public struct UIScript: Sendable {
         styles: [String: Style],
         visuals: [Visual],
         controls: [Control],
+        settings: [String: Setting] = [:],
         ignoredAttributes: [IgnoredAttribute],
         conversionNotes: [ConversionNote] = []
     ) {
@@ -91,6 +98,7 @@ public struct UIScript: Sendable {
         self.styles = styles
         self.visuals = visuals
         self.controls = controls
+        self.settings = settings
         self.ignoredAttributes = ignoredAttributes
         self.conversionNotes = conversionNotes
     }
@@ -108,6 +116,11 @@ public struct UIScript: Sendable {
     /// Returns the visual with this name, or `nil` when there is none.
     public func visual(named name: String) -> Visual? {
         visuals.first { $0.name == name }
+    }
+
+    /// Returns the `.uis` setting with this name, ignoring case, or `nil` when there is none.
+    public func setting(named name: String) -> Setting? {
+        settings[name.lowercased()]
     }
 
     private func validate() throws {
@@ -158,6 +171,14 @@ public struct UIScript: Sendable {
             }
             if let binding = control.scrolls {
                 try validate(binding, of: control)
+            }
+            if let range = control.valueRange,
+               range.lowerBound >= range.upperBound
+                || (control.type != .slider && control.type != .progressBar) {
+                throw UIScriptError.invalidValueRange(owner: control.name)
+            }
+            if control.orientation != nil, control.type != .slider {
+                throw UIScriptError.invalidOrientation(owner: control.name)
             }
             if let style = control.style, styles[style] == nil {
                 throw UIScriptError.unknownReference(
@@ -280,6 +301,63 @@ public struct UIScript: Sendable {
         public let message: String
     }
 
+    /// A `SetControlProperties` entry from a `.uis` file, kept for game code to read by name.
+    ///
+    /// Maxis' files use these for alternate art, positions, and sizes that code applies when it
+    /// needs them. An entry with an image and position also becomes a hidden visual, and one
+    /// with a position and size also becomes a hidden region, which `UIScriptView` shows on
+    /// request.
+    public struct Setting: Sendable {
+        /// The name as the file writes it.
+        public let name: String
+
+        /// The line of the entry in the file.
+        public let line: Int
+
+        /// The name of the image in `resources.images`, when the entry refers to a defined one.
+        public let image: String?
+
+        private let values: [String: String]
+
+        init(name: String, line: Int, image: String?, values: [String: String]) {
+            self.name = name
+            self.line = line
+            self.image = image
+            self.values = values
+        }
+
+        /// The entry's `position`, when it has one.
+        public var position: Vector2? {
+            guard let parts = numbers("position"), parts.count == 2 else {
+                return nil
+            }
+            return Vector2(x: parts[0], y: parts[1])
+        }
+
+        /// The entry's `size`, when it has one.
+        public var size: Size? {
+            guard let parts = numbers("size"), parts.count == 2 else {
+                return nil
+            }
+            return Size(width: parts[0], height: parts[1])
+        }
+
+        /// Returns an attribute's value exactly as written, ignoring case in its name.
+        public func string(_ attribute: String) -> String? {
+            values[attribute.lowercased()]
+        }
+
+        /// Returns an attribute's value as one number, or `nil` when it is not one.
+        public func number(_ attribute: String) -> Float? {
+            string(attribute).flatMap { UISReader.number(from: $0) }
+        }
+
+        /// Returns the numbers in a tuple attribute such as `(19,39)`, or `nil` when it is not one.
+        public func numbers(_ attribute: String) -> [Float]? {
+            string(attribute).flatMap { UISReader.numbers(from: $0) }
+        }
+    }
+
     /// How text sits horizontally within its control.
     public enum TextAlignment: String, Sendable {
         /// Against the left edge.
@@ -396,6 +474,9 @@ public struct UIScript: Sendable {
         /// The border color.
         public let borderColor: Color?
 
+        /// The color of a progress bar's filled part and a slider's thumb.
+        public let fillColor: Color?
+
         /// The font size in pixels. It must be positive.
         public let fontSize: Int?
 
@@ -468,6 +549,9 @@ public struct UIScript: Sendable {
 
         /// The visual's position and optional size and resize offsets.
         public let frame: Frame
+
+        /// Whether the visual stays hidden until the host shows it.
+        public let isInitiallyHidden: Bool
     }
 
     /// A supported control category.
@@ -487,11 +571,23 @@ public struct UIScript: Sendable {
         /// A scrollable list of text the host fills.
         case list
 
-        /// A scrollbar track and thumb for a list.
+        /// A draggable thumb on a track, which scrolls a list or holds a value.
         case slider
+
+        /// A bar filled in proportion to a value.
+        case progressBar
 
         /// A named area Hudini positions and the host draws into.
         case region
+    }
+
+    /// The direction a slider's track runs.
+    public enum Orientation: String, Sendable {
+        /// Left to right, with the lowest value on the left.
+        case horizontal
+
+        /// Top to bottom, with the lowest value at the top.
+        case vertical
     }
 
     /// Text content expressed literally or by a localized-string reference.
@@ -564,6 +660,17 @@ public struct UIScript: Sendable {
 
         /// How text sits within a text or formatted text control.
         public let alignment: TextAlignment
+
+        /// The values a slider or progress bar covers, or `nil` for the default of 0 to 1.
+        public let valueRange: ClosedRange<Float>?
+
+        /// The direction a slider's track runs, or `nil` to follow its shape.
+        ///
+        /// A slider that scrolls a list always runs top to bottom.
+        public let orientation: Orientation?
+
+        /// Whether the control stays hidden until the host shows it.
+        public let isInitiallyHidden: Bool
     }
 }
 
@@ -656,6 +763,12 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A scroll binding targets a control other than a list, or does not suit its control.
     case invalidScrollBinding(owner: String)
 
+    /// A value range is empty, or is attached to a control other than a slider or progress bar.
+    case invalidValueRange(owner: String)
+
+    /// An orientation is attached to a control other than a slider.
+    case invalidOrientation(owner: String)
+
     public var errorDescription: String? {
         switch self {
         case .unsupportedEncoding:
@@ -716,6 +829,10 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript readOnly for '\(owner)' requires a text field control."
         case let .invalidScrollBinding(owner):
             "UIScript scrolls for '\(owner)' must target a list, from a slider without a direction or a button with one."
+        case let .invalidValueRange(owner):
+            "UIScript value range for '\(owner)' must have minValue below maxValue and requires a slider or progress bar."
+        case let .invalidOrientation(owner):
+            "UIScript orientation for '\(owner)' requires a slider."
         }
     }
 }

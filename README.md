@@ -12,6 +12,8 @@ form layout.
 - Editable window titles with optional validation
 - Single-line and multiline text fields
 - Scrollable plain-text lists
+- Tooltips, draggable sliders, and progress bars
+- Panels that swap by mode, sit inside each other, or open in their own window
 - Confirmation and notice panels
 - Button rows with hit testing and enabled states
 - A 2D camera with pointer-centered zoom and coordinate conversion
@@ -111,11 +113,12 @@ raylib closes the window on Escape by default. `SetExitKey(.null)` turns that of
 so Escape can cancel title edits and dismiss panels instead of quitting the game.
 
 See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable example: a
-property chat window over a live mode panel, both loaded from UIScript XML, with
-an auto-hiding debug bar read from an original `.uis` file. `UIScriptView` draws
-all three. The demo host owns the conversation, needs, people, and images, and it
-generates placeholder art because Hudini ships no game assets. The view does not
-draw tooltips yet.
+property chat window over a control panel with live, statistics, and options modes,
+all loaded from UIScript XML. Click the lemonade stand on the lot to open its panel,
+read from an original `.uis` file, which can sit in the live panel or in its own
+window. An auto-hiding debug bar, also from a `.uis` file, waits at the top of the
+screen. The demo host owns all the game state and images, and it generates
+placeholder art because Hudini ships no game assets.
 
 See [the documentation](doc/README.md) for the format, roadmap, and where Hudini
 came from.

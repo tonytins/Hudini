@@ -1,0 +1,51 @@
+# A lemonade stand panel for the Hudini demo, in the role of an object's interface.
+# This is an original file in Maxis' .uis format. It is not taken from The Sims Online.
+# Like Maxis' own object panels, it declares no window size, so the same file works inside
+# the live panel and in a window of its own. The demo decides where it goes.
+
+<Begin>
+
+	<DefineImage "StandOpenImg"    path="demo/standOpen">
+	<DefineImage "StandClosedImg"  path="demo/standClosed">
+
+	<Begin><SetSharedProperties stringDir="DemoText" stringTable=4>
+
+		<DefineString "PriceLabelText"   stringIndex=1>
+		<DefineString "StockLabelText"   stringIndex=2>
+		<DefineString "SignLabelText"    stringIndex=3>
+		<DefineString "ServeText"        stringIndex=4>
+		<DefineString "RestockText"      stringIndex=5>
+		<DefineString "PriceTip"         stringIndex=6>
+		<DefineString "StockTip"         stringIndex=7>
+		<DefineString "ServeTip"         stringIndex=8>
+		<DefineString "RestockTip"       stringIndex=9>
+		<DefineString "SignTip"          stringIndex=10>
+
+	<End>
+
+	# Settings the demo reads by name. The two images are alternatives, and the demo shows one.
+	# They state their size because a window sized to fit its contents cannot see into images.
+	<SetControlProperties "PanelPosition"   position=(165,32)>
+	<SetControlProperties "StandOpenArt"    image="StandOpenImg"   position=(296,6) size=(90,104)>
+	<SetControlProperties "StandClosedArt"  image="StandClosedImg" position=(296,6) size=(90,104)>
+
+	<Begin><SetSharedProperties font=12 color=(255,249,157)>
+
+		<AddText "PriceLabel"    id=1 position=(8,6)    size=(50,16) text="PriceLabelText">
+		<AddText "PriceValue"    id=3 position=(218,6)  size=(70,16)>
+		<AddText "StockLabel"    id=4 position=(8,30)   size=(50,16) text="StockLabelText">
+		<AddText "Earnings"      id=6 position=(218,30) size=(70,16)>
+		<AddText "SignLabel"     id=9 position=(8,92)   size=(50,16) text="SignLabelText">
+
+	<End>
+
+	<AddSlider "PriceSlider" id=2 position=(60,7) size=(150,14) orientation=0 minValue=1 maxValue=10 tooltip="PriceTip">
+	<AddProgressBar "StockBar" id=5 position=(60,31) size=(150,14) minValue=0 maxValue=10 tooltip="StockTip">
+
+	<AddButton "ServeButton"   id=7 position=(8,56)   size=(96,24) text="ServeText"   font=12 tooltip="ServeTip">
+	<AddButton "RestockButton" id=8 position=(114,56) size=(96,24) text="RestockText" font=12 tooltip="RestockTip">
+
+	<AddTextEdit "SignEntry" id=10 position=(60,88) size=(228,22) capacity=30 font=12
+		color=(255,249,157) backColor=(0,0,0) tooltip="SignTip">
+
+<End>

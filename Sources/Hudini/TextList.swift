@@ -116,6 +116,15 @@ public final class TextList {
         scrollOffset = min(max(scrollOffset + lineCount, 0), maximumOffset)
     }
 
+    /// Moves to a scrollbar position, where zero is the oldest content and one is the newest.
+    public func scroll(toFraction fraction: Float) {
+        guard fraction.isFinite else {
+            return
+        }
+        let maximumOffset = max(0, lines.count - visibleLineCount)
+        scrollOffset = Int((1 - min(max(fraction, 0), 1)) * Float(maximumOffset) + 0.5)
+    }
+
     /// Moves through the list by a mouse wheel reading. Positive values reveal older content.
     ///
     /// Partial lines carry over to later calls, so the small steps a trackpad

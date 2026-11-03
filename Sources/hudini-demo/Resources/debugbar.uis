@@ -26,7 +26,8 @@
 
 	<SetControlProperties "DialogSize" size=(1024,28)>
 
-	# Both offsets stretch the background across the screen.
+	# Both offsets stretch the background across the screen. The demo shows this by name,
+	# because nothing a .uis file sets up with SetControlProperties draws until game code asks.
 	<SetControlProperties "BarBackground" image="BarBackgroundImg" position=(0,0) size=(1024,28) edgeOffsetL=0 edgeOffsetR=0>
 
 	# Left side -------------------------------------------------------------------------

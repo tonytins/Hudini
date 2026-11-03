@@ -94,6 +94,7 @@ state. Some Maxis images hold six slices, and Hudini uses the first four.
 | `name` | Required. The name controls use. |
 | `textColor`, `backgroundColor`, `borderColor` | Colors used when drawing. |
 | `selectedTextColor`, `highlightedTextColor`, `disabledTextColor` | Button label colors while pressed, hovered, and disabled. |
+| `fillColor` | The filled part of a progress bar and the thumb of a slider. |
 | `fontSize` | A positive size in pixels. |
 
 ## Position and size
@@ -129,7 +130,7 @@ optional:
 | --- | --- |
 | `style` | The name of a `<Style>`. |
 | `legacyID` | An integer identifier for host use or for `.uis` conversion. |
-| `tooltip` | The name of a `<String>`. Read but not yet drawn. |
+| `tooltip` | The name of a `<String>`, shown when the pointer rests on the control. |
 
 | Element | What it is | Extra attributes |
 | --- | --- | --- |
@@ -138,7 +139,8 @@ optional:
 | `<Button>` | A clickable button | `text` or `string`, `image`, `scrolls`, `direction` |
 | `<TextField>` | A one-line text entry | `text` or `string`, `placeholder` or `placeholderString`, `maximumLength`, `readOnly` |
 | `<List>` | A scrollable list the host fills | `text` or `string`, shown as its first item |
-| `<Slider>` | A scrollbar track and thumb | `scrolls` |
+| `<Slider>` | A draggable thumb on a track | `scrolls`, `minValue`, `maxValue`, `orientation` |
+| `<ProgressBar>` | A bar filled in proportion to a value | `minValue`, `maxValue` |
 | `<Region>` | A rectangle the host draws into | None |
 
 - **`text` and `string`:** `text` is literal, and `string` names a `<String>`. A
@@ -149,7 +151,12 @@ optional:
   to 256.
 - **`readOnly`:** `true` or `false`, which defaults to `false`. A read-only text
   field never takes focus or typing, and the host can still set its text.
-- **`scrolls`:** names the `<List>` a slider or button scrolls.
+- **`scrolls`:** names the `<List>` a slider or button scrolls. A slider with
+  `scrolls` always runs top to bottom and has no value of its own.
+- **`minValue` and `maxValue`:** the values a slider or progress bar covers, which
+  default to `0` and `1`. It starts at the lowest.
+- **`orientation`:** `horizontal` or `vertical`. Without it, a slider runs along
+  its longer side.
 - **`direction`:** `up` or `down`. A button with `scrolls` needs it, and a slider
   must not have it.
 
@@ -203,8 +210,9 @@ guard let history = view.list(named: "history") else { /* report it */ }
 history.items = messages
 
 // Each frame:
-for event in view.update(at: origin) { /* handle .pressed and .submitted */ }
+for event in view.update(at: origin) { /* handle .pressed, .submitted, and .changed */ }
 view.draw(at: origin) { name, bounds in /* draw into regions */ }
+view.drawTooltip(at: origin) // After every view, so nothing covers it.
 ```
 
 - Create the view after `InitWindow` when passing `loadImage`, and keep it.
@@ -215,13 +223,25 @@ view.draw(at: origin) { name, bounds in /* draw into regions */ }
 - Call `setWindowSize(_:)` when the space around anchored controls changes.
 - Slide or move a whole view by changing the `origin` passed to `update(at:)` and
   `draw(at:)`.
-- Change text at runtime with `setText(_:named:)`, which is cheap enough to call
-  every frame.
+- Change text at runtime with `setText(_:named:)`, and the value of a slider or
+  progress bar with `setValue(_:named:)`. Both are cheap enough to call every frame.
+- Place something the document leaves to the game with `setBounds(_:named:)`.
 - Use `containsPoint(_:origin:)` to keep a click on the interface from also
   reaching the game behind it. It covers visible controls and visuals, so a
   background the host draws itself needs its own check. When views overlap, the
   host decides which one gets the pointer.
 - Draw any window frame or background behind the view.
+
+### Panels inside panels
+
+A view has no opinion about where it goes, so hosts compose them without a
+container type. To swap a control panel between modes, keep one view per mode and
+update and draw only the active one, calling `clearFocus()` on the one going away.
+To put one interface inside another, hide the parent's controls it replaces and
+draw the child at a position inside the parent. To give the same interface its own
+window, draw it in a `WindowFrame`'s content instead. The host decides which view
+gets the pointer when they overlap, and `drawTooltip(at:)` shows nothing for a view
+that was not updated that frame.
 
 ## Platform requirements
 
@@ -242,21 +262,39 @@ example.
 | `DefineString` | `<String>`, whose table is `stringDir:stringTable`. |
 | `AddText`, `AddFormatedText`, `AddButton` | `<Text>`, `<FormattedText>`, `<Button>` |
 | `AddTextEdit`, `AddListBox`, `AddSlider` | `<TextField>`, `<List>`, `<Slider>` |
-| `SetControlProperties "DialogSize"` | `<Window>`. Without one, the window fits its contents. |
-| `SetControlProperties` with an `image` and `position` | `<Visual>` |
-| `SetControlProperties` with a `position` and `size` | `<Region>` |
+| `AddProgressBar` | `<ProgressBar>` |
+| `SetControlProperties "DialogSize"` | `<Window>`. Without one, the window fits the sizes the file states, which leaves out any size that comes from an image. |
+| `SetControlProperties` | A setting, available from `setting(named:)`. |
+| `SetControlProperties` with an `image` and `position` | Also a hidden `<Visual>`. |
+| `SetControlProperties` with a `position` and `size` | Also a hidden `<Region>`. |
 | `Begin`, `End`, `SetSharedProperties` | Copied onto each control in the scope. |
 
 A control's colors and font become a `<Style>` named after it. Names ignore case,
 as they do in real files, and `id` becomes `legacyID`.
+
+### Settings
+
+Game code gives `SetControlProperties` entries their meaning. They hold alternate
+art, animation frames, and positions that code applies when it needs them, so
+nothing from one draws until the host asks. Show a visual or region with
+`setHidden(false, named:)`, and read anything else from the setting:
+
+```swift
+let setting = script.setting(named: "PanelPosition") // Names ignore case.
+let position = setting?.position
+let columns = setting?.number("pageSize")
+let colors = setting?.numbers("normal") // A tuple such as (255,249,157).
+```
+
+### What gets reported
 
 A `.uis` file relies on game code for much of its meaning, so the reader is more
 forgiving than the XML parser. Only broken syntax throws, such as an unclosed tag
 or an unmatched `<End>`. Everything else is reported, and hosts should check both
 lists:
 
-- `conversionNotes` lists tags and values with no faithful equivalent, such as
-  `AddProgressBar`, a reference to an undefined image, or a control with no size.
+- `conversionNotes` lists tags and values with no faithful equivalent, such as a
+  reference to an undefined image or a control with no size.
 - `ignoredAttributes` lists attributes the model has no place for, such as
   `tracking` or `opaque`.
 
@@ -266,6 +304,6 @@ the [roadmap's open questions](ROADMAP.md#open-questions) for what remains unkno
 
 ## Not yet supported
 
-- Drawing tooltips and slider images
-- Dragging a slider's thumb
+- Drawing slider images, which `.uis` sliders name and the view replaces with a
+  plain track and thumb
 - Enforcing `minWidth` and `minHeight`, which the host currently owns

@@ -7,14 +7,20 @@ import Raylib
 /// regions, shows and hides things by name, and handles the events `update(at:)`
 /// returns.
 ///
-/// Create it once and keep it. Tooltips are not drawn yet, and the host draws
-/// any window frame or background behind the view.
+/// Create it once and keep it. The host draws any window frame or background
+/// behind the view, and it can place one view inside another by drawing it at a
+/// region's corner, or in a `WindowFrame`, without the document changing.
 public final class UIScriptView {
     private static let defaultFontSize = 14
     private static let defaultMaximumLength = 256
     private static let textInset = 6
     private static let textLineGap = 4
     private static let missingImageSize: Float = 24
+    private static let sliderThumbLength: Float = 10
+    private static let tooltipDelay: Float = 0.5
+    private static let tooltipFontSize = 12
+    private static let tooltipPadding: Float = 4
+    private static let tooltipGap: Float = 4
 
     private let script: UIScript
     private let theme: InterfaceTheme
@@ -23,6 +29,13 @@ public final class UIScriptView {
     private let textFields: [String: TextField]
     private let textures: [String: Texture2D]
     private let sizes: [String: Vector2]
+    private let tooltips: [String: String]
+    private var values: [String: Float]
+    private var boundsOverrides: [String: Rectangle] = [:]
+    private var draggedSlider: (name: String, grab: Float)?
+    private var hoveredControl: String?
+    private var hoveredSeconds: Float = 0
+    private(set) var pendingTooltip: String?
     private var hiddenNames: Set<String> = []
     private var disabledNames: Set<String> = []
     private var selectedNames: Set<String> = []
@@ -40,6 +53,8 @@ public final class UIScriptView {
         case pressed(control: String)
         /// A text field submitted its text.
         case submitted(control: String, text: String)
+        /// Dragging moved a slider that does not scroll a list to a new value.
+        case changed(control: String, value: Float)
     }
 
     /// Creates the controls for `script`.
@@ -103,7 +118,7 @@ public final class UIScriptView {
                     borderColor: style?.borderColor,
                     isReadOnly: control.isReadOnly
                 )
-            case .slider, .region:
+            case .slider, .progressBar, .region:
                 break
             }
         }
@@ -141,6 +156,20 @@ public final class UIScriptView {
         self.textFields = textFields
         self.textures = textures
         self.sizes = sizes
+        tooltips = script.controls.reduce(into: [:]) { result, control in
+            if let name = control.tooltip, let resource = script.resources.strings[name] {
+                result[control.name] = resolveString(resource)
+            }
+        }
+        values = script.controls.reduce(into: [:]) { result, control in
+            if control.type == .slider || control.type == .progressBar {
+                result[control.name] = control.valueRange?.lowerBound ?? 0
+            }
+        }
+        hiddenNames = Set(
+            script.visuals.filter(\.isInitiallyHidden).map(\.name)
+                + script.controls.filter(\.isInitiallyHidden).map(\.name)
+        )
         self.missingImages = missingImages.sorted()
     }
 
@@ -161,6 +190,14 @@ public final class UIScriptView {
         named name: String,
         at origin: Vector2
     ) -> Rectangle {
+        if let override = boundsOverrides[name] {
+            return Rectangle(
+                x: origin.x + override.x,
+                y: origin.y + override.y,
+                width: override.width,
+                height: override.height
+            )
+        }
         let size = sizes[name] ?? .zero
         let (x, width) = Self.placement(
             position: frame.x,
@@ -204,6 +241,15 @@ public final class UIScriptView {
         windowSize = size
     }
 
+    /// Places a control or visual within the view, replacing its document position, size, and
+    /// edge offsets.
+    ///
+    /// Some `.uis` controls leave these for game code to set, and `UIScript.setting(named:)`
+    /// may hold the values to use.
+    public func setBounds(_ bounds: Rectangle, named name: String) {
+        boundsOverrides[name] = bounds
+    }
+
     /// Returns the list with this name, or `nil` when no list has it.
     ///
     /// Documents load at runtime, so look up the controls a host depends on at
@@ -240,6 +286,39 @@ public final class UIScriptView {
         }
     }
 
+    /// Returns the value of a slider or progress bar, or `nil` when no such control has this name.
+    public func value(named name: String) -> Float? {
+        values[name]
+    }
+
+    /// Sets the value of a slider or progress bar, kept within its range. This is cheap enough
+    /// to call every frame. It reports no event, and other controls are left alone.
+    public func setValue(_ value: Float, named name: String) {
+        guard values[name] != nil, value.isFinite, let control = script.control(named: name) else {
+            return
+        }
+        let range = Self.range(of: control)
+        values[name] = min(max(value, range.lowerBound), range.upperBound)
+    }
+
+    private static func range(of control: UIScript.Control) -> ClosedRange<Float> {
+        control.valueRange ?? 0...1
+    }
+
+    private func fraction(of control: UIScript.Control) -> Float {
+        let range = Self.range(of: control)
+        return ((values[control.name] ?? range.lowerBound) - range.lowerBound)
+            / (range.upperBound - range.lowerBound)
+    }
+
+    /// Removes keyboard focus from the view's text fields. Call this when a view stops being
+    /// shown, so it does not hold focus while it is away.
+    public func clearFocus() {
+        for field in textFields.values {
+            field.setFocused(false)
+        }
+    }
+
     /// Returns whether `point` is over a visible control or visual in a view whose corner is at
     /// `origin`.
     ///
@@ -270,8 +349,8 @@ public final class UIScriptView {
         hiddenNames.contains(name)
     }
 
-    /// Enables or disables a button. A disabled button shows its disabled image
-    /// and absorbs presses without reporting them.
+    /// Enables or disables a button or slider. A disabled button shows its disabled image and
+    /// absorbs presses without reporting them. A disabled slider cannot be dragged.
     public func setDisabled(_ isDisabled: Bool, named name: String) {
         if isDisabled {
             disabledNames.insert(name)
@@ -280,7 +359,7 @@ public final class UIScriptView {
         }
     }
 
-    /// Returns whether a button is disabled.
+    /// Returns whether a button or slider is disabled.
     public func isDisabled(named name: String) -> Bool {
         disabledNames.contains(name)
     }
@@ -303,9 +382,19 @@ public final class UIScriptView {
     /// Handles this frame's input for a view whose corner is at `origin`.
     public func update(at origin: Vector2) -> [Event] {
         var events: [Event] = []
-        if IsMouseButtonPressed(MouseButton.left),
-           let event = pressButton(at: GetMousePosition(), origin: origin) {
-            events.append(event)
+        let pointer = GetMousePosition()
+        if IsMouseButtonPressed(MouseButton.left) {
+            if let event = pressButton(at: pointer, origin: origin) {
+                events.append(event)
+            }
+            _ = beginSliderDrag(at: pointer, origin: origin)
+        }
+        if IsMouseButtonDown(MouseButton.left) {
+            if let event = dragSlider(to: pointer, origin: origin) {
+                events.append(event)
+            }
+        } else {
+            draggedSlider = nil
         }
         for control in script.controls where !hiddenNames.contains(control.name) {
             let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
@@ -314,7 +403,125 @@ public final class UIScriptView {
                 events.append(.submitted(control: control.name, text: text))
             }
         }
+        updateTooltip(
+            pointer: pointer,
+            origin: origin,
+            elapsed: IsMouseButtonDown(MouseButton.left) ? -.infinity : GetFrameTime()
+        )
         return events
+    }
+
+    /// Tracks how long the pointer has rested on the topmost control under it. A negative
+    /// `elapsed` starts the wait again, which is how a held button dismisses a tooltip.
+    func updateTooltip(pointer: Vector2, origin: Vector2, elapsed: Float) {
+        let topmost = script.controls.last { control in
+            !hiddenNames.contains(control.name)
+                && CheckCollisionPointRec(pointer, screenRectangle(for: control.frame, named: control.name, at: origin))
+        }
+        let name = topmost.flatMap { tooltips[$0.name]?.isEmpty == false ? $0.name : nil }
+        if name != hoveredControl {
+            hoveredControl = name
+            hoveredSeconds = 0
+        }
+        hoveredSeconds = max(0, hoveredSeconds + elapsed)
+        pendingTooltip = hoveredSeconds >= Self.tooltipDelay ? name : nil
+    }
+
+    /// Starts dragging the topmost visible, enabled slider under `point`. Pressing the track
+    /// away from the thumb moves the thumb's center to the pointer.
+    func beginSliderDrag(at point: Vector2, origin: Vector2) -> Bool {
+        for control in script.controls.reversed()
+        where control.type == .slider && !hiddenNames.contains(control.name) {
+            let track = screenRectangle(for: control.frame, named: control.name, at: origin)
+            guard CheckCollisionPointRec(point, track) else {
+                continue
+            }
+            guard !disabledNames.contains(control.name) else {
+                return false
+            }
+            let thumb = sliderThumb(of: control, in: track, origin: origin)
+            let isVertical = sliderOrientation(of: control, in: track) == .vertical
+            let grab = CheckCollisionPointRec(point, thumb)
+                ? (isVertical ? point.y - thumb.y : point.x - thumb.x)
+                : (isVertical ? thumb.height : thumb.width) / 2
+            draggedSlider = (control.name, grab)
+            return true
+        }
+        return false
+    }
+
+    /// Moves the dragged slider toward `point`, reporting a change to a slider's value.
+    func dragSlider(to point: Vector2, origin: Vector2) -> Event? {
+        guard let dragged = draggedSlider, let control = script.control(named: dragged.name),
+              !hiddenNames.contains(dragged.name), !disabledNames.contains(dragged.name) else {
+            draggedSlider = nil
+            return nil
+        }
+        let track = screenRectangle(for: control.frame, named: control.name, at: origin)
+        let thumb = sliderThumb(of: control, in: track, origin: origin)
+        let isVertical = sliderOrientation(of: control, in: track) == .vertical
+        let fraction = Self.sliderFraction(
+            pointer: isVertical ? point.y : point.x,
+            trackStart: isVertical ? track.y : track.x,
+            trackLength: isVertical ? track.height : track.width,
+            thumbLength: isVertical ? thumb.height : thumb.width,
+            grab: dragged.grab
+        )
+        if let binding = control.scrolls {
+            lists[binding.list]?.scroll(toFraction: fraction)
+            return nil
+        }
+        let range = Self.range(of: control)
+        let value = range.lowerBound + (fraction * (range.upperBound - range.lowerBound))
+        guard value != values[control.name] else {
+            return nil
+        }
+        values[control.name] = value
+        return .changed(control: control.name, value: value)
+    }
+
+    /// Converts a pointer position to a slider position from 0 to 1. The thumb travels inside
+    /// the track's one-pixel border.
+    static func sliderFraction(
+        pointer: Float,
+        trackStart: Float,
+        trackLength: Float,
+        thumbLength: Float,
+        grab: Float
+    ) -> Float {
+        let room = trackLength - 2 - thumbLength
+        guard room > 0 else {
+            return 0
+        }
+        return min(max((pointer - grab - trackStart - 1) / room, 0), 1)
+    }
+
+    private func sliderOrientation(of control: UIScript.Control, in track: Rectangle) -> UIScript.Orientation {
+        if control.scrolls != nil {
+            return .vertical
+        }
+        return control.orientation ?? (track.height > track.width ? .vertical : .horizontal)
+    }
+
+    private func sliderThumb(of control: UIScript.Control, in track: Rectangle, origin: Vector2) -> Rectangle {
+        if let binding = control.scrolls, let list = lists[binding.list],
+           let target = script.control(named: binding.list) {
+            // The slider may act before its list, after the host changed the items.
+            list.prepareLines(for: screenRectangle(for: target.frame, named: target.name, at: origin))
+            return list.scrollThumbBounds(in: track)
+        }
+        let fraction = fraction(of: control)
+        let length = Self.sliderThumbLength
+        let width = max(0, track.width - 2)
+        let height = max(0, track.height - 2)
+        switch sliderOrientation(of: control, in: track) {
+        case .horizontal:
+            let thumb = min(length, width)
+            return Rectangle(x: track.x + 1 + ((width - thumb) * fraction), y: track.y + 1, width: thumb, height: height)
+        case .vertical:
+            let thumb = min(length, height)
+            return Rectangle(x: track.x + 1, y: track.y + 1 + ((height - thumb) * fraction), width: width, height: thumb)
+        }
     }
 
     /// Applies a press to the topmost visible button under `point`.
@@ -370,10 +577,51 @@ public final class UIScriptView {
                 lists[control.name]?.draw(in: bounds)
             case .slider:
                 drawSlider(control, in: bounds, origin: origin)
+            case .progressBar:
+                drawProgressBar(control, in: bounds)
             case .region:
                 drawRegion(control.name, bounds)
             }
         }
+    }
+
+    /// Draws the tooltip of the control the pointer has rested on, if any.
+    ///
+    /// Call this after drawing every view, so nothing covers the tooltip. It shows after a
+    /// `update(at:)` in the same frame, so a view the host stops updating shows none.
+    public func drawTooltip(at origin: Vector2) {
+        defer { pendingTooltip = nil }
+        guard let name = pendingTooltip, let text = tooltips[name], let control = script.control(named: name) else {
+            return
+        }
+        let bounds = Self.tooltipBounds(
+            textWidth: Float(MeasureText(text, Self.tooltipFontSize)),
+            below: screenRectangle(for: control.frame, named: name, at: origin),
+            screen: Vector2(x: Float(GetScreenWidth()), y: Float(GetScreenHeight()))
+        )
+        DrawRectangleRec(bounds, theme.panel)
+        DrawRectangleLinesEx(bounds, 1, theme.border)
+        DrawText(
+            text,
+            Int(clamping: bounds.x + Self.tooltipPadding),
+            Int(clamping: bounds.y + Self.tooltipPadding),
+            Self.tooltipFontSize,
+            theme.text
+        )
+    }
+
+    /// Places a tooltip under its control, above it when there is no room below, and on screen.
+    static func tooltipBounds(textWidth: Float, below control: Rectangle, screen: Vector2) -> Rectangle {
+        let width = textWidth + (tooltipPadding * 2)
+        let height = Float(tooltipFontSize) + (tooltipPadding * 2)
+        let below = control.y + control.height + tooltipGap
+        let y = below + height <= screen.y ? below : control.y - tooltipGap - height
+        return Rectangle(
+            x: max(0, min(control.x, screen.x - width)),
+            y: max(0, y),
+            width: width,
+            height: height
+        )
     }
 
     private func drawImage(named name: String, state: UIScript.ButtonState, in bounds: Rectangle) {
@@ -450,13 +698,19 @@ public final class UIScriptView {
         let style = script.style(for: control)
         DrawRectangleRec(bounds, style?.backgroundColor ?? theme.panel)
         DrawRectangleLinesEx(bounds, 1, style?.borderColor ?? theme.border)
-        guard let binding = control.scrolls,
-              let list = lists[binding.list],
-              let target = script.control(named: binding.list) else {
+        if control.scrolls != nil, control.scrolls.flatMap({ lists[$0.list] }) == nil {
             return
         }
-        // The slider may draw before its list, after the host changed the items.
-        list.prepareLines(for: screenRectangle(for: target.frame, named: target.name, at: origin))
-        DrawRectangleRec(list.scrollThumbBounds(in: bounds), theme.accent)
+        let color = disabledNames.contains(control.name) ? theme.secondaryText : (style?.fillColor ?? theme.accent)
+        DrawRectangleRec(sliderThumb(of: control, in: bounds, origin: origin), color)
+    }
+
+    private func drawProgressBar(_ control: UIScript.Control, in bounds: Rectangle) {
+        let style = script.style(for: control)
+        DrawRectangleRec(bounds, style?.backgroundColor ?? theme.panel)
+        var filled = bounds
+        filled.width *= fraction(of: control)
+        DrawRectangleRec(filled, style?.fillColor ?? theme.accent)
+        DrawRectangleLinesEx(bounds, 1, style?.borderColor ?? theme.border)
     }
 }

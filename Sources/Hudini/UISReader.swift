@@ -19,6 +19,20 @@ enum UISReader {
         var builder = UISBuilder(tags: try scanner.tags())
         return try builder.build()
     }
+
+    static func number(from value: String) -> Float? {
+        Float(value.trimmingCharacters(in: .whitespaces)).flatMap { $0.isFinite ? $0 : nil }
+    }
+
+    static func numbers(from value: String) -> [Float]? {
+        guard value.hasPrefix("("), value.hasSuffix(")") else {
+            return nil
+        }
+        let numbers = value.dropFirst().dropLast().split(separator: ",").map {
+            Float($0.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return numbers.contains(nil) ? nil : numbers.compactMap { $0 }
+    }
 }
 
 private struct UISTag {
@@ -172,7 +186,7 @@ private final class UISAttributes {
     }
 
     func number(_ key: String) -> Float? {
-        string(key).flatMap { Float($0.trimmingCharacters(in: .whitespaces)) }.flatMap { $0.isFinite ? $0 : nil }
+        string(key).flatMap(UISReader.number(from:))
     }
 
     func integer(_ key: String) -> Int? {
@@ -180,13 +194,7 @@ private final class UISAttributes {
     }
 
     func tuple(_ key: String) -> [Float]? {
-        guard let value = string(key), value.hasPrefix("("), value.hasSuffix(")") else {
-            return nil
-        }
-        let numbers = value.dropFirst().dropLast().split(separator: ",").map {
-            Float($0.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        return numbers.contains(nil) ? nil : numbers.compactMap { $0 }
+        string(key).flatMap(UISReader.numbers(from:))
     }
 
     func color(_ key: String) -> Color? {
@@ -209,10 +217,12 @@ private struct UISBuilder {
         "addbutton": (.button, "AddButton"),
         "addtextedit": (.textField, "AddTextEdit"),
         "addlistbox": (.list, "AddListBox"),
-        "addslider": (.slider, "AddSlider")
+        "addslider": (.slider, "AddSlider"),
+        "addprogressbar": (.progressBar, "AddProgressBar")
     ]
     private static let supportedStateCounts: Set<Int> = [1, 4, 6]
     private static let centeredAlignment = 3
+    private static let orientations: [Int: UIScript.Orientation] = [0: .horizontal, 1: .vertical]
 
     private let tags: [UISTag]
     private var notes: [UIScript.ConversionNote] = []
@@ -279,6 +289,7 @@ private struct UISBuilder {
         var stateCounts: [String: Int] = [:]
         var visuals: [UIScript.Visual] = []
         var controls: [UIScript.Control] = []
+        var settings: [String: UIScript.Setting] = [:]
         for (tag, attributes) in resolved {
             let reader = UISAttributes(attributes)
             // Shared string settings reach every tag in their scope, but only strings use them.
@@ -288,16 +299,17 @@ private struct UISBuilder {
             case "definestring", "defineimage":
                 continue
             case "setcontrolproperties":
+                // Game code reads these by name, and nothing draws until the host asks. Every
+                // attribute stays in the setting, so none count as ignored.
+                addSetting(tag, attributes, imageNames, to: &settings)
                 if tag.label?.lowercased() == "dialogsize" {
                     window = makeWindow(reader, tag)
                 } else if let visual = makeVisual(reader, tag, imageNames) {
                     visuals.append(visual)
                 } else if let region = makeRegion(reader, tag) {
                     controls.append(region)
-                } else {
-                    note(tag, "These settings are for game code to interpret, so they were not converted.")
-                    continue
                 }
+                continue
             default:
                 guard let kind = Self.controlTypes[tag.key] else {
                     note(tag, "Hudini has no equivalent for this tag, so it was skipped.")
@@ -333,6 +345,7 @@ private struct UISBuilder {
             styles: styles,
             visuals: visuals,
             controls: controls,
+            settings: settings,
             ignoredAttributes: ignored,
             conversionNotes: notes
         )
@@ -362,6 +375,28 @@ private struct UISBuilder {
             throw UIScriptError.malformedUIS(line: tags.last?.line ?? 1, reason: "A <Begin> has no matching <End>.")
         }
         return resolved
+    }
+
+    private mutating func addSetting(
+        _ tag: UISTag,
+        _ attributes: [String: String],
+        _ imageNames: [String: String],
+        to settings: inout [String: UIScript.Setting]
+    ) {
+        guard let name = tag.label else {
+            note(tag, "This setting has no name, so nothing can look it up.")
+            return
+        }
+        guard settings[name.lowercased()] == nil else {
+            note(tag, "This setting's name is already taken, so this one was skipped.")
+            return
+        }
+        settings[name.lowercased()] = UIScript.Setting(
+            name: name,
+            line: tag.line,
+            image: attributes["image"].flatMap { imageNames[$0.lowercased()] },
+            values: attributes.filter { $0.key != "stringdir" && $0.key != "stringtable" }
+        )
     }
 
     private mutating func makeWindow(_ reader: UISAttributes, _ tag: UISTag) -> UIScript.Window? {
@@ -417,7 +452,7 @@ private struct UISBuilder {
         guard reader.tuple("position") != nil, let name = uniqueName(for: tag) else {
             return nil
         }
-        return UIScript.Visual(name: name, image: image, frame: makeFrame(reader, tag))
+        return UIScript.Visual(name: name, image: image, frame: makeFrame(reader, tag), isInitiallyHidden: true)
     }
 
     private mutating func makeRegion(_ reader: UISAttributes, _ tag: UISTag) -> UIScript.Control? {
@@ -440,7 +475,10 @@ private struct UISBuilder {
             maximumLength: nil,
             scrolls: nil,
             isReadOnly: false,
-            alignment: .left
+            alignment: .left,
+            valueRange: nil,
+            orientation: nil,
+            isInitiallyHidden: true
         )
     }
 
@@ -564,8 +602,47 @@ private struct UISBuilder {
             maximumLength: maximumLength,
             scrolls: nil,
             isReadOnly: reader.string("mode") == "kReadOnly" && type == .textField,
-            alignment: alignment
+            alignment: alignment,
+            valueRange: makeValueRange(type, reader, tag),
+            orientation: makeOrientation(type, reader, tag),
+            isInitiallyHidden: false
         )
+    }
+
+    private mutating func makeValueRange(
+        _ type: UIScript.ControlType,
+        _ reader: UISAttributes,
+        _ tag: UISTag
+    ) -> ClosedRange<Float>? {
+        guard type == .slider || type == .progressBar else {
+            return nil
+        }
+        let minimum = reader.number("minvalue")
+        let maximum = reader.number("maxvalue")
+        guard minimum != nil || maximum != nil else {
+            return nil
+        }
+        let (lower, upper) = (minimum ?? 0, maximum ?? 1)
+        guard lower < upper else {
+            note(tag, "This value range is empty, so the default of 0 to 1 applies.")
+            return nil
+        }
+        return lower...upper
+    }
+
+    private mutating func makeOrientation(
+        _ type: UIScript.ControlType,
+        _ reader: UISAttributes,
+        _ tag: UISTag
+    ) -> UIScript.Orientation? {
+        guard type == .slider, let value = reader.integer("orientation") else {
+            return nil
+        }
+        guard let orientation = Self.orientations[value] else {
+            note(tag, "The meaning of orientation \(value) is unknown, so this slider follows its shape.")
+            return nil
+        }
+        return orientation
     }
 
     /// Turns a control's own colors and font into a style named after it, because `.uis` has no
@@ -590,6 +667,7 @@ private struct UISBuilder {
             disabledTextColor: disabled,
             backgroundColor: background,
             borderColor: border,
+            fillColor: nil,
             fontSize: font
         )
         return styleName

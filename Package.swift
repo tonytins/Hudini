@@ -19,7 +19,10 @@ let package = Package(
             resources: [
                 .copy("Resources/chatdialog.xml"),
                 .copy("Resources/debugbar.uis"),
-                .copy("Resources/livepanel1024.xml")
+                .copy("Resources/lemonadestand.uis"),
+                .copy("Resources/livepanel1024.xml"),
+                .copy("Resources/optionspanel.xml"),
+                .copy("Resources/statspanel.xml")
             ]
         ),
         .testTarget(name: "HudiniTests", dependencies: ["Hudini", .product(name: "Raylib", package: "raylib-swift")]),

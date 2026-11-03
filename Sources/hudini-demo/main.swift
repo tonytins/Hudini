@@ -1,7 +1,11 @@
-// An example host: a property chat window over a live mode panel, both described by UIScript XML,
-// with an auto-hiding debug bar read from a Maxis-format .uis file.
+// An example host: a property chat window over a control panel that swaps between modes, with a
+// lemonade stand panel that sits inside the live panel or in its own window, and an auto-hiding
+// debug bar. The chat and mode panels are UIScript XML. The stand and the bar are Maxis' .uis format.
 //
-// Usage: hudini-demo [--screenshot <file.png>]
+// Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>]
+//
+// Scenes are for checking the interface without input: live, stats, options, stand, standwindow.
+// --pointer holds the pointer in place, and a screenshot then waits long enough to show a tooltip.
 
 import Foundation
 import Hudini
@@ -71,7 +75,16 @@ func drawPropertyLot(groundBottom height: Int32) {
     DrawCircle(530, height - 108, 8, Color(r: 236, g: 197, b: 160, a: 255))
     DrawRectangle(525, height - 100, 10, 29, Color(r: 70, g: 100, b: 176, a: 255))
     DrawText("Maya is visiting", 543, height - 123, 14, Color(r: 28, g: 38, b: 48, a: 255))
-    DrawText("LIVE MODE  |  EXAMPLE HOST", 20, 36, 16, Color(r: 255, g: 255, b: 255, a: 255))
+    DrawText("EXAMPLE HOST", 20, 36, 16, Color(r: 255, g: 255, b: 255, a: 255))
+    let stand = standLotBounds(groundBottom: height)
+    DrawRectangleRec(stand, Color(r: 240, g: 214, b: 90, a: 255))
+    DrawRectangle(Int32(stand.x) - 4, Int32(stand.y) - 8, Int32(stand.width) + 8, 8, Color(r: 196, g: 74, b: 66, a: 255))
+    DrawText("Lemonade", Int32(stand.x) + 4, Int32(stand.y) + 8, 12, Color(r: 28, g: 38, b: 48, a: 255))
+    DrawText("Click the stand to use it", Int32(stand.x) - 30, Int32(stand.y) - 26, 12, Color(r: 28, g: 38, b: 48, a: 255))
+}
+
+func standLotBounds(groundBottom height: Int32) -> Rectangle {
+    Rectangle(x: 720, y: Float(height) - 130, width: 70, height: 56)
 }
 
 /// Generates original placeholder art for a resource, because Hudini ships no game assets.
@@ -108,8 +121,11 @@ func makeButtonPlaceholder(path: String, stateCount: Int32) -> Texture2D {
             ImageDrawCircle(&image, x + (sliceSize / 2), sliceSize / 2, sliceSize / 2, color)
         } else {
             ImageDrawRectangle(&image, x, 0, sliceSize, sliceSize, color)
-            let mark = sliceSize / 3
-            ImageDrawRectangle(&image, x + mark, mark, mark, mark, Color(r: 255, g: 249, b: 157, a: 255))
+            // These buttons carry their own labels.
+            if !path.contains("eod") {
+                let mark = sliceSize / 3
+                ImageDrawRectangle(&image, x + mark, mark, mark, mark, Color(r: 255, g: 249, b: 157, a: 255))
+            }
         }
     }
     return LoadTextureFromImage(image)
@@ -150,6 +166,12 @@ func placeholderColor(forPath path: String) -> Color {
     if path.contains("divider") {
         return Color(r: 96, g: 118, b: 148, a: 255)
     }
+    if path.contains("standOpen") {
+        return Color(r: 240, g: 214, b: 90, a: 255)
+    }
+    if path.contains("standClosed") {
+        return Color(r: 110, g: 110, b: 116, a: 255)
+    }
     if path.contains("debugBackground") || path == "bar" {
         return Color(r: 59, g: 59, b: 59, a: 255)
     }
@@ -165,6 +187,9 @@ func placeholderSize(forPath path: String) -> (width: Int32, height: Int32) {
     }
     if path.contains("debugBackground") {
         return (2, 2)
+    }
+    if path.contains("stand") {
+        return (90, 104)
     }
     return (490, 60)
 }
@@ -184,7 +209,30 @@ func placeholderSliceSize(forPath path: String) -> Int32 {
 
 // The host's own localized text and game state.
 
-let panelStrings = [3: "Needs"]
+let demoStrings: [String: [Int: String]] = [
+    "DemoText:1": [
+        1: "Previous page", 2: "Next page", 3: "Needs", 4: "Help", 5: "Close",
+        6: "Time left", 8: "Move to a window", 9: "Move to the panel", 10: "Time of day"
+    ],
+    "DemoText:2": [
+        1: "Property scores", 2: "Garden", 3: "Kitchen", 4: "Living room", 5: "Bedroom",
+        6: "Score out of 100"
+    ],
+    "DemoText:3": [1: "Options", 2: "Music", 3: "Sound", 4: "Drag to set the volume"],
+    "DemoText:4": [
+        1: "Price", 2: "Stock", 3: "Sign", 4: "Serve", 5: "Restock",
+        6: "Drag to set the price of a cup", 7: "Cups left", 8: "Sell one cup", 9: "Fill the jug",
+        10: "Press Enter to put this on the sign"
+    ],
+    "DebugBar:1": [
+        1: "Slow", 2: "Medium", 3: "Fast", 4: "Show errors", 5: "Help"
+    ]
+]
+
+func demoString(_ resource: UIScript.StringResource) -> String {
+    demoStrings[resource.table]?[resource.index] ?? "\(resource.table)#\(resource.index)"
+}
+
 let needNames = ["Hunger", "Comfort", "Hygiene", "Bladder", "Energy", "Fun", "Social", "Room"]
 let needLevels: [Float] = [0.8, 0.55, 0.9, 0.35, 0.65, 0.5, 0.75, 0.6]
 let residents = [
@@ -236,18 +284,40 @@ func drawPeople(in bounds: Rectangle) {
 }
 
 var screenshot: String?
+var scene = "live"
+var heldPointer: Vector2?
 var arguments = CommandLine.arguments.dropFirst()
 while let argument = arguments.popFirst() {
-    guard argument == "--screenshot", let path = arguments.popFirst() else {
-        FileHandle.standardError.write(Data("usage: hudini-demo [--screenshot <file.png>]\n".utf8))
-        exit(2)
+    switch argument {
+    case "--screenshot":
+        guard let path = arguments.popFirst() else {
+            fail("--screenshot needs a file")
+        }
+        screenshot = path
+    case "--scene":
+        guard let name = arguments.popFirst() else {
+            fail("--scene needs a name")
+        }
+        scene = name
+    case "--pointer":
+        guard let x = arguments.popFirst().flatMap(Float.init), let y = arguments.popFirst().flatMap(Float.init) else {
+            fail("--pointer needs an x and a y")
+        }
+        heldPointer = Vector2(x: x, y: y)
+    default:
+        fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>]")
     }
-    screenshot = path
+}
+guard ["live", "stats", "options", "stand", "standwindow"].contains(scene) else {
+    fail("Unknown scene '\(scene)'.")
 }
 
 let chatScript = loadUIScript(named: "chatdialog")
 let panelScript = loadUIScript(named: "livepanel1024")
+let statsScript = loadUIScript(named: "statspanel")
+let optionsScript = loadUIScript(named: "optionspanel")
 let barScript = loadUIS(named: "debugbar")
+let standScript = loadUIS(named: "lemonadestand")
 
 SetTraceLogLevel(.warning)
 SetConfigFlags(screenshot == nil ? [.windowResizable, .vsyncHint] : [.windowHidden])
@@ -256,26 +326,26 @@ SetExitKey(.null)
 SetTargetFPS(60)
 
 var placeholderTextures: [Texture2D] = []
-let chat = UIScriptView(script: chatScript, theme: theme)
-let panel = UIScriptView(
-    script: panelScript,
-    theme: theme,
-    resolveString: { panelStrings[$0.index] ?? "" },
-    loadImage: { resource in
-        let texture = makePlaceholderTexture(for: resource)
-        placeholderTextures.append(texture)
-        return texture
-    }
-)
-let bar = UIScriptView(
-    script: barScript,
-    theme: theme,
-    loadImage: { resource in
-        let texture = makePlaceholderTexture(for: resource)
-        placeholderTextures.append(texture)
-        return texture
-    }
-)
+@MainActor
+func makeView(_ script: UIScript) -> UIScriptView {
+    UIScriptView(
+        script: script,
+        theme: theme,
+        resolveString: demoString,
+        loadImage: { resource in
+            let texture = makePlaceholderTexture(for: resource)
+            placeholderTextures.append(texture)
+            return texture
+        }
+    )
+}
+
+let chat = makeView(chatScript)
+let panel = makeView(panelScript)
+let stats = makeView(statsScript)
+let options = makeView(optionsScript)
+let bar = makeView(barScript)
+let stand = makeView(standScript)
 let notice = NoticePanel(theme: theme)
 
 guard let history = chat.list(named: "chatHistory"),
@@ -290,15 +360,115 @@ guard let statusMessage = panel.list(named: "statusBarMessageWindow"),
 }
 let barSpeedButtons = ["SpeedSlow", "SpeedMedium", "SpeedFast"]
 let requiredBarControls = barSpeedButtons + ["LotName", "GameClock", "FloorName", "ObjectCount", "ErrorCount", "HelpButton"]
-guard requiredBarControls.allSatisfy({ barScript.control(named: $0) != nil }) else {
+guard requiredBarControls.allSatisfy({ barScript.control(named: $0) != nil }),
+      barScript.visual(named: "BarBackground") != nil else {
     fail("debugbar.uis is missing a required control")
 }
+bar.setHidden(false, named: "BarBackground")
 
-// The panel's work-session controls overlap its status bar, so only one set shows at a time.
-for name in ["eodHelp", "eodClose", "eodExpand", "eodContract", "timerEntry", "messageWindow"] {
-    panel.setHidden(true, named: name)
+let requiredStandControls = ["PriceSlider", "PriceValue", "StockBar", "Earnings", "ServeButton", "RestockButton", "SignEntry"]
+guard requiredStandControls.allSatisfy({ standScript.control(named: $0) != nil }),
+      let standPanelPosition = standScript.setting(named: "PanelPosition")?.position,
+      standScript.visual(named: "StandOpenArt") != nil,
+      standScript.visual(named: "StandClosedArt") != nil else {
+    fail("lemonadestand.uis is missing a required control or setting")
 }
+
 statusMessage.items = ["Maya is visiting"]
+
+guard let standMessage = panel.list(named: "messageWindow") else {
+    fail("livepanel1024.xml is missing a required live-panel control")
+}
+
+// The control panel shows one mode's panel at a time, chosen from the icon toolbar.
+enum Mode: Int, CaseIterable {
+    case live, stats, options
+
+    var icon: String {
+        switch self {
+        case .live: "L"
+        case .stats: "S"
+        case .options: "O"
+        }
+    }
+}
+
+var mode = Mode.live
+
+@MainActor
+func showMode(_ newMode: Mode) {
+    guard newMode != mode else {
+        return
+    }
+    panel.clearFocus()
+    stats.clearFocus()
+    options.clearFocus()
+    stand.clearFocus()
+    mode = newMode
+}
+
+// The stand is one document in either place, and the live panel changes around it.
+enum StandPlacement {
+    case closed, inPanel, inWindow
+}
+
+var standPlacement = StandPlacement.closed
+let panelControlsBesideStand = ["eodHelp", "eodClose", "eodExpand", "timerEntry", "messageWindow"]
+let panelControlsWithoutStand = [
+    "needsLabel", "motives", "previousPage", "nextPage", "peopleList", "peopleListBackgroundImage",
+    "dividerImage", "statusBarTimerEntry", "statusBarMessageWindow"
+]
+
+@MainActor
+func placeStand(_ placement: StandPlacement) {
+    standPlacement = placement
+    let isInPanel = placement == .inPanel
+    for name in panelControlsBesideStand {
+        panel.setHidden(!isInPanel, named: name)
+    }
+    for name in panelControlsWithoutStand {
+        panel.setHidden(isInPanel, named: name)
+    }
+    if placement == .closed {
+        stand.clearFocus()
+    }
+}
+
+panel.setHidden(true, named: "eodContract")
+placeStand(.closed)
+
+let standCapacity: Float = 10
+var standCups = standCapacity
+var standEarnings: Float = 0
+
+@MainActor
+func showStand() {
+    let price = stand.value(named: "PriceSlider") ?? 1
+    stand.setText(String(format: "$%.2f", price), named: "PriceValue")
+    stand.setText(String(format: "$%.2f", standEarnings), named: "Earnings")
+    stand.setValue(standCups, named: "StockBar")
+    stand.setDisabled(standCups == 0, named: "ServeButton")
+    stand.setHidden(standCups == 0, named: "StandOpenArt")
+    stand.setHidden(standCups > 0, named: "StandClosedArt")
+    standMessage.items = [standCups > 0 ? "Thirsty customers are waiting." : "The jug is empty."]
+}
+
+stand.setValue(3, named: "PriceSlider")
+showStand()
+
+for (name, score) in [("garden", 72), ("kitchen", 45), ("livingRoom", 88), ("bedroom", 30)] as [(String, Float)] {
+    stats.setValue(score, named: name)
+}
+
+@MainActor
+func showVolume(_ value: Float, of slider: String) {
+    options.setText("\(Int(value + 0.5))%", named: "\(slider)Value")
+}
+
+for (name, volume) in [("music", 60), ("sound", 80)] as [(String, Float)] {
+    options.setValue(volume, named: name)
+    showVolume(volume, of: name)
+}
 
 @MainActor
 func showPeoplePage(_ page: Int) {
@@ -371,11 +541,30 @@ bar.setText("\(residents.count) Objects", named: "ObjectCount")
 reportSimulatedError("A simulated error, so the demo can show the bar opening by itself.")
 
 let window = WindowFrame(title: "Maple Street - Property Chat", theme: theme)
+let standWindow = WindowFrame(title: "Lemonade Stand", theme: theme)
+standWindow.toolbarItems = ["Dock"]
+
+switch scene {
+case "stats":
+    showMode(.stats)
+case "options":
+    showMode(.options)
+case "stand":
+    placeStand(.inPanel)
+case "standwindow":
+    placeStand(.inWindow)
+default:
+    break
+}
+
 var frameCount = 0
 var running = true
 var screenshotSaved = true
 
 while running && !WindowShouldClose() {
+    if let heldPointer {
+        SetMousePosition(Int(heldPointer.x), Int(heldPointer.y))
+    }
     let frameTime = GetFrameTime()
     let screenSize = Vector2(x: Float(GetScreenWidth()), y: Float(GetScreenHeight()))
     let pointer = GetMousePosition()
@@ -389,6 +578,28 @@ while running && !WindowShouldClose() {
     )
     let chatOrigin = Vector2(x: bounds.x, y: bounds.y)
     let panelOrigin = Vector2(x: 0, y: panelTop)
+    let lotArea = Rectangle(x: 0, y: 0, width: screenSize.x, height: panelTop)
+    let toolbarItemCount = Mode.allCases.count
+    let toolbarBounds = IconToolbar.bounds(itemCount: toolbarItemCount, in: lotArea)
+    let isOverToolbar = CheckCollisionPointRec(pointer, toolbarBounds)
+
+    let standPadding: Float = 8
+    let standSize = Vector2(
+        x: standScript.window.size.width + standPadding,
+        y: standScript.window.size.height + standPadding + Float(WindowFrame.titleHeight)
+    )
+    let standWindowBounds = standWindow.place(size: standSize, at: Vector2(x: screenSize.x - standSize.x - 24, y: 60))
+    let standWindowContent = WindowFrame.content(in: standWindowBounds)
+    let isStandShown = standPlacement == .inWindow || (standPlacement == .inPanel && mode == .live)
+    let standOrigin = standPlacement == .inWindow
+        ? Vector2(x: standWindowContent.x + (standPadding / 2), y: standWindowContent.y + (standPadding / 2))
+        : Vector2(x: panelOrigin.x + standPanelPosition.x, y: panelOrigin.y + standPanelPosition.y)
+    let isOverStandWindow = standPlacement == .inWindow && CheckCollisionPointRec(pointer, standWindowBounds)
+    let modePanel = switch mode {
+    case .live: panel
+    case .stats: stats
+    case .options: options
+    }
 
     // The bar slides in from above while the pointer is at the top of the screen or over it.
     let isPointerNearBar = pointer.y < (barReveal > 0 ? barHeight : barHotStripHeight)
@@ -401,28 +612,80 @@ while running && !WindowShouldClose() {
     if notice.isOpen {
         _ = notice.update()
     } else {
-        // The bar draws over the chat window, and the chat window over the panel, so each gets
-        // the pointer before what is beneath it.
-        if !isOverBar || window.isDragging {
+        // The bar draws over everything but the notice, and the stand's window over the chat
+        // window, which draws over the panel. Each gets the pointer before what is beneath it.
+        if standPlacement == .inWindow, !isOverBar || standWindow.isDragging {
+            _ = standWindow.followPointer(in: standWindowBounds)
+            switch standWindow.update(in: standWindowBounds) {
+            case .close:
+                placeStand(.closed)
+            case .toolbarItemSelected:
+                placeStand(.inPanel)
+                showMode(.live)
+            default:
+                break
+            }
+        }
+        if isOverStandWindow, IsMouseButtonPressed(MouseButton.left) {
+            chat.clearFocus()
+        }
+        if (!isOverBar && !isOverStandWindow) || window.isDragging {
             _ = window.followPointer(in: bounds)
             if window.update(in: bounds) == .close {
                 running = false
             }
         }
-        for case let .submitted(control: "chatEntry", text: message) in chat.update(at: chatOrigin) {
-            chatMessages.append("You: \(message)")
-            chatMessages.append("Maya: \(residentReplies[residentReplyIndex])")
-            history.items = chatMessages
-            residentReplyIndex = (residentReplyIndex + 1) % residentReplies.count
+        if !isOverStandWindow {
+            for case let .submitted(control: "chatEntry", text: message) in chat.update(at: chatOrigin) {
+                chatMessages.append("You: \(message)")
+                chatMessages.append("Maya: \(residentReplies[residentReplyIndex])")
+                history.items = chatMessages
+                residentReplyIndex = (residentReplyIndex + 1) % residentReplies.count
+            }
         }
 
-        if !CheckCollisionPointRec(pointer, bounds), !isOverBar {
-            for event in panel.update(at: panelOrigin) {
+        if IsMouseButtonPressed(MouseButton.left), !isOverBar, !isOverStandWindow, !CheckCollisionPointRec(pointer, bounds) {
+            if let index = IconToolbar.buttonIndex(at: pointer, itemCount: toolbarItemCount, in: lotArea),
+               let selected = Mode(rawValue: index) {
+                showMode(selected)
+            }
+        }
+
+        if isStandShown {
+            for event in stand.update(at: standOrigin) {
+                switch event {
+                case .pressed(control: "ServeButton") where standCups > 0:
+                    standCups -= 1
+                    standEarnings += stand.value(named: "PriceSlider") ?? 1
+                    showStand()
+                case .pressed(control: "RestockButton"):
+                    standCups = standCapacity
+                    showStand()
+                case .changed(control: "PriceSlider", value: _):
+                    showStand()
+                case let .submitted(control: "SignEntry", text: sign):
+                    standMessage.items = ["The sign now reads: \(sign)"]
+                default:
+                    break
+                }
+            }
+        }
+
+        if !CheckCollisionPointRec(pointer, bounds), !isOverBar, !isOverStandWindow, !isOverToolbar {
+            for event in modePanel.update(at: panelOrigin) {
                 switch event {
                 case .pressed(control: "previousPage"):
                     showPeoplePage(peoplePage - 1)
                 case .pressed(control: "nextPage"):
                     showPeoplePage(peoplePage + 1)
+                case .pressed(control: "eodClose"):
+                    placeStand(.closed)
+                case .pressed(control: "eodExpand"):
+                    placeStand(.inWindow)
+                case .pressed(control: "eodHelp"):
+                    notice.show(title: "Lemonade Stand", message: "Set a price, then serve customers until the jug runs out.")
+                case let .changed(control: name, value: value):
+                    showVolume(value, of: name)
                 default:
                     break
                 }
@@ -450,13 +713,23 @@ while running && !WindowShouldClose() {
     }
 
     let isOverInterface = isOverBar
+        || isOverStandWindow
+        || isOverToolbar
         || CheckCollisionPointRec(pointer, bounds)
-        || panel.containsPoint(pointer, origin: panelOrigin)
+        || modePanel.containsPoint(pointer, origin: panelOrigin)
+        || pointer.y >= panelTop
+
+    if !notice.isOpen, !isOverInterface, IsMouseButtonPressed(MouseButton.left),
+       CheckCollisionPointRec(pointer, standLotBounds(groundBottom: Int32(panelTop))), standPlacement == .closed {
+        placeStand(.inPanel)
+        showMode(.live)
+    }
 
     gameMinutes += Double(frameTime) * speedRates[speedIndex]
     let totalMinutes = Int(gameMinutes)
     let clock = String(format: "%02d:%02d", (totalMinutes / 60) % 24, totalMinutes % 60)
     panel.setText(clock, named: "statusBarTimerEntry")
+    panel.setText(clock, named: "timerEntry")
     bar.setText(clock, named: "GameClock")
 
     if GetTime() > nextSimulatedError {
@@ -474,7 +747,7 @@ while running && !WindowShouldClose() {
         Color(r: 255, g: 255, b: 255, a: 255)
     )
     DrawRectangle(0, Int32(panelTop), Int32(screenSize.x), Int32(panelHeight), theme.titleBar)
-    panel.draw(at: panelOrigin) { name, regionBounds in
+    modePanel.draw(at: panelOrigin) { name, regionBounds in
         switch name {
         case "motives":
             drawNeeds(in: regionBounds)
@@ -484,16 +757,41 @@ while running && !WindowShouldClose() {
             break
         }
     }
+    if standPlacement == .inPanel, mode == .live {
+        stand.draw(at: standOrigin)
+    }
+    IconToolbar.draw(
+        itemCount: toolbarItemCount,
+        selectedIndex: mode.rawValue,
+        mousePosition: pointer,
+        in: lotArea
+    ) { index, iconBounds, color in
+        DrawText(
+            Mode.allCases[index].icon,
+            Int(iconBounds.x) + 15,
+            Int(iconBounds.y) + 11,
+            20,
+            color
+        )
+    }
     window.draw(in: bounds)
     chat.draw(at: chatOrigin)
+    if standPlacement == .inWindow {
+        standWindow.draw(in: standWindowBounds)
+        stand.draw(at: standOrigin)
+    }
     if barReveal > 0 {
         bar.draw(at: barOrigin)
     }
+    modePanel.drawTooltip(at: panelOrigin)
+    chat.drawTooltip(at: chatOrigin)
+    stand.drawTooltip(at: standOrigin)
+    bar.drawTooltip(at: barOrigin)
     notice.draw()
     EndDrawing()
 
     frameCount += 1
-    if let screenshot, frameCount == 3 {
+    if let screenshot, frameCount == (heldPointer == nil ? 3 : 45) {
         let image = LoadImageFromScreen()
         screenshotSaved = ExportImage(image, screenshot)
         UnloadImage(image)

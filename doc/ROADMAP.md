@@ -135,22 +135,39 @@ debug bar is in Maxis' format.
   `alignment`, which the reader does not yet follow.
 - **What do the last two slices of a six-state image hold?** Six real files use
   `ImageStates=6`. Hudini draws the four known states from them.
-- **What should `SetControlProperties` settings become?** The reader converts
-  those that place an image or a rectangle. 172 others in the real files, such as
-  color sets and layout offsets, are for game code, and a host may want to read
-  them.
-- **Should tooltips, slider images, and slider dragging come next?** The reader
-  keeps tooltip names, and most real buttons have one, but none of these are drawn
-  or interactive yet. The Sims-inspired HUD is likely to need them first.
-- **Should `AddProgressBar` become a control?** The real files use it 19 times,
-  and a needs display might want it.
+- **How should sliders draw their images?** Most real sliders name an image, and
+  two name a separate thumb image. The view draws a plain track and thumb for now.
 
-## Later cat-named Mac OS X releases
+## Leopard — Control panels and object interfaces
 
-These are available as inspiration if the project later needs another
-roadmap; they are not planned milestones:
+In every Sims game, the root panel is the control panel, or UCP. It swaps between
+modes, and in TSO the live panel also hosts an object's own interface, an
+Extended Object Dialog or EOD. Some items in TSO's beta are remembered as opening
+theirs in a separate window. TSO's EOD files declare no window size, so nothing in
+a file decides this, and Hudini treats it as the host's choice.
 
-| Version | Release name |
-| --- | --- |
-| Mac OS X 10.5 | Leopard |
-| Mac OS X 10.6 | Snow Leopard |
+Hudini provides the general parts and has no idea what an EOD is. The rules for
+TSO's EOD frames belong to the game that uses them.
+
+- [x] Keep `SetControlProperties` entries as settings game code reads by name, and
+  draw nothing from them until the host asks.
+- [x] Prove panel swapping and panels inside panels in the demo, using existing
+  views at different origins. No container type turned out to be needed.
+- [x] Draw tooltips, and add slider dragging with values, ranges, and orientation.
+- [x] Add a progress bar control.
+- [x] Let hosts place what a document leaves to game code with `setBounds(_:named:)`.
+- [x] Add an original control panel to the demo with `IconToolbar` as its mode
+  switcher, plus an original `.uis` stand shown in the live panel and in a window.
+
+## Snow Leopard — Reading CST text
+
+TSO's interfaces take their text from CST files, and the `.uis` files refer to
+them by table and index. Hudini gets its own CST reader that works across TSO's
+versions, based on what [swift-cst](https://github.com/tonytins/swift-cst) has
+already learned. CST files are not known to appear in any other game.
+
+- [ ] Read CST files in the encodings real files use, loading each table once.
+- [ ] Offer a catalog that plugs into `resolveString` and reports missing text.
+- [ ] Give the demo original CST files in place of its strings in code.
+- [ ] Check the reader against a local copy of TSO's text in each version, without
+  committing it.

@@ -83,7 +83,8 @@ enum UIScriptParser {
                 visuals.append(UIScript.Visual(
                     name: try reader.requiredString("name"),
                     image: try reader.requiredString("image"),
-                    frame: try makeFrame(reader)
+                    frame: try makeFrame(reader),
+                    isInitiallyHidden: false
                 ))
             default:
                 guard let type = controlTypes[element.name] else {
@@ -116,6 +117,7 @@ enum UIScriptParser {
         "TextField": .textField,
         "List": .list,
         "Slider": .slider,
+        "ProgressBar": .progressBar,
         "Region": .region
     ]
 
@@ -146,6 +148,7 @@ enum UIScriptParser {
             disabledTextColor: try reader.color("disabledTextColor"),
             backgroundColor: try reader.color("backgroundColor"),
             borderColor: try reader.color("borderColor"),
+            fillColor: try reader.color("fillColor"),
             fontSize: try reader.integer("fontSize")
         )
     }
@@ -185,8 +188,27 @@ enum UIScriptParser {
             maximumLength: try reader.integer("maximumLength"),
             scrolls: try makeScrollBinding(owner: name, reader),
             isReadOnly: try reader.boolean("readOnly") ?? false,
-            alignment: try reader.alignment("alignment") ?? .left
+            alignment: try reader.alignment("alignment") ?? .left,
+            valueRange: try makeValueRange(owner: name, reader),
+            orientation: try reader.orientation("orientation"),
+            isInitiallyHidden: false
         )
+    }
+
+    private static func makeValueRange(
+        owner: String,
+        _ reader: AttributeReader
+    ) throws -> ClosedRange<Float>? {
+        let minimum = try reader.number("minValue")
+        let maximum = try reader.number("maxValue")
+        guard minimum != nil || maximum != nil else {
+            return nil
+        }
+        let (lower, upper) = (minimum ?? 0, maximum ?? 1)
+        guard lower < upper else {
+            throw UIScriptError.invalidValueRange(owner: owner)
+        }
+        return lower...upper
     }
 
     private static func makeScrollBinding(
@@ -378,6 +400,16 @@ private final class AttributeReader {
             throw invalid(attribute, value)
         }
         return direction
+    }
+
+    func orientation(_ attribute: String) throws -> UIScript.Orientation? {
+        guard let value = string(attribute) else {
+            return nil
+        }
+        guard let orientation = UIScript.Orientation(rawValue: value) else {
+            throw invalid(attribute, value)
+        }
+        return orientation
     }
 
     func alignment(_ attribute: String) throws -> UIScript.TextAlignment? {

@@ -21,16 +21,17 @@
   <Image name="eodExpand" path="demo/eodExpand" stateCount="4"/>
   <Image name="eodContract" path="demo/eodContract" stateCount="4"/>
 
-  <String name="previousPageTooltip" table="UIText:174" index="1"/>
-  <String name="nextPageTooltip" table="UIText:174" index="2"/>
-  <String name="needs" table="UIText:174" index="3"/>
-  <String name="eodHelpTooltip" table="UIText:174" index="4"/>
-  <String name="eodCloseTooltip" table="UIText:174" index="5"/>
-  <String name="eodTimerTip" table="UIText:174" index="6"/>
-  <String name="eodExpandTooltip" table="UIText:174" index="8"/>
-  <String name="eodContractTooltip" table="UIText:174" index="9"/>
-  <String name="statusBarTimerTooltip" table="UIText:174" index="10"/>
+  <String name="previousPageTooltip" table="DemoText:1" index="1"/>
+  <String name="nextPageTooltip" table="DemoText:1" index="2"/>
+  <String name="needs" table="DemoText:1" index="3"/>
+  <String name="eodHelpTooltip" table="DemoText:1" index="4"/>
+  <String name="eodCloseTooltip" table="DemoText:1" index="5"/>
+  <String name="eodTimerTip" table="DemoText:1" index="6"/>
+  <String name="eodExpandTooltip" table="DemoText:1" index="8"/>
+  <String name="eodContractTooltip" table="DemoText:1" index="9"/>
+  <String name="statusBarTimerTooltip" table="DemoText:1" index="10"/>
 
+  <Style name="markedButton" textColor="#FFFFFF" fontSize="14"/>
   <Style name="panelText" textColor="#FFF99D" fontSize="12"/>
   <Style name="timerEntry" textColor="#FFF99D" backgroundColor="#000000" borderColor="#F7D025" fontSize="10"/>
   <Style name="messageWindow" textColor="#FFF99D" backgroundColor="#17212A" fontSize="12"/>
@@ -51,10 +52,10 @@
   <Button name="nextPage" legacyID="13" x="828" y="63" image="nextPage" tooltip="nextPageTooltip"/>
   <Region name="peopleList" x="409" y="51" width="441" height="34"/>
 
-  <!-- Work session controls, which overlap the status bar. The host shows one set at a time. -->
-  <Button name="eodHelp" legacyID="14" x="596" y="87" image="eodHelp" tooltip="eodHelpTooltip"/>
-  <Button name="eodClose" legacyID="15" x="589" y="0" image="eodClose" tooltip="eodCloseTooltip"/>
-  <Button name="eodExpand" legacyID="17" x="150" y="-1" image="eodExpand" tooltip="eodExpandTooltip"/>
+  <!-- Controls for an object's interface, which overlap the status bar. The host shows one set at a time. -->
+  <Button name="eodHelp" legacyID="14" x="596" y="87" image="eodHelp" tooltip="eodHelpTooltip" text="?" style="markedButton"/>
+  <Button name="eodClose" legacyID="15" x="589" y="0" image="eodClose" tooltip="eodCloseTooltip" text="X" style="markedButton"/>
+  <Button name="eodExpand" legacyID="17" x="150" y="-1" image="eodExpand" tooltip="eodExpandTooltip" text="^" style="markedButton"/>
   <Button name="eodContract" legacyID="18" x="150" y="-1" image="eodContract" tooltip="eodContractTooltip"/>
   <TextField name="timerEntry" legacyID="100" x="526" y="13" width="50" height="15"
              style="timerEntry" tooltip="eodTimerTip" maximumLength="8" readOnly="true"/>
