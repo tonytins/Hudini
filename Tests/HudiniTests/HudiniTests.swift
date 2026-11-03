@@ -1,6 +1,7 @@
 // These run without a window. Measuring text needs the font a window loads, so the checks
 // here stay with what doesn't draw: the camera's math and what the text boxes accept.
 
+import Foundation
 import Hudini
 import Raylib
 import Testing
@@ -76,6 +77,150 @@ import Testing
     #expect(standard.accent == Color(r: 240, g: 190, b: 90, a: 255))
     #expect(custom.accent == customAccent)
     #expect(custom.panel == standard.panel)
+}
+
+@Test func uiScriptDecodesNamedResourcesStylesVisualsAndControls() throws {
+    let data = Data(
+        """
+        {
+          "window": {
+            "size": { "width": 500, "height": 255 },
+            "minSize": { "width": 350, "height": 196 }
+          },
+          "resources": {
+            "images": {
+              "scrollbar": { "path": "ui/scrollbar.bmp" }
+            },
+            "strings": {
+              "sendTooltip": { "table": "UIText", "index": 5 }
+            }
+          },
+          "styles": {
+            "chatEntry": { "textColor": "#FFF99D", "fontSize": 8 }
+          },
+          "visuals": [
+            {
+              "name": "chatBackground",
+              "image": "scrollbar",
+              "frame": { "x": 19, "y": 39, "width": 341, "height": 166 }
+            }
+          ],
+          "controls": [
+            {
+              "name": "chatEntry",
+              "type": "textField",
+              "legacyID": 5,
+              "frame": {
+                "x": 52, "y": 216, "width": 299, "height": 17,
+                "edgeOffsets": { "left": 38, "right": 67, "bottom": 22 }
+              },
+              "style": "chatEntry",
+              "tooltip": "sendTooltip"
+            },
+            {
+              "name": "send",
+              "type": "button",
+              "frame": { "x": 360, "y": 210, "width": 24, "height": 24 },
+              "image": "scrollbar",
+              "text": { "string": "sendTooltip" }
+            }
+          ]
+        }
+        """.utf8
+    )
+
+    let script = try UIScript(data: data)
+
+    #expect(script.window.size.width == 500)
+    #expect(script.window.minSize?.height == 196)
+    #expect(script.resources.images["scrollbar"]?.path == "ui/scrollbar.bmp")
+    #expect(script.styles["chatEntry"]?.fontSize == 8)
+    #expect(script.visuals.first?.name == "chatBackground")
+    #expect(script.controls[0].type == UIScript.ControlType.textField)
+    #expect(script.controls[0].frame.edgeOffsets?.right == 67)
+    #expect(script.controls[0].tooltip == "sendTooltip")
+    #expect(script.controls[1].text == UIScript.Text.string("sendTooltip"))
+}
+
+@Test func uiScriptRejectsUnknownFieldsAndControlTypes() throws {
+    let unknownFieldData = Data(
+        """
+        {
+          "window": { "size": { "width": 100, "height": 80 } },
+          "futureOptionalSection": { "note": "safe to ignore" }
+        }
+        """.utf8
+    )
+    #expect(throws: DecodingError.self) {
+        try UIScript(data: unknownFieldData)
+    }
+
+    let unknownControlData = Data(
+        """
+        {
+          "window": { "size": { "width": 100, "height": 80 } },
+          "controls": [
+            {
+              "name": "unknown",
+              "type": "futureControl",
+              "frame": { "x": 0, "y": 0, "width": 10, "height": 10 }
+            }
+          ]
+        }
+        """.utf8
+    )
+    #expect(throws: DecodingError.self) {
+        try UIScript(data: unknownControlData)
+    }
+}
+
+@Test func uiScriptRejectsUnknownReferencesAndInvalidFrames() {
+    let unknownStyleData = Data(
+        """
+        {
+          "window": { "size": { "width": 100, "height": 80 } },
+          "controls": [
+            {
+              "name": "ok",
+              "type": "button",
+              "frame": { "x": 0, "y": 0, "width": 10, "height": 10 },
+              "style": "missing"
+            }
+          ]
+        }
+        """.utf8
+    )
+    do {
+        _ = try UIScript(data: unknownStyleData)
+        Issue.record("Expected an unknown style reference to fail validation.")
+    } catch let error as UIScriptError {
+        #expect(error == .unknownReference(owner: "ok", property: "style", reference: "missing"))
+    } catch {
+        Issue.record("Unexpected error: \(error)")
+    }
+
+    let invalidFrameData = Data(
+        """
+        {
+          "window": { "size": { "width": 100, "height": 80 } },
+          "controls": [
+            {
+              "name": "bad",
+              "type": "text",
+              "frame": { "x": 0, "y": 0, "width": -1, "height": 10 }
+            }
+          ]
+        }
+        """.utf8
+    )
+    do {
+        _ = try UIScript(data: invalidFrameData)
+        Issue.record("Expected a negative frame size to fail validation.")
+    } catch let error as UIScriptError {
+        #expect(error == .invalidFrame(owner: "bad"))
+    } catch {
+        Issue.record("Unexpected error: \(error)")
+    }
 }
 
 @Test func formLayoutStacksLabeledControlsAndReservesFooterSpace() {
