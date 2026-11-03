@@ -11,6 +11,7 @@ form layout.
 - Bottom-left icon toolbar with host-owned selection and custom icon drawing
 - Editable window titles with optional validation
 - Single-line and multiline text fields
+- Scrollable plain-text lists
 - Confirmation and notice panels
 - Button rows with hit testing and enabled states
 - A 2D camera with pointer-centered zoom and coordinate conversion
@@ -89,13 +90,13 @@ while !WindowShouldClose() {
     layout.layout(in: content)
 
     _ = window.followPointer(in: bounds)
-    _ = playerName.update()
+    _ = playerName.update(in: playerName.bounds)
 
     BeginDrawing()
     ClearBackground(Color(r: 54, g: 84, b: 120, a: 255))
     window.draw(in: bounds)
     layout.drawLabels(theme: theme)
-    playerName.draw(isFocused: true)
+    playerName.draw(isFocused: playerName.isFocused)
     EndDrawing()
 }
 
@@ -103,9 +104,9 @@ CloseWindow()
 ```
 
 See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable, JSON-driven
-chat-window preview. It demonstrates basic rendering from the initial UIScript
-model with placeholder content; it is not yet a full UIScript renderer or a
-TSO `.uis` compatibility implementation.
+property-chat example. It uses reusable text-field and text-list controls; the
+demo host owns the conversation and simulates resident replies. It is not yet
+a full UIScript renderer or a TSO `.uis` compatibility implementation.
 
 The demo also includes an unwired [`livepanel1024.json`](Sources/hudini-demo/Resources/livepanel1024.json)
 draft based on the TSO live mode panel. It is a broader format example, not

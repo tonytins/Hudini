@@ -24,25 +24,28 @@ demo can render it.
 - [x] Add the initial typed UIScript JSON model and decoding validation.
 - [x] Replace the demo's floating settings window with a chat-window preview
   loaded from JSON.
-- [x] Render placeholder history, a scrollbar, scroll buttons, and an entry
+- [x] Render initial history, a scrollbar, scroll buttons, and an entry
   field from JSON-described bounds and styles.
 - [ ] Keep the model and preview aligned as the smallest useful field set
   becomes clear.
-- [ ] Replace preview-only drawing with a focused reusable rendering path
-  without turning the library into a general view framework.
+- [ ] Replace the remaining preview-only drawing with a focused reusable
+  UIScript rendering path without turning the library into a general view
+  framework.
 
 ## Puma — Usable chat controls
 
-Turn the static chat preview into a convincing small interface while keeping
+Turn the chat preview into a usable property-chat interface while keeping
 game behavior in the host.
 
-- [ ] Draw and update the initial controls through reusable Hudini code driven
-  by the JSON model.
-- [ ] Support input focus, text editing, and a submit event the host can handle.
-- [ ] Support scroll control interaction over host-provided chat content.
-- [ ] Apply declared window sizing and edge offsets consistently when the
-  preview window changes size.
-- [ ] Keep content, actions, and chat-history state owned by the demo host.
+- [x] Draw and update the text field and message list through reusable Hudini
+  code driven by the JSON model.
+- [x] Support click focus, text editing, and a typed submit event the host can
+  handle.
+- [x] Support wheel and arrow-button scrolling over host-provided chat content.
+- [x] Keep the chat dialog at its JSON-declared size; defer resizing controls
+  and edge-offset behavior while the host viewport may resize.
+- [x] Keep content, actions, and chat-history state owned by the demo host;
+  simulate resident replies in the example host.
 
 ## Jaguar — Live-panel breadth proof
 

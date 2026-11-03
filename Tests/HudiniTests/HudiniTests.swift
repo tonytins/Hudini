@@ -50,6 +50,16 @@ import Testing
     #expect(ascii.text == "hllo~")
 }
 
+@Test func textFieldSubmitsExactTextAndKeepsWhitespaceOnlyDrafts() {
+    let field = TextField(text: "  Hello!  ", maximumLength: 32)
+    #expect(field.submit() == .submitted("  Hello!  "))
+    #expect(field.text.isEmpty)
+
+    field.text = "   "
+    #expect(field.submit() == nil)
+    #expect(field.text == "   ")
+}
+
 @Test func textAreaKeepsItsLimit() {
     let area = TextArea(text: "one two three", maximumLength: 7, fontSize: 20, width: 200)
     #expect(area.text == "one two")
@@ -115,6 +125,7 @@ import Testing
                 "edgeOffsets": { "left": 38, "right": 67, "bottom": 22 }
               },
               "style": "chatEntry",
+              "placeholder": { "literal": "Type a message" },
               "tooltip": "sendTooltip"
             },
             {
@@ -139,6 +150,7 @@ import Testing
     #expect(script.controls[0].type == UIScript.ControlType.textField)
     #expect(script.controls[0].frame.edgeOffsets?.right == 67)
     #expect(script.controls[0].tooltip == "sendTooltip")
+    #expect(script.controls[0].placeholder == .literal("Type a message"))
     #expect(script.controls[1].text == UIScript.Text.string("sendTooltip"))
 }
 
@@ -195,6 +207,54 @@ import Testing
         Issue.record("Expected an unknown style reference to fail validation.")
     } catch let error as UIScriptError {
         #expect(error == .unknownReference(owner: "ok", property: "style", reference: "missing"))
+    } catch {
+        Issue.record("Unexpected error: \(error)")
+    }
+
+    let unknownPlaceholderData = Data(
+        """
+        {
+          "window": { "size": { "width": 100, "height": 80 } },
+          "controls": [
+            {
+              "name": "entry",
+              "type": "textField",
+              "frame": { "x": 0, "y": 0, "width": 40, "height": 10 },
+              "placeholder": { "string": "missing" }
+            }
+          ]
+        }
+        """.utf8
+    )
+    do {
+        _ = try UIScript(data: unknownPlaceholderData)
+        Issue.record("Expected an unknown placeholder reference to fail validation.")
+    } catch let error as UIScriptError {
+        #expect(error == .unknownReference(owner: "entry", property: "placeholder", reference: "missing"))
+    } catch {
+        Issue.record("Unexpected error: \(error)")
+    }
+
+    let invalidPlaceholderData = Data(
+        """
+        {
+          "window": { "size": { "width": 100, "height": 80 } },
+          "controls": [
+            {
+              "name": "button",
+              "type": "button",
+              "frame": { "x": 0, "y": 0, "width": 40, "height": 10 },
+              "placeholder": { "literal": "Invalid here" }
+            }
+          ]
+        }
+        """.utf8
+    )
+    do {
+        _ = try UIScript(data: invalidPlaceholderData)
+        Issue.record("Expected a placeholder on a non-text-field to fail validation.")
+    } catch let error as UIScriptError {
+        #expect(error == .invalidPlaceholder(owner: "button"))
     } catch {
         Issue.record("Unexpected error: \(error)")
     }

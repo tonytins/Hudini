@@ -72,6 +72,9 @@ public struct UIScript: Decodable, Sendable {
         }
 
         for control in controls {
+            if control.placeholder != nil, control.type != .textField {
+                throw UIScriptError.invalidPlaceholder(owner: control.name)
+            }
             if let style = control.style, styles[style] == nil {
                 throw UIScriptError.unknownReference(
                     owner: control.name,
@@ -92,6 +95,14 @@ public struct UIScript: Decodable, Sendable {
                 throw UIScriptError.unknownReference(
                     owner: control.name,
                     property: "text",
+                    reference: stringName
+                )
+            }
+            if case let .string(stringName)? = control.placeholder,
+               resources.strings[stringName] == nil {
+                throw UIScriptError.unknownReference(
+                    owner: control.name,
+                    property: "placeholder",
                     reference: stringName
                 )
             }
@@ -453,6 +464,9 @@ public struct UIScript: Decodable, Sendable {
         /// Literal or localized text displayed by the control.
         public let text: Text?
 
+        /// Literal or localized guidance displayed while a text field is empty.
+        public let placeholder: Text?
+
         /// The name of an image in `resources.images`.
         public let image: String?
 
@@ -466,6 +480,7 @@ public struct UIScript: Decodable, Sendable {
             case frame
             case style
             case text
+            case placeholder
             case image
             case tooltip
         }
@@ -473,7 +488,8 @@ public struct UIScript: Decodable, Sendable {
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             try validateKnownKeys(in: decoder, allowing: [
-                "name", "type", "legacyID", "frame", "style", "text", "image", "tooltip"
+                "name", "type", "legacyID", "frame", "style", "text",
+                "placeholder", "image", "tooltip"
             ])
             name = try container.decode(String.self, forKey: .name)
             type = try container.decode(ControlType.self, forKey: .type)
@@ -481,6 +497,7 @@ public struct UIScript: Decodable, Sendable {
             frame = try container.decode(Frame.self, forKey: .frame)
             style = try container.decodeIfPresent(String.self, forKey: .style)
             text = try container.decodeIfPresent(Text.self, forKey: .text)
+            placeholder = try container.decodeIfPresent(Text.self, forKey: .placeholder)
             image = try container.decodeIfPresent(String.self, forKey: .image)
             tooltip = try container.decodeIfPresent(String.self, forKey: .tooltip)
         }
@@ -532,6 +549,9 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A name refers to a missing resource or style.
     case unknownReference(owner: String, property: String, reference: String)
 
+    /// A placeholder is attached to a control other than a text field.
+    case invalidPlaceholder(owner: String)
+
     public var errorDescription: String? {
         switch self {
         case .invalidWindowSize:
@@ -542,6 +562,8 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript frame for '\(owner)' cannot have a negative size."
         case let .unknownReference(owner, property, reference):
             "UIScript \(property) for '\(owner)' refers to unknown '\(reference)'."
+        case let .invalidPlaceholder(owner):
+            "UIScript placeholder for '\(owner)' requires a text field control."
         }
     }
 }

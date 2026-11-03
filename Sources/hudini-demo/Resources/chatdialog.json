@@ -29,13 +29,10 @@
   "controls": [
     {
       "name": "chatHistory",
-      "type": "formattedText",
+      "type": "list",
       "legacyID": 1,
       "frame": { "x": 40, "y": 45, "width": 310, "height": 150 },
-      "style": "history",
-      "text": {
-        "literal": "Roommate: Welcome home!\nVisitor: Nice place.\nSystem: Alex entered the lot.\nYou: Thanks, make yourself at home."
-      }
+      "style": "history"
     },
     {
       "name": "chatHistorySlider",
@@ -66,7 +63,7 @@
       "legacyID": 5,
       "frame": { "x": 52, "y": 216, "width": 299, "height": 22 },
       "style": "entry",
-      "text": { "literal": "Type a message..." }
+      "placeholder": { "literal": "Type a message..." }
     }
   ]
 }
