@@ -38,6 +38,11 @@ public struct UIScript: Decodable, Sendable {
         control.style.flatMap { styles[$0] }
     }
 
+    /// Returns the control with this name, or `nil` when there is none.
+    public func control(named name: String) -> Control? {
+        controls.first { $0.name == name }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case window
         case resources
@@ -90,6 +95,13 @@ public struct UIScript: Decodable, Sendable {
             if control.placeholder != nil, control.type != .textField {
                 throw UIScriptError.invalidPlaceholder(owner: control.name)
             }
+            if let maximumLength = control.maximumLength,
+               maximumLength <= 0 || control.type != .textField {
+                throw UIScriptError.invalidMaximumLength(owner: control.name)
+            }
+            if let binding = control.scrolls {
+                try validate(binding, of: control)
+            }
             if let style = control.style, styles[style] == nil {
                 throw UIScriptError.unknownReference(
                     owner: control.name,
@@ -130,6 +142,24 @@ public struct UIScript: Decodable, Sendable {
                 )
             }
             try validate(frame: control.frame, owner: control.name)
+        }
+    }
+
+    private func validate(_ binding: ScrollBinding, of control: Control) throws {
+        guard let target = self.control(named: binding.list) else {
+            throw UIScriptError.unknownReference(
+                owner: control.name,
+                property: "scrolls",
+                reference: binding.list
+            )
+        }
+        let hasValidDirection = switch control.type {
+        case .slider: binding.direction == nil
+        case .button: binding.direction != nil
+        default: false
+        }
+        guard target.type == .list, hasValidDirection else {
+            throw UIScriptError.invalidScrollBinding(owner: control.name)
         }
     }
 
@@ -510,6 +540,39 @@ public struct UIScript: Decodable, Sendable {
         }
     }
 
+    /// The direction a scroll button moves through its list.
+    public enum ScrollDirection: String, Decodable, Sendable {
+        /// Toward the top of the list, which holds the oldest content.
+        case up
+
+        /// Toward the bottom of the list, which holds the newest content.
+        case down
+    }
+
+    /// Connects a slider or button to the list it scrolls.
+    ///
+    /// A slider shows the list's position and has no direction. A button
+    /// requires a direction.
+    public struct ScrollBinding: Decodable, Sendable, Equatable {
+        /// The name of the list control.
+        public let list: String
+
+        /// The direction a button scrolls.
+        public let direction: ScrollDirection?
+
+        private enum CodingKeys: String, CodingKey {
+            case list
+            case direction
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            try validateKnownKeys(in: decoder, allowing: ["list", "direction"])
+            list = try container.decode(String.self, forKey: .list)
+            direction = try container.decodeIfPresent(ScrollDirection.self, forKey: .direction)
+        }
+    }
+
     /// A control described by a UIScript document.
     public struct Control: Decodable, Sendable {
         /// The stable document-local name.
@@ -539,6 +602,12 @@ public struct UIScript: Decodable, Sendable {
         /// The name of a localized string in `resources.strings`.
         public let tooltip: String?
 
+        /// The most characters a text field accepts.
+        public let maximumLength: Int?
+
+        /// The list a slider or button scrolls.
+        public let scrolls: ScrollBinding?
+
         private enum CodingKeys: String, CodingKey {
             case name
             case type
@@ -549,13 +618,15 @@ public struct UIScript: Decodable, Sendable {
             case placeholder
             case image
             case tooltip
+            case maximumLength
+            case scrolls
         }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             try validateKnownKeys(in: decoder, allowing: [
                 "name", "type", "legacyID", "frame", "style", "text",
-                "placeholder", "image", "tooltip"
+                "placeholder", "image", "tooltip", "maximumLength", "scrolls"
             ])
             name = try container.decode(String.self, forKey: .name)
             type = try container.decode(ControlType.self, forKey: .type)
@@ -566,6 +637,8 @@ public struct UIScript: Decodable, Sendable {
             placeholder = try container.decodeIfPresent(Text.self, forKey: .placeholder)
             image = try container.decodeIfPresent(String.self, forKey: .image)
             tooltip = try container.decodeIfPresent(String.self, forKey: .tooltip)
+            maximumLength = try container.decodeIfPresent(Int.self, forKey: .maximumLength)
+            scrolls = try container.decodeIfPresent(ScrollBinding.self, forKey: .scrolls)
         }
     }
 }
@@ -624,6 +697,12 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A placeholder is attached to a control other than a text field.
     case invalidPlaceholder(owner: String)
 
+    /// A maximum length is not positive or is attached to a control other than a text field.
+    case invalidMaximumLength(owner: String)
+
+    /// A scroll binding targets a control other than a list, or does not suit its control.
+    case invalidScrollBinding(owner: String)
+
     public var errorDescription: String? {
         switch self {
         case .invalidWindowSize:
@@ -640,6 +719,10 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript \(property) for '\(owner)' refers to unknown '\(reference)'."
         case let .invalidPlaceholder(owner):
             "UIScript placeholder for '\(owner)' requires a text field control."
+        case let .invalidMaximumLength(owner):
+            "UIScript maximum length for '\(owner)' must be positive and requires a text field control."
+        case let .invalidScrollBinding(owner):
+            "UIScript scrolls for '\(owner)' must target a list, from a slider without a direction or a button with one."
         }
     }
 }

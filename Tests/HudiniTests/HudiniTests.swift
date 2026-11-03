@@ -399,6 +399,127 @@ private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangl
     #expect(abs(list.scrollThumbFraction - (1.0 / 3.0)) < 0.001)
 }
 
+private func frameJSON(x: Int = 0) -> String {
+    #"{ "x": \#(x), "y": 0, "width": 10, "height": 10 }"#
+}
+
+private func scrollControls(type: String, scrolls: String) -> String {
+    #"""
+    [
+      { "name": "history", "type": "list", "frame": \#(frameJSON()) },
+      { "name": "label", "type": "text", "frame": \#(frameJSON()) },
+      { "name": "scroller", "type": "\#(type)", "frame": \#(frameJSON()), "scrolls": \#(scrolls) }
+    ]
+    """#
+}
+
+@Test func scrollBindingsDecodeForSlidersAndButtons() throws {
+    let slider = try script(controls: scrollControls(type: "slider", scrolls: #"{ "list": "history" }"#))
+    #expect(slider.control(named: "scroller")?.scrolls?.list == "history")
+    #expect(slider.control(named: "scroller")?.scrolls?.direction == nil)
+
+    let button = try script(controls: scrollControls(type: "button", scrolls: #"{ "list": "history", "direction": "up" }"#))
+    #expect(button.control(named: "scroller")?.scrolls?.direction == .up)
+}
+
+@Test(arguments: [
+    ("slider", #"{ "list": "history", "direction": "up" }"#),
+    ("button", #"{ "list": "history" }"#),
+    ("text", #"{ "list": "history" }"#),
+    ("slider", #"{ "list": "label" }"#),
+])
+func uiScriptRejectsMismatchedScrollBindings(type: String, scrolls: String) {
+    #expect(throws: UIScriptError.invalidScrollBinding(owner: "scroller")) {
+        try script(controls: scrollControls(type: type, scrolls: scrolls))
+    }
+}
+
+@Test func uiScriptRejectsScrollBindingsToMissingLists() {
+    let controls = scrollControls(type: "slider", scrolls: #"{ "list": "missing" }"#)
+    #expect(throws: UIScriptError.unknownReference(owner: "scroller", property: "scrolls", reference: "missing")) {
+        try script(controls: controls)
+    }
+}
+
+@Test(arguments: [
+    #"{ "name": "entry", "type": "textField", "frame": { "x": 0, "y": 0, "width": 1, "height": 1 }, "maximumLength": 0 }"#,
+    #"{ "name": "entry", "type": "button", "frame": { "x": 0, "y": 0, "width": 1, "height": 1 }, "maximumLength": 5 }"#,
+])
+func uiScriptRejectsInvalidMaximumLengths(control: String) {
+    #expect(throws: UIScriptError.invalidMaximumLength(owner: "entry")) {
+        try script(controls: "[\(control)]")
+    }
+}
+
+@Test func viewBuildsControlsAndFindsThemByKind() throws {
+    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.json")))
+
+    #expect(view.list(named: "chatHistory") != nil)
+    #expect(view.textField(named: "chatEntry") != nil)
+    #expect(view.list(named: "chatEntry") == nil)
+    #expect(view.textField(named: "missing") == nil)
+}
+
+@Test func viewAppliesDocumentSettingsToTextFields() throws {
+    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.json")))
+    let entry = try #require(view.textField(named: "chatEntry"))
+
+    entry.text = String(repeating: "a", count: 500)
+    #expect(entry.length == 120)
+}
+
+@Test func viewScrollButtonsMoveTheirListWithoutReportingAnEvent() throws {
+    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.json")))
+    let history = try #require(view.list(named: "chatHistory"))
+    let origin = Vector2(x: 1000, y: 1000)
+    history.items = (1...20).map { "Message \($0)" }
+    _ = view.update(at: origin)
+
+    #expect(view.pressButton(at: Vector2(x: 1370, y: 1035), origin: origin) == nil)
+    #expect(history.scrollOffset == 1)
+    #expect(view.pressButton(at: Vector2(x: 1370, y: 1200), origin: origin) == nil)
+    #expect(history.scrollOffset == 0)
+}
+
+@Test func viewReportsOtherButtonsAndSkipsHiddenOnes() throws {
+    let view = UIScriptView(script: try script(controls: #"""
+    [
+      { "name": "lower", "type": "button", "frame": \#(frameJSON()) },
+      { "name": "upper", "type": "button", "frame": \#(frameJSON()) }
+    ]
+    """#))
+    let point = Vector2(x: 5, y: 5)
+
+    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
+
+    view.setHidden(true, forControlNamed: "upper")
+    #expect(view.isHidden(controlNamed: "upper"))
+    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "lower"))
+
+    view.setHidden(false, forControlNamed: "upper")
+    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
+    #expect(view.pressButton(at: Vector2(x: 50, y: 50), origin: .zero) == nil)
+}
+
+@Test func viewResolvesStringReferencesThroughTheHost() throws {
+    let document = Data(#"""
+    {
+      "window": { "size": { "width": 100, "height": 80 } },
+      "resources": { "strings": { "hint": { "table": "UIText", "index": 7 } } },
+      "controls": [
+        { "name": "entry", "type": "textField", "frame": { "x": 0, "y": 0, "width": 9, "height": 9 }, "text": { "string": "hint" } }
+      ]
+    }
+    """#.utf8)
+    let parsed = try UIScript(data: document)
+
+    let resolved = UIScriptView(script: parsed) { "\($0.table) string \($0.index)" }
+    #expect(resolved.textField(named: "entry")?.text == "UIText string 7")
+
+    let unresolved = UIScriptView(script: parsed)
+    #expect(unresolved.textField(named: "entry")?.text == "UIText#7")
+}
+
 @Test func livePanelDraftDecodesWithTheCurrentUIScriptModel() throws {
     let script = try UIScript(contentsOf: demoResource("livepanel1024.json"))
 

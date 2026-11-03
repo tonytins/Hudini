@@ -34,7 +34,7 @@ demo can render it.
   field from JSON-described bounds and styles.
 - [ ] Keep the model and preview aligned as the smallest useful field set
   becomes clear.
-- [ ] Replace the remaining preview-only drawing with a focused reusable
+- [x] Replace the remaining preview-only drawing with a focused reusable
   UIScript rendering path without turning the library into a general view
   framework.
 
@@ -44,7 +44,7 @@ Turn the chat preview into a usable property-chat interface while keeping
 game behavior in the host.
 
 - [x] Draw and update the text field and message list through reusable Hudini
-  controls, configured by the demo from the JSON model.
+  code driven by the JSON model.
 - [x] Support click focus, text editing, and a typed submit event the host can
   handle.
 - [x] Support wheel and arrow-button scrolling over host-provided chat content.
@@ -96,9 +96,14 @@ The roadmap is complete when:
 3. Unsupported or invalid JSON fails clearly, and the implemented format is
    documented and tested.
 
-The `.uis` adapter, full TSO runtime compatibility, every control in the full
-TSO UIScript collection, and a general-purpose layout engine are explicitly
-beyond this stopping point unless real users or host-game needs justify them.
+Full TSO runtime compatibility, every control in the full TSO UIScript
+collection, and a general-purpose layout engine are explicitly beyond this
+stopping point unless real users or host-game needs justify them.
+
+Reading `.uis` files is also beyond this stopping point, but it is a planned
+need rather than a maybe. NSO, the game Hudini grew out of, will load them, so
+the model keeps what a reader must carry over, such as `legacyID` and edge
+offsets. JSON remains the friendlier format for writing new interfaces.
 
 ## Later cat-named Mac OS X releases
 

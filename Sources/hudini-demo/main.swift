@@ -19,76 +19,6 @@ func loadUIScript() throws -> UIScript {
     return try UIScript(contentsOf: url)
 }
 
-func text(in value: UIScript.Text?) -> String {
-    guard let value else {
-        return ""
-    }
-    switch value {
-    case let .literal(text), let .string(text):
-        return text
-    }
-}
-
-func pixel(_ value: Float) -> Int {
-    Int(value)
-}
-
-func draw(
-    _ script: UIScript,
-    at origin: Vector2,
-    theme: InterfaceTheme
-) {
-    for control in script.controls {
-        let frame = control.frame.rectangle(at: origin)
-        let style = script.style(for: control)
-        let textColor = style?.textColor ?? theme.text
-        let backgroundColor = style?.backgroundColor ?? theme.panel
-        let borderColor = style?.borderColor ?? theme.border
-        let fontSize = style?.fontSize ?? 14
-        let content = text(in: control.text)
-
-        switch control.type {
-        case .text, .formattedText:
-            if case .formattedText = control.type {
-                DrawRectangleRec(frame, backgroundColor)
-            }
-            for (line, value) in content.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
-                DrawText(
-                    String(value),
-                    pixel(frame.x) + 6,
-                    pixel(frame.y) + 6 + (line * (fontSize + 4)),
-                    fontSize,
-                    textColor
-                )
-            }
-        case .button:
-            DrawRectangleRec(frame, backgroundColor)
-            DrawRectangleLinesEx(frame, 1, borderColor)
-            let width = MeasureText(content, fontSize)
-            DrawText(
-                content,
-                pixel(frame.x + ((frame.width - Float(width)) / 2)),
-                pixel(frame.y + ((frame.height - Float(fontSize)) / 2)),
-                fontSize,
-                textColor
-            )
-        case .textField:
-            DrawRectangleRec(frame, backgroundColor)
-            DrawRectangleLinesEx(frame, 1, borderColor)
-            DrawText(
-                content,
-                pixel(frame.x) + 6,
-                pixel(frame.y + ((frame.height - Float(fontSize)) / 2)),
-                fontSize,
-                textColor
-            )
-        case .list, .slider:
-            DrawRectangleRec(frame, backgroundColor)
-            DrawRectangleLinesEx(frame, 1, borderColor)
-        }
-    }
-}
-
 func drawPropertyLot() {
     let width = GetScreenWidth()
     let height = GetScreenHeight()
@@ -129,11 +59,9 @@ do {
     exit(1)
 }
 
-guard let historyControl = script.controls.first(where: { $0.name == "chatHistory" }),
-      let entryControl = script.controls.first(where: { $0.name == "chatEntry" }),
-      let scrollUpControl = script.controls.first(where: { $0.name == "scrollUp" }),
-      let scrollDownControl = script.controls.first(where: { $0.name == "scrollDown" }),
-      let sliderControl = script.controls.first(where: { $0.name == "chatHistorySlider" }) else {
+let view = UIScriptView(script: script, theme: theme)
+guard let history = view.list(named: "chatHistory"),
+      view.textField(named: "chatEntry") != nil else {
     FileHandle.standardError.write(Data("chatdialog.json is missing a required property-chat control\n".utf8))
     exit(1)
 }
@@ -155,26 +83,8 @@ let residentReplies = [
     "I'll come by again soon!",
     "It's nice having friendly neighbors."
 ]
-let historyStyle = script.style(for: historyControl)
 var chatMessages = initialMessages
-let history = TextList(
-    items: chatMessages,
-    fontSize: historyStyle?.fontSize ?? 14,
-    theme: theme,
-    textColor: historyStyle?.textColor,
-    backgroundColor: historyStyle?.backgroundColor,
-    borderColor: historyStyle?.borderColor
-)
-let entryStyle = script.style(for: entryControl)
-let entry = TextField(
-    maximumLength: 120,
-    fontSize: entryStyle?.fontSize ?? 14,
-    theme: theme,
-    placeholder: text(in: entryControl.placeholder),
-    textColor: entryStyle?.textColor,
-    backgroundColor: entryStyle?.backgroundColor,
-    borderColor: entryStyle?.borderColor
-)
+history.items = chatMessages
 var residentReplyIndex = 0
 
 SetTraceLogLevel(.warning)
@@ -199,14 +109,10 @@ while running && !WindowShouldClose() {
         running = false
     }
     let controlOrigin = Vector2(x: bounds.x, y: bounds.y)
-    let historyBounds = historyControl.frame.rectangle(at: controlOrigin)
-    let entryBounds = entryControl.frame.rectangle(at: controlOrigin)
-    history.update(
-        in: historyBounds,
-        scrollUpButton: scrollUpControl.frame.rectangle(at: controlOrigin),
-        scrollDownButton: scrollDownControl.frame.rectangle(at: controlOrigin)
-    )
-    if case let .submitted(message)? = entry.update(in: entryBounds) {
+    for event in view.update(at: controlOrigin) {
+        guard case let .submitted(control: "chatEntry", text: message) = event else {
+            continue
+        }
         chatMessages.append("You: \(message)")
         chatMessages.append("Maya: \(residentReplies[residentReplyIndex])")
         history.items = chatMessages
@@ -216,13 +122,7 @@ while running && !WindowShouldClose() {
     BeginDrawing()
     drawPropertyLot()
     window.draw(in: bounds)
-    draw(script, at: controlOrigin, theme: theme)
-    history.draw(in: historyBounds)
-    DrawRectangleRec(
-        history.scrollThumbBounds(in: sliderControl.frame.rectangle(at: controlOrigin)),
-        theme.accent
-    )
-    entry.draw(in: entryBounds, isFocused: entry.isFocused)
+    view.draw(at: controlOrigin)
     EndDrawing()
 
     frameCount += 1

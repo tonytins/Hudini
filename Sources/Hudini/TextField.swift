@@ -104,6 +104,10 @@ public final class TextField: FormLayoutControl {
         self.bounds = bounds
     }
 
+    func clearFocus() {
+        isFocused = false
+    }
+
     /// Takes this frame's typing and reports whether the text changed.
     public func update() -> Bool {
         updateText()

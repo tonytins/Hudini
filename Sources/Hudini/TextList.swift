@@ -168,7 +168,7 @@ public final class TextList {
         EndScissorMode()
     }
 
-    private func prepareLines(for bounds: Rectangle) {
+    func prepareLines(for bounds: Rectangle) {
         let width = max(1, Int(clamping: bounds.width) - (Self.padding * 2) - 2)
         if lineWidth != width {
             lines = items.flatMap { item in
