@@ -315,45 +315,11 @@ let view = UIScriptView(script: script, resolveString: catalog.text(for:))
 let greeting = catalog.text(table: 174, key: "1", arguments: ["Maya"])
 ```
 
-`CSTCatalog(gameData:language:)` finds either install layout. New & Improved uses
-`uitext/<language>.dir`, and earlier versions have one language in `uitext.dir`. For
-any other location, `CSTCatalog(directory:)` reads files named `_<id>_<name>.cst`. It
-uses only the number at the end of a resource's table, so `UIText:174` and `174`
-mean the same table.
-
-### The format
-
-```text
-// A comment, as is a line starting with # or a /* */ block.
-1 ^A value after its key^
-    2 ^An indented key^
-3
-^A key above its value^
-4 ^A value that runs
-across lines^
-ok button ^A key with spaces^
-These words are a note, because no caret follows them on this line.
-^A value with no key^
-```
-
-- **Values with no key** are known by their position among all the table's entries,
-  counting from 0. More than 1,000 entries in each TSO version work this way. The
-  value above is at position 5, and `text(table:key:)` finds it with the key `"5"`.
-- **Notes:** text between entries is for translators. A number alone on the line
-  above a value is its key, and anything else there does not count.
-- **Encoding:** UTF-8 with or without a byte order mark, then Windows-1252.
-- **Problems:** reading a table does not fail. A value with no closing caret is
-  skipped, and a repeated key keeps its first value. `CSTFile.problems` lists both.
-  An unclosed value still takes up a position.
-- **References:** some New & Improved entries start with a control character and
-  point to an entry in another table, such as
-  `<cst><cst_id>276</cst_id><string_id>1</string_id></cst>`. `text(table:key:arguments:)`
-  returns the target's text and follows only one reference.
-- **Placeholders:** `CSTCatalog.format(_:with:)` fills `%s`, `%d`, `%i`, `%u`, and
-  `%ld` in order. `%3d` pads with spaces, `%03d` and `%.3d` pad with zeros, and `%%`
-  is one percent sign. A placeholder with no argument left stays as written, and
-  any other `%` is left alone. References pass their arguments in order, ignoring
-  the `arg` numbers they carry.
+`CSTCatalog(gameData:language:)` finds either install layout, and
+`CSTCatalog(directory:)` reads any directory of files named `_<id>_<name>.cst`. It uses
+only the number at the end of a resource's table, so `UIText:174` and `174` mean the
+same table. `CSTCatalog.format(_:with:)` fills a text's placeholders. See the
+[CST specification](CST.md) for the format and how sure each rule is.
 
 ## Not yet supported
 

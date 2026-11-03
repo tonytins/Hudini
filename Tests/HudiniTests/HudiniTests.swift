@@ -1531,6 +1531,27 @@ private func temporaryTextDirectory(_ files: [String: String], under path: Strin
     #expect(file.entries["5"] == "Has // and # inside")
 }
 
+@Test func theSpecExampleReadsAsDocumented() throws {
+    let page = try String(contentsOf: demoResource("../../../doc/CST.md"), encoding: .utf8)
+    let opening = try #require(page.range(of: "```text\n"))
+    let closing = try #require(page.range(of: "```", range: opening.upperBound..<page.endIndex))
+    let file = cst(String(page[opening.upperBound..<closing.lowerBound]))
+
+    #expect(file.problems.isEmpty)
+    #expect(file.entries["1"] == "A value after its key")
+    #expect(file.entries["2"] == "An indented key")
+    #expect(file.entries["3"] == "A key above its value")
+    #expect(file.entries["4"] == "A value that runs\nacross lines")
+    #expect(file.entries["ok button"] == "A key with spaces")
+    #expect(file.entries["kErrNoFood"] == "A name above its value")
+    #expect(file.entries["5"] == "A name above its value")
+    #expect(file.entries["A note for translators."] == "A value with a note above it")
+    #expect(file.entries["6"] == "A value with a note above it")
+    #expect(file.entries["7"] == "A value on its own")
+    #expect(file.entries["8"] == "Another value on its own")
+    #expect(file.entries.count == 11)
+}
+
 @Test func cstNormalizesLineEndings() {
     let file = cst("1 ^One\r\nTwo^\r\n2 ^Three\rFour^\r3 ^Five\u{2028}Six^")
 
@@ -1590,6 +1611,41 @@ private func temporaryTextDirectory(_ files: [String: String], under path: Strin
     #expect(file.entries["0"] == "First")
     #expect(file.entries["1"] == "Second")
     #expect(file.entries["2"] == "Third")
+    #expect(file.problems.isEmpty)
+}
+
+@Test func cstFindsAnEntryByTheLineAboveItAndByPosition() {
+    let file = cst("""
+    kErrOne
+    ^First^
+    kErrTwo
+
+    ^Second^
+    ^Third^
+    """)
+
+    #expect(file.entries["kErrOne"] == "First")
+    #expect(file.entries["0"] == "First")
+    #expect(file.entries["kErrTwo"] == "Second")
+    #expect(file.entries["1"] == "Second")
+    #expect(file.entries["2"] == "Third")
+    #expect(file.entries.count == 5)
+}
+
+@Test func cstDoesNotTakeAKeyFromTextAfterAValue() {
+    let file = cst("^p^ pause\n^q^ quit\n^r^")
+
+    #expect(file.entries.keys.sorted() == ["0", "1", "2"])
+}
+
+@Test func cstLetsARealKeyWinOverALineAbove() {
+    let file = cst("7\n^Numbered^\nname\n^Named^\nname ^Real^\n^Fourth^\nname\n^Fifth^")
+
+    #expect(file.entries["7"] == "Numbered")
+    #expect(file.entries["1"] == "Named")
+    #expect(file.entries["name"] == "Real")
+    #expect(file.entries["3"] == "Fourth")
+    #expect(file.entries["4"] == "Fifth")
     #expect(file.problems.isEmpty)
 }
 
@@ -1811,6 +1867,12 @@ func catalogReadsEveryLocalVersion(variable: String) throws {
     }
     for name in missing.sorted().prefix(12) {
         print("  missing \(name)")
+    }
+    if variable == "TSO_GAME_DIR" {
+        // FreeSO looks up placement errors by the names above their values.
+        let names = try #require(catalog.table(137)).entries.keys.filter { $0.hasPrefix("kPErr") }
+        print("  table 137 names: \(names.count)")
+        #expect(!names.isEmpty)
     }
     #expect(brokenReferences.isEmpty)
     #expect(catalog.tableIDs.count > 100)

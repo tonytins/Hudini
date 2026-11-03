@@ -15,7 +15,10 @@ public struct CSTFile: Sendable {
         public let message: String
     }
 
-    /// The text of each entry by its key, or by its position as a number when it has no key.
+    /// The text of each entry by its key.
+    ///
+    /// An entry with no key is known by its position as a number, and also by the line above it
+    /// when there is one, so a value can appear under two keys.
     public let entries: [String: String]
 
     /// What could not be read.
@@ -49,16 +52,18 @@ public struct CSTFile: Sendable {
 /// Reads entries from whole lines, because comments only count at the start of a line, while
 /// values run across lines.
 ///
-/// An entry's key is the text before its opening caret on the same line. A number alone on the
-/// line above also counts, so a key can sit above its value. Without either, the entry is known
-/// by its position among all the table's entries, counting from 0. Any other text between
-/// entries is a note for translators.
+/// An entry's key is the text before its opening caret on the same line. Without one, a number
+/// alone on the line above is its key. Otherwise the entry is known by its position among all the
+/// table's entries, counting from 0, and also by the line above it if there is one. That line may
+/// be a name game code looks up or a note for translators, and nothing in the file tells them
+/// apart, so a real key always wins over it.
 private struct CSTParser {
     private static let caret: Character = "^"
 
     private let lines: [String]
     private var position = 0
-    private var numberAbove: String?
+    private var lineAbove: String?
+    private var namesFromLinesAbove: Set<String> = []
     private(set) var entries: [String: String] = [:]
     private(set) var problems: [CSTFile.Problem] = []
 
@@ -88,16 +93,16 @@ private struct CSTParser {
     }
 
     mutating func parse() {
-        var openValue: (key: String, text: String, line: Int)?
+        var openValue: (key: String, name: String?, text: String, line: Int)?
         for (index, line) in contentLines() {
             var rest = Substring(line)
             if let open = openValue {
                 guard let caret = rest.firstIndex(of: Self.caret) else {
-                    openValue = (open.key, open.text + "\n" + rest, open.line)
+                    openValue = (open.key, open.name, open.text + "\n" + rest, open.line)
                     continue
                 }
                 if !Self.isCompleteEntry(rest) {
-                    add(open.text + "\n" + rest[..<caret], key: open.key, line: open.line)
+                    add(open.text + "\n" + rest[..<caret], key: open.key, name: open.name, line: open.line)
                     openValue = nil
                     rest = rest[rest.index(after: caret)...]
                 } else {
@@ -108,20 +113,23 @@ private struct CSTParser {
                     openValue = nil
                 }
             }
+            var hadValue = false
             while let caret = rest.firstIndex(of: Self.caret) {
-                let key = keyBefore(rest[..<caret])
+                hadValue = true
+                let (key, name) = keys(before: rest[..<caret])
                 let value = rest[rest.index(after: caret)...]
                 guard let end = value.firstIndex(of: Self.caret) else {
-                    openValue = (key, String(value), index)
+                    openValue = (key, name, String(value), index)
                     rest = ""
                     break
                 }
-                add(String(value[..<end]), key: key, line: index)
+                add(String(value[..<end]), key: key, name: name, line: index)
                 rest = value[value.index(after: end)...]
             }
+            // Text after a value on its line describes that value, not the next one.
             let note = rest.trimmingCharacters(in: .whitespaces)
-            if openValue == nil, !note.isEmpty {
-                numberAbove = note.allSatisfy { $0.isASCII && $0.isNumber } ? note : nil
+            if !hadValue, openValue == nil, !note.isEmpty {
+                lineAbove = note
             }
         }
         if let open = openValue {
@@ -138,19 +146,32 @@ private struct CSTParser {
         return line[line.index(after: last)...].allSatisfy(\.isWhitespace)
     }
 
-    private mutating func keyBefore(_ text: Substring) -> String {
-        defer { numberAbove = nil }
+    private mutating func keys(before text: Substring) -> (key: String, name: String?) {
+        defer { lineAbove = nil }
         let key = text.trimmingCharacters(in: .whitespaces)
-        return key.isEmpty ? numberAbove ?? String(position) : key
+        guard key.isEmpty else {
+            return (key, nil)
+        }
+        guard let lineAbove else {
+            return (String(position), nil)
+        }
+        return lineAbove.allSatisfy({ $0.isASCII && $0.isNumber })
+            ? (lineAbove, nil)
+            : (String(position), lineAbove)
     }
 
-    private mutating func add(_ value: String, key: String, line: Int) {
+    private mutating func add(_ value: String, key: String, name: String?, line: Int) {
         position += 1
-        guard entries[key] == nil else {
+        if entries[key] != nil, !namesFromLinesAbove.contains(key) {
             report("Key '\(key)' appears again, so the first one was kept.", line: line)
-            return
+        } else {
+            namesFromLinesAbove.remove(key)
+            entries[key] = value
         }
-        entries[key] = value
+        if let name, entries[name] == nil {
+            entries[name] = value
+            namesFromLinesAbove.insert(name)
+        }
     }
 }
 

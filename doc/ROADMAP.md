@@ -135,10 +135,10 @@ debug bar is in Maxis' format.
   `alignment`, which the reader does not yet follow.
 - **What do the last two slices of a six-state image hold?** Six real files use
   `ImageStates=6`. Hudini draws the four known states from them.
-- **What does a key like `24 012` mean?** Fifteen entries in New & Improved's
-  table 210 have two numbers before their value, likely a position and a server
-  reason code. The reader keeps the whole text as the key, as it does for keys like
-  `ok button`, which game code does look up whole.
+- **Do positions in CST tables count from 0 or 1?** Hudini follows FreeSO and counts
+  from 0, but the files lean the other way. The credits screen in the original game
+  would settle it. See the [specification](CST.md#entries) for this and its other
+  unsettled rules.
 - **How should sliders draw their images?** Most real sliders name an image, and
   two name a separate thumb image. The view draws a plain track and thumb for now.
 
@@ -171,8 +171,9 @@ versions, based on what [swift-cst](https://github.com/tonytins/swift-cst) has
 already learned. CST files are not known to appear in any other game.
 
 - [x] Read CST files in the encodings real files use, loading each table once.
-- [x] Read values by key and by position, treat other text as notes, and follow
+- [x] Read values by key, by the line above them, and by position, and follow
   references between tables.
+- [x] Write the [format's specification](CST.md), marking what is confirmed.
 - [x] Offer a catalog that plugs into `resolveString` and reports missing text.
 - [x] Find text in both install layouts.
 - [x] Give the demo original CST files in place of its strings in code.
