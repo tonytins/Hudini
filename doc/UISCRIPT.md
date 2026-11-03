@@ -338,7 +338,7 @@ These words are a note, because no caret follows them on this line.
 
 - **Values with no key** are known by their position among all the table's entries,
   counting from 0. More than 1,000 entries in each TSO version work this way. The
-  value above is at position 6, and `text(table:key:)` finds it with the key `"6"`.
+  value above is at position 5, and `text(table:key:)` finds it with the key `"5"`.
 - **Notes:** text between entries is for translators. A number alone on the line
   above a value is its key, and anything else there does not count.
 - **Encoding:** UTF-8 with or without a byte order mark, then Windows-1252.
