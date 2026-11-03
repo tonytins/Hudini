@@ -14,6 +14,7 @@ public final class UIScriptView {
     private static let defaultMaximumLength = 256
     private static let textInset = 6
     private static let textLineGap = 4
+    private static let missingImageSize: Float = 24
 
     private let script: UIScript
     private let theme: InterfaceTheme
@@ -21,12 +22,14 @@ public final class UIScriptView {
     private let lists: [String: TextList]
     private let textFields: [String: TextField]
     private let textures: [String: Texture2D]
+    private let sizes: [String: Vector2]
     private var hiddenNames: Set<String> = []
     private var disabledNames: Set<String> = []
 
     /// The names of image resources the host could not supply, in sorted order.
     ///
-    /// Controls and visuals using these images draw a red outline instead.
+    /// Controls and visuals using these images draw a red outline instead. When
+    /// they also leave out their size, they use a small fallback size.
     public let missingImages: [String]
 
     /// Something a control reports for the host to act on.
@@ -45,7 +48,8 @@ public final class UIScriptView {
     ///
     /// `loadImage` supplies each image resource once, during creation, so a host
     /// passing it must create the view after `InitWindow`. The host owns the
-    /// textures and unloads them before `CloseWindow`.
+    /// textures and unloads them before `CloseWindow`. A control or visual that
+    /// leaves out its size takes it from one slice of its image.
     public init(
         script: UIScript,
         theme: InterfaceTheme = .standard,
@@ -110,11 +114,51 @@ public final class UIScriptView {
             }
         }
 
+        func size(of frame: UIScript.Frame, image: String?) -> Vector2 {
+            var imageWidth = Self.missingImageSize
+            var imageHeight = Self.missingImageSize
+            if let image, let texture = textures[image], let resource = script.resources.images[image] {
+                imageWidth = Float(texture.width) / Float(resource.stateCount)
+                imageHeight = Float(texture.height)
+            }
+            return Vector2(x: frame.width ?? imageWidth, y: frame.height ?? imageHeight)
+        }
+
+        var sizes: [String: Vector2] = [:]
+        for visual in script.visuals {
+            sizes[visual.name] = size(of: visual.frame, image: visual.image)
+        }
+        for control in script.controls {
+            sizes[control.name] = size(of: control.frame, image: control.image)
+        }
+
         self.labels = labels
         self.lists = lists
         self.textFields = textFields
         self.textures = textures
+        self.sizes = sizes
         self.missingImages = missingImages.sorted()
+    }
+
+    /// Returns the screen bounds of a control or visual in a view whose corner is
+    /// at `origin`, or `nil` when nothing has this name.
+    ///
+    /// These include any size taken from an image. A host can use them to handle
+    /// input in a region.
+    public func bounds(named name: String, at origin: Vector2) -> Rectangle? {
+        guard let frame = script.control(named: name)?.frame ?? script.visual(named: name)?.frame else {
+            return nil
+        }
+        return screenRectangle(for: frame, named: name, at: origin)
+    }
+
+    private func screenRectangle(
+        for frame: UIScript.Frame,
+        named name: String,
+        at origin: Vector2
+    ) -> Rectangle {
+        let size = sizes[name] ?? .zero
+        return Rectangle(x: origin.x + frame.x, y: origin.y + frame.y, width: size.x, height: size.y)
     }
 
     /// Returns the list with this name, or `nil` when no list has it.
@@ -168,7 +212,7 @@ public final class UIScriptView {
             events.append(event)
         }
         for control in script.controls where !hiddenNames.contains(control.name) {
-            let bounds = control.frame.rectangle(at: origin)
+            let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
             lists[control.name]?.update(in: bounds)
             if case let .submitted(text)? = textFields[control.name]?.update(in: bounds) {
                 events.append(.submitted(control: control.name, text: text))
@@ -184,7 +228,7 @@ public final class UIScriptView {
     public func pressButton(at point: Vector2, origin: Vector2) -> Event? {
         for control in script.controls.reversed()
         where control.type == .button && !hiddenNames.contains(control.name) {
-            guard CheckCollisionPointRec(point, control.frame.rectangle(at: origin)) else {
+            guard CheckCollisionPointRec(point, screenRectangle(for: control.frame, named: control.name, at: origin)) else {
                 continue
             }
             guard !disabledNames.contains(control.name) else {
@@ -208,10 +252,14 @@ public final class UIScriptView {
         drawRegion: (_ name: String, _ bounds: Rectangle) -> Void = { _, _ in }
     ) {
         for visual in script.visuals where !hiddenNames.contains(visual.name) {
-            drawImage(named: visual.image, state: .normal, in: visual.frame.rectangle(at: origin))
+            drawImage(
+                named: visual.image,
+                state: .normal,
+                in: screenRectangle(for: visual.frame, named: visual.name, at: origin)
+            )
         }
         for control in script.controls where !hiddenNames.contains(control.name) {
-            let bounds = control.frame.rectangle(at: origin)
+            let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
             switch control.type {
             case .text:
                 drawText(of: control, in: bounds, inset: 0)
@@ -304,7 +352,7 @@ public final class UIScriptView {
             return
         }
         // The slider may draw before its list, after the host changed the items.
-        list.prepareLines(for: target.frame.rectangle(at: origin))
+        list.prepareLines(for: screenRectangle(for: target.frame, named: target.name, at: origin))
         DrawRectangleRec(list.scrollThumbBounds(in: bounds), theme.accent)
     }
 }

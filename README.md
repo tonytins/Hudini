@@ -17,7 +17,7 @@ form layout.
 - A 2D camera with pointer-centered zoom and coordinate conversion
 - Declarative, vertically stacked form layout
 - Per-interface color themes
-- Initial JSON UIScript decoding for named resources, styles, visuals, and controls
+- [UIScript](doc/UISCRIPT.md), an XML format describing resources, styles, visuals, and controls
 - `UIScriptView`, which builds, updates, and draws a document's controls
 
 ## Requirements
@@ -26,7 +26,8 @@ form layout.
 - [raylib-swift](https://github.com/tonytins/raylib-swift)
 
 Building raylib-swift requires the native development libraries for raylib's
-selected platform backend.
+selected platform backend. On Linux, running a program that uses UIScript also
+requires `libxml2.so.2`, which `FoundationXML` links at runtime.
 
 ## Installation
 
@@ -108,8 +109,8 @@ CloseWindow()
 raylib closes the window on Escape by default. `SetExitKey(.null)` turns that off
 so Escape can cancel title edits and dismiss panels instead of quitting the game.
 
-See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable, JSON-driven
-example: a property chat window over a live mode panel, both loaded from JSON
+See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable example: a
+property chat window over a live mode panel, both loaded from UIScript documents
 and drawn by `UIScriptView`. The demo host owns the conversation, needs, people,
 and images, and it generates placeholder art because Hudini ships no game
 assets. The view does not draw tooltips yet, and Hudini does not read TSO `.uis`

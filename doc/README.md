@@ -2,8 +2,10 @@
 
 This directory holds Hudini's design notes and roadmap.
 
-- [Roadmap](ROADMAP.md) tracks the JSON-driven chat-window and live-panel
-  milestones, with an explicit stopping point for the initial UIScript effort.
+- [UIScript format](UISCRIPT.md) describes the XML interface format and what
+  hosts are responsible for.
+- [Roadmap](ROADMAP.md) tracks the chat-window and live-panel milestones, with
+  an explicit stopping point for the initial UIScript effort.
 
 Hudini takes inspiration from Apple's Human Interface Guidelines and GNOME's
 Human Interface Guidelines, while developing its own approach for game

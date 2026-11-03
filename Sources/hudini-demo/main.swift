@@ -1,4 +1,4 @@
-// A JSON-driven example host: a property chat window over a live mode panel.
+// An example host: a property chat window over a live mode panel, both described by UIScript.
 //
 // Usage: hudini-demo [--screenshot <file.png>]
 
@@ -19,12 +19,12 @@ func fail(_ message: String) -> Never {
 
 func loadUIScript(named name: String) -> UIScript {
     do {
-        guard let url = Bundle.module.url(forResource: name, withExtension: "json") else {
+        guard let url = Bundle.module.url(forResource: name, withExtension: "xml") else {
             throw CocoaError(.fileNoSuchFile)
         }
         return try UIScript(contentsOf: url)
     } catch {
-        fail("Unable to load \(name).json: \(error.localizedDescription)")
+        fail("Unable to load \(name).xml: \(error.localizedDescription)")
     }
 }
 
@@ -51,15 +51,19 @@ func drawPropertyLot(groundBottom height: Int32) {
 
 /// Generates original placeholder art, because Hudini ships no game assets.
 ///
+/// Controls without a size take it from these images, so their sizes shape the panel.
 /// A four-state image holds its slices left to right: normal, pressed, hovered, disabled.
 func makePlaceholderTexture(for resource: UIScript.ImageResource) -> Texture2D {
+    let path = resource.path ?? ""
     guard resource.stateCount == 4 else {
-        var image = GenImageColor(8, 8, placeholderColor(forPath: resource.path))
+        let (width, height) = placeholderSize(forPath: path)
+        var image = GenImageColor(width, height, placeholderColor(forPath: path))
         defer { UnloadImage(image) }
-        ImageDrawRectangle(&image, 0, 0, 8, 1, Color(r: 255, g: 255, b: 255, a: 60))
+        ImageDrawRectangle(&image, 0, 0, width, 2, Color(r: 255, g: 255, b: 255, a: 60))
         return LoadTextureFromImage(image)
     }
-    let sliceSize: Int32 = 24
+    let sliceSize = placeholderSliceSize(forPath: path)
+    let markSize = sliceSize / 3
     let stateColors = [
         Color(r: 74, g: 104, b: 142, a: 255),
         Color(r: 40, g: 62, b: 92, a: 255),
@@ -71,9 +75,26 @@ func makePlaceholderTexture(for resource: UIScript.ImageResource) -> Texture2D {
     for (slice, color) in stateColors.enumerated() {
         let x = Int32(slice) * sliceSize
         ImageDrawRectangle(&image, x, 0, sliceSize, sliceSize, color)
-        ImageDrawRectangle(&image, x + 8, 8, 8, 8, Color(r: 255, g: 249, b: 157, a: 255))
+        ImageDrawRectangle(&image, x + markSize, markSize, markSize, markSize, Color(r: 255, g: 249, b: 157, a: 255))
     }
     return LoadTextureFromImage(image)
+}
+
+func placeholderSize(forPath path: String) -> (width: Int32, height: Int32) {
+    if path.contains("mood") {
+        return (30, 30)
+    }
+    if path.contains("divider") {
+        return (2, 100)
+    }
+    return (490, 60)
+}
+
+func placeholderSliceSize(forPath path: String) -> Int32 {
+    if path.contains("moodpanel") {
+        return 48
+    }
+    return path.contains("PageBtn") ? 24 : 23
 }
 
 func placeholderColor(forPath path: String) -> Color {
@@ -177,13 +198,13 @@ let panel = UIScriptView(
 
 guard let history = chat.list(named: "chatHistory"),
       chat.textField(named: "chatEntry") != nil else {
-    fail("chatdialog.json is missing a required property-chat control")
+    fail("chatdialog.xml is missing a required property-chat control")
 }
 guard let statusMessage = panel.list(named: "statusBarMessageWindow"),
       let statusTimer = panel.textField(named: "statusBarTimerEntry"),
       panelScript.control(named: "previousPage") != nil,
       panelScript.control(named: "nextPage") != nil else {
-    fail("livepanel1024.json is missing a required live-panel control")
+    fail("livepanel1024.xml is missing a required live-panel control")
 }
 
 // The panel's work-session controls overlap its status bar, so only one set shows at a time.

@@ -89,199 +89,7 @@ import Testing
     #expect(custom.panel == standard.panel)
 }
 
-@Test func uiScriptDecodesNamedResourcesStylesVisualsAndControls() throws {
-    let data = Data(
-        """
-        {
-          "window": {
-            "size": { "width": 500, "height": 255 },
-            "minSize": { "width": 350, "height": 196 }
-          },
-          "resources": {
-            "images": {
-              "scrollbar": { "path": "ui/scrollbar.bmp" }
-            },
-            "strings": {
-              "sendTooltip": { "table": "UIText", "index": 5 }
-            }
-          },
-          "styles": {
-            "chatEntry": { "textColor": "#FFF99D", "fontSize": 8 }
-          },
-          "visuals": [
-            {
-              "name": "chatBackground",
-              "image": "scrollbar",
-              "frame": { "x": 19, "y": 39, "width": 341, "height": 166 }
-            }
-          ],
-          "controls": [
-            {
-              "name": "chatEntry",
-              "type": "textField",
-              "legacyID": 5,
-              "frame": {
-                "x": 52, "y": 216, "width": 299, "height": 17,
-                "edgeOffsets": { "left": 38, "right": 67, "bottom": 22 }
-              },
-              "style": "chatEntry",
-              "placeholder": { "literal": "Type a message" },
-              "tooltip": "sendTooltip"
-            },
-            {
-              "name": "send",
-              "type": "button",
-              "frame": { "x": 360, "y": 210, "width": 24, "height": 24 },
-              "image": "scrollbar",
-              "text": { "string": "sendTooltip" }
-            }
-          ]
-        }
-        """.utf8
-    )
-
-    let script = try UIScript(data: data)
-
-    #expect(script.window.size.width == 500)
-    #expect(script.window.minSize?.height == 196)
-    #expect(script.resources.images["scrollbar"]?.path == "ui/scrollbar.bmp")
-    #expect(script.styles["chatEntry"]?.fontSize == 8)
-    #expect(script.visuals.first?.name == "chatBackground")
-    #expect(script.controls[0].type == UIScript.ControlType.textField)
-    #expect(script.controls[0].frame.edgeOffsets?.right == 67)
-    #expect(script.controls[0].tooltip == "sendTooltip")
-    #expect(script.controls[0].placeholder == .literal("Type a message"))
-    #expect(script.controls[1].text == UIScript.Text.string("sendTooltip"))
-}
-
-@Test func uiScriptRejectsUnknownFieldsAndControlTypes() throws {
-    let unknownFieldData = Data(
-        """
-        {
-          "window": { "size": { "width": 100, "height": 80 } },
-          "futureOptionalSection": { "note": "safe to ignore" }
-        }
-        """.utf8
-    )
-    #expect(throws: DecodingError.self) {
-        try UIScript(data: unknownFieldData)
-    }
-
-    let unknownControlData = Data(
-        """
-        {
-          "window": { "size": { "width": 100, "height": 80 } },
-          "controls": [
-            {
-              "name": "unknown",
-              "type": "futureControl",
-              "frame": { "x": 0, "y": 0, "width": 10, "height": 10 }
-            }
-          ]
-        }
-        """.utf8
-    )
-    #expect(throws: DecodingError.self) {
-        try UIScript(data: unknownControlData)
-    }
-}
-
-@Test func uiScriptRejectsUnknownReferencesAndInvalidFrames() {
-    let unknownStyleData = Data(
-        """
-        {
-          "window": { "size": { "width": 100, "height": 80 } },
-          "controls": [
-            {
-              "name": "ok",
-              "type": "button",
-              "frame": { "x": 0, "y": 0, "width": 10, "height": 10 },
-              "style": "missing"
-            }
-          ]
-        }
-        """.utf8
-    )
-    do {
-        _ = try UIScript(data: unknownStyleData)
-        Issue.record("Expected an unknown style reference to fail validation.")
-    } catch let error as UIScriptError {
-        #expect(error == .unknownReference(owner: "ok", property: "style", reference: "missing"))
-    } catch {
-        Issue.record("Unexpected error: \(error)")
-    }
-
-    let unknownPlaceholderData = Data(
-        """
-        {
-          "window": { "size": { "width": 100, "height": 80 } },
-          "controls": [
-            {
-              "name": "entry",
-              "type": "textField",
-              "frame": { "x": 0, "y": 0, "width": 40, "height": 10 },
-              "placeholder": { "string": "missing" }
-            }
-          ]
-        }
-        """.utf8
-    )
-    do {
-        _ = try UIScript(data: unknownPlaceholderData)
-        Issue.record("Expected an unknown placeholder reference to fail validation.")
-    } catch let error as UIScriptError {
-        #expect(error == .unknownReference(owner: "entry", property: "placeholder", reference: "missing"))
-    } catch {
-        Issue.record("Unexpected error: \(error)")
-    }
-
-    let invalidPlaceholderData = Data(
-        """
-        {
-          "window": { "size": { "width": 100, "height": 80 } },
-          "controls": [
-            {
-              "name": "button",
-              "type": "button",
-              "frame": { "x": 0, "y": 0, "width": 40, "height": 10 },
-              "placeholder": { "literal": "Invalid here" }
-            }
-          ]
-        }
-        """.utf8
-    )
-    do {
-        _ = try UIScript(data: invalidPlaceholderData)
-        Issue.record("Expected a placeholder on a non-text-field to fail validation.")
-    } catch let error as UIScriptError {
-        #expect(error == .invalidPlaceholder(owner: "button"))
-    } catch {
-        Issue.record("Unexpected error: \(error)")
-    }
-
-    let invalidFrameData = Data(
-        """
-        {
-          "window": { "size": { "width": 100, "height": 80 } },
-          "controls": [
-            {
-              "name": "bad",
-              "type": "text",
-              "frame": { "x": 0, "y": 0, "width": -1, "height": 10 }
-            }
-          ]
-        }
-        """.utf8
-    )
-    do {
-        _ = try UIScript(data: invalidFrameData)
-        Issue.record("Expected a negative frame size to fail validation.")
-    } catch let error as UIScriptError {
-        #expect(error == .invalidFrame(owner: "bad"))
-    } catch {
-        Issue.record("Unexpected error: \(error)")
-    }
-}
+// UIScript documents in these tests use single-quoted attributes, which keeps them readable in Swift strings.
 
 private func demoResource(_ name: String) -> URL {
     URL(fileURLWithPath: #filePath)
@@ -290,66 +98,515 @@ private func demoResource(_ name: String) -> URL {
         .standardizedFileURL
 }
 
-private func script(styles: String = "{}", controls: String = "[]", window: String = #"{ "size": { "width": 100, "height": 80 } }"#) throws -> UIScript {
-    try UIScript(data: Data(#"{ "window": \#(window), "styles": \#(styles), "controls": \#(controls) }"#.utf8))
+private let tenByTen = "x='0' y='0' width='10' height='10'"
+
+private func document(_ body: String, root: String = "") -> Data {
+    Data("<UIScript \(root)><Window width='100' height='80'/>\(body)</UIScript>".utf8)
 }
 
-@Test func uiScriptDecodesHexColors() throws {
-    let styles = ##"{ "plain": { "textColor": "#FFF99D" }, "faded": { "textColor": "#10203040" } }"##
-    let decoded = try script(styles: styles)
+private func script(_ body: String, root: String = "") throws -> UIScript {
+    try UIScript(data: document(body, root: root))
+}
 
-    #expect(decoded.styles["plain"]?.textColor == Color(r: 255, g: 249, b: 157, a: 255))
-    #expect(decoded.styles["faded"]?.textColor == Color(r: 16, g: 32, b: 48, a: 64))
+private func stubTexture(width: Int32, height: Int32) -> Texture2D {
+    var texture = Texture2D()
+    texture.width = width
+    texture.height = height
+    return texture
+}
+
+@Test func uiScriptReadsResourcesStylesVisualsAndControls() throws {
+    let loaded = try UIScript(data: Data("""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!-- Comments are welcome anywhere. -->
+    <UIScript version="1">
+      <Window width="500" height="255" minWidth="350" minHeight="196"/>
+      <Image name="scrollbar" path="ui/scrollbar.bmp" assetID="0x0000031000000001"/>
+      <String name="sendTooltip" table="UIText" index="5"/>
+      <Style name="chatEntry" textColor="#FFF99D" fontSize="8"/>
+      <Visual name="chatBackground" image="scrollbar" x="19" y="39" width="341" height="166"/>
+      <TextField name="chatEntry" legacyID="5" x="52" y="216" width="299" height="17"
+                 edgeOffsetLeft="38" edgeOffsetRight="67" edgeOffsetBottom="22"
+                 style="chatEntry" placeholder="Type a message" tooltip="sendTooltip"/>
+      <Button name="send" x="360" y="210" width="24" height="24" image="scrollbar" string="sendTooltip"/>
+    </UIScript>
+    """.utf8))
+
+    #expect(loaded.version == 1)
+    #expect(loaded.window.size.width == 500)
+    #expect(loaded.window.minSize?.height == 196)
+    #expect(loaded.resources.images["scrollbar"]?.path == "ui/scrollbar.bmp")
+    #expect(loaded.resources.images["scrollbar"]?.assetID == "0x0000031000000001")
+    #expect(loaded.resources.strings["sendTooltip"]?.index == 5)
+    #expect(loaded.styles["chatEntry"]?.fontSize == 8)
+    #expect(loaded.visuals.first?.name == "chatBackground")
+    #expect(loaded.controls[0].type == .textField)
+    #expect(loaded.controls[0].legacyID == 5)
+    #expect(loaded.controls[0].frame.edgeOffsets?.right == 67)
+    #expect(loaded.controls[0].tooltip == "sendTooltip")
+    #expect(loaded.controls[0].placeholder == .literal("Type a message"))
+    #expect(loaded.controls[1].text == .string("sendTooltip"))
+    #expect(loaded.ignoredAttributes.isEmpty)
+}
+
+// MARK: Compatibility
+
+@Test func uiScriptVersionDefaultsToTheFirst() throws {
+    #expect(try script("").version == 1)
+}
+
+@Test func uiScriptRefusesNewerVersionsBeforeReadingTheirContents() {
+    #expect(throws: UIScriptError.unsupportedVersion(2)) {
+        try script("<FutureThing/>", root: "version='2'")
+    }
+}
+
+@Test(arguments: ["0", "-1", "two"])
+func uiScriptRejectsInvalidVersions(version: String) {
+    #expect(throws: UIScriptError.self) {
+        try script("", root: "version='\(version)'")
+    }
+}
+
+@Test func uiScriptRefusesRequiredFeaturesItDoesNotUnderstand() {
+    #expect(throws: UIScriptError.unsupportedFeature("futureLayout")) {
+        try script("<FutureThing/>", root: "requires='futureLayout'")
+    }
+}
+
+@Test func uiScriptIgnoresAndReportsUnknownAttributes() throws {
+    let loaded = try script("<Button name='a' \(tenByTen) textColour='#FFF' zeta='1' alpha='2'/>", root: "future='1'")
+
+    #expect(loaded.controls.count == 1)
+    #expect(loaded.ignoredAttributes.map(\.element) == ["UIScript", "Button", "Button", "Button"])
+    #expect(loaded.ignoredAttributes.map(\.attribute) == ["future", "alpha", "textColour", "zeta"])
+    #expect(loaded.ignoredAttributes.allSatisfy { $0.line == 1 })
+}
+
+@Test func uiScriptRejectsUnknownElements() {
+    #expect(throws: UIScriptError.unknownElement("FutureControl", line: 1)) {
+        try script("<FutureControl name='a' \(tenByTen)/>")
+    }
+}
+
+// MARK: Malformed documents
+
+@Test(arguments: ["", "not xml", "<UIScript>", "<UIScript><Window width=1 height=1/></UIScript>"])
+func uiScriptRejectsMalformedXML(text: String) {
+    #expect(throws: UIScriptError.self) {
+        try UIScript(data: Data(text.utf8))
+    }
+}
+
+@Test func uiScriptRefusesDoctypesSoEntitiesCannotExpand() {
+    let entityBomb = """
+    <!DOCTYPE UIScript [<!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;">]>
+    <UIScript><Window width="1" height="1"/><Text name="a" x="0" y="0" width="1" height="1" text="&b;"/></UIScript>
+    """
+    #expect(throws: UIScriptError.doctypeNotAllowed) {
+        try UIScript(data: Data(entityBomb.utf8))
+    }
+}
+
+@Test func uiScriptRefusesOtherEncodings() throws {
+    let utf16 = try #require("<UIScript><Window width='1' height='1'/></UIScript>".data(using: .utf16))
+    #expect(throws: UIScriptError.unsupportedEncoding) {
+        try UIScript(data: utf16)
+    }
+}
+
+@Test func uiScriptRejectsTheWrongRootElement() {
+    #expect(throws: UIScriptError.invalidRoot("Html")) {
+        try UIScript(data: Data("<Html/>".utf8))
+    }
+}
+
+@Test func uiScriptRejectsNestedElementsAndStrayText() {
+    #expect(throws: UIScriptError.unexpectedNesting("Text", line: 1)) {
+        try script("<Button name='a' \(tenByTen)><Text name='b' \(tenByTen)/></Button>")
+    }
+    #expect(throws: UIScriptError.unexpectedText(line: 1)) {
+        try script("<Button name='a' \(tenByTen)>Press me</Button>")
+    }
+}
+
+@Test func uiScriptNeedsExactlyOneWindow() {
+    #expect(throws: UIScriptError.missingElement("Window")) {
+        try UIScript(data: Data("<UIScript/>".utf8))
+    }
+    #expect(throws: UIScriptError.duplicateElement("Window", line: 1)) {
+        try script("<Window width='1' height='1'/>")
+    }
+}
+
+@Test func uiScriptReportsMissingAndUnusableAttributes() {
+    #expect(throws: UIScriptError.missingAttribute(element: "Button", attribute: "name", line: 1)) {
+        try script("<Button \(tenByTen)/>")
+    }
+    #expect(throws: UIScriptError.missingAttribute(element: "Button", attribute: "x", line: 1)) {
+        try script("<Button name='a' y='0' width='1' height='1'/>")
+    }
+    #expect(throws: UIScriptError.invalidAttribute(element: "Button", attribute: "x", value: "left", line: 1)) {
+        try script("<Button name='a' x='left' y='0' width='1' height='1'/>")
+    }
+    #expect(throws: UIScriptError.invalidAttribute(element: "Button", attribute: "width", value: "nan", line: 1)) {
+        try script("<Button name='a' x='0' y='0' width='nan' height='1'/>")
+    }
+    #expect(throws: UIScriptError.missingAttribute(element: "Window", attribute: "minHeight", line: 1)) {
+        try UIScript(data: Data("<UIScript><Window width='9' height='9' minWidth='1'/></UIScript>".utf8))
+    }
+}
+
+@Test func uiScriptReportsTheLineOfAProblem() {
+    let lines = "<UIScript>\n<Window width='1' height='1'/>\n\n<Mystery/>\n</UIScript>"
+    #expect(throws: UIScriptError.unknownElement("Mystery", line: 4)) {
+        try UIScript(data: Data(lines.utf8))
+    }
+}
+
+@Test func uiScriptRejectsLiteralAndReferencedTextTogether() {
+    let strings = "<String name='s' table='t' index='1'/>"
+    #expect(throws: UIScriptError.conflictingAttributes(element: "Text", first: "text", second: "string", line: 1)) {
+        try script("\(strings)<Text name='a' \(tenByTen) text='hi' string='s'/>")
+    }
+}
+
+// MARK: Values and references
+
+@Test func uiScriptReadsHexColors() throws {
+    let loaded = try script("<Style name='plain' textColor='#FFF99D'/><Style name='faded' textColor='#10203040'/>")
+
+    #expect(loaded.styles["plain"]?.textColor == Color(r: 255, g: 249, b: 157, a: 255))
+    #expect(loaded.styles["faded"]?.textColor == Color(r: 16, g: 32, b: 48, a: 64))
 }
 
 @Test(arguments: ["FFF99D", "#FFF", "#GGGGGG", "#+12345", "#FFF99D0", "", "#１２３４５６"])
 func uiScriptRejectsInvalidColors(color: String) {
-    let styles = #"{ "bad": { "backgroundColor": "\#(color)" } }"#
-    #expect(throws: DecodingError.self) {
-        try script(styles: styles)
+    #expect(throws: UIScriptError.invalidAttribute(element: "Style", attribute: "backgroundColor", value: color, line: 1)) {
+        try script("<Style name='bad' backgroundColor='\(color)'/>")
     }
 }
 
 @Test(arguments: [0, -4])
 func uiScriptRejectsNonpositiveFontSizes(fontSize: Int) {
     #expect(throws: UIScriptError.invalidFontSize(style: "bad")) {
-        try script(styles: #"{ "bad": { "fontSize": \#(fontSize) } }"#)
+        try script("<Style name='bad' fontSize='\(fontSize)'/>")
     }
 }
 
-@Test func uiScriptRejectsDuplicateControlNames() {
-    let control = #"{ "name": "twin", "type": "text", "frame": { "x": 0, "y": 0, "width": 1, "height": 1 } }"#
+@Test func uiScriptRejectsDuplicateNames() {
+    let image = "<Image name='art' path='a.bmp'/>"
     #expect(throws: UIScriptError.duplicateName("twin")) {
-        try script(controls: "[\(control), \(control)]")
+        try script("<Text name='twin' \(tenByTen)/><Text name='twin' \(tenByTen)/>")
     }
+    #expect(throws: UIScriptError.duplicateName("twin")) {
+        try script("\(image)<Visual name='twin' image='art' \(tenByTen)/><Text name='twin' \(tenByTen)/>")
+    }
+    #expect(throws: UIScriptError.duplicateName("art")) {
+        try script("\(image)\(image)")
+    }
+    #expect(throws: UIScriptError.duplicateName("look")) {
+        try script("<Style name='look'/><Style name='look'/>")
+    }
+}
+
+@Test func uiScriptLetsResourcesShareNamesWithControls() throws {
+    let loaded = try script("<Image name='next' path='a.bmp'/><Button name='next' x='0' y='0' image='next'/>")
+
+    #expect(loaded.control(named: "next")?.image == "next")
 }
 
 @Test func uiScriptRejectsMinimumSizeLargerThanWindow() {
-    let window = #"{ "size": { "width": 100, "height": 80 }, "minSize": { "width": 101, "height": 80 } }"#
     #expect(throws: UIScriptError.invalidMinimumWindowSize) {
-        try script(window: window)
+        try UIScript(data: Data("<UIScript><Window width='100' height='80' minWidth='101' minHeight='80'/></UIScript>".utf8))
     }
 }
 
-@Test func uiScriptFindsAControlsStyleAndScreenBounds() throws {
-    let decoded = try script(
-        styles: #"{ "label": { "fontSize": 9 } }"#,
-        controls: #"[{ "name": "a", "type": "text", "style": "label", "frame": { "x": 5, "y": 6, "width": 7, "height": 8 } }]"#
-    )
-    let control = decoded.controls[0]
+@Test func uiScriptRejectsUnknownReferencesAndInvalidFrames() {
+    #expect(throws: UIScriptError.unknownReference(owner: "ok", property: "style", reference: "missing")) {
+        try script("<Button name='ok' \(tenByTen) style='missing'/>")
+    }
+    #expect(throws: UIScriptError.unknownReference(owner: "entry", property: "placeholder", reference: "missing")) {
+        try script("<TextField name='entry' \(tenByTen) placeholderString='missing'/>")
+    }
+    #expect(throws: UIScriptError.invalidPlaceholder(owner: "button")) {
+        try script("<Button name='button' \(tenByTen) placeholder='Invalid here'/>")
+    }
+    #expect(throws: UIScriptError.invalidFrame(owner: "bad")) {
+        try script("<Text name='bad' x='0' y='0' width='-1' height='10'/>")
+    }
+}
 
-    #expect(decoded.style(for: control)?.fontSize == 9)
-    #expect(control.frame.rectangle(at: Vector2(x: 10, y: 20)) == Rectangle(x: 15, y: 26, width: 7, height: 8))
+@Test func uiScriptFindsAControlsStyle() throws {
+    let loaded = try script("<Style name='label' fontSize='9'/><Text name='a' \(tenByTen) style='label'/>")
+    let control = try #require(loaded.control(named: "a"))
+
+    #expect(loaded.style(for: control)?.fontSize == 9)
+    #expect(loaded.control(named: "missing") == nil)
+}
+
+private func scrollDocument(_ scroller: String) -> String {
+    "<List name='history' \(tenByTen)/><Text name='label' \(tenByTen)/>\(scroller)"
+}
+
+@Test func scrollBindingsReadForSlidersAndButtons() throws {
+    let slider = try script(scrollDocument("<Slider name='scroller' \(tenByTen) scrolls='history'/>"))
+    #expect(slider.control(named: "scroller")?.scrolls?.list == "history")
+    #expect(slider.control(named: "scroller")?.scrolls?.direction == nil)
+
+    let button = try script(scrollDocument("<Button name='scroller' \(tenByTen) scrolls='history' direction='up'/>"))
+    #expect(button.control(named: "scroller")?.scrolls?.list == "history")
+    #expect(button.control(named: "scroller")?.scrolls?.direction == .up)
+}
+
+@Test(arguments: [
+    "<Slider name='scroller' \(tenByTen) scrolls='history' direction='up'/>",
+    "<Button name='scroller' \(tenByTen) scrolls='history'/>",
+    "<Button name='scroller' \(tenByTen) direction='up'/>",
+    "<Text name='scroller' \(tenByTen) scrolls='history'/>",
+    "<Slider name='scroller' \(tenByTen) scrolls='label'/>"
+])
+func uiScriptRejectsMismatchedScrollBindings(scroller: String) {
+    #expect(throws: UIScriptError.invalidScrollBinding(owner: "scroller")) {
+        try script(scrollDocument(scroller))
+    }
+}
+
+@Test func uiScriptRejectsUnknownScrollDirectionsAndLists() {
+    #expect(throws: UIScriptError.invalidAttribute(element: "Button", attribute: "direction", value: "sideways", line: 1)) {
+        try script(scrollDocument("<Button name='scroller' \(tenByTen) scrolls='history' direction='sideways'/>"))
+    }
+    #expect(throws: UIScriptError.unknownReference(owner: "scroller", property: "scrolls", reference: "missing")) {
+        try script(scrollDocument("<Slider name='scroller' \(tenByTen) scrolls='missing'/>"))
+    }
+}
+
+@Test(arguments: [
+    "<TextField name='entry' \(tenByTen) maximumLength='0'/>",
+    "<Button name='entry' \(tenByTen) maximumLength='5'/>"
+])
+func uiScriptRejectsInvalidMaximumLengths(control: String) {
+    #expect(throws: UIScriptError.invalidMaximumLength(owner: "entry")) {
+        try script(control)
+    }
+}
+
+// MARK: Images
+
+private func imageDocument(stateCount: Int?) -> String {
+    let count = stateCount.map { " stateCount='\($0)'" } ?? ""
+    return "<Image name='art' path='ui/art.bmp'\(count)/><Button name='owner' x='5' y='6' image='art'/>"
+}
+
+@Test func imagesNeedAPathOrAnAssetID() throws {
+    #expect(throws: UIScriptError.invalidImageResource(image: "art")) {
+        try script("<Image name='art'/>")
+    }
+    let idOnly = try script("<Image name='art' assetID='0x10'/>").resources.images["art"]
+    #expect(idOnly?.assetID == "0x10")
+    #expect(idOnly?.path == nil)
+    let pathOnly = try script("<Image name='art' path='a.bmp'/>").resources.images["art"]
+    #expect(pathOnly?.path == "a.bmp")
+    #expect(pathOnly?.assetID == nil)
+}
+
+@Test(arguments: zip(
+    [UIScript.ButtonState.normal, .pressed, .hovered, .disabled],
+    [Float(0), 25, 50, 75]
+))
+func fourStateImagesSliceInStateOrder(state: UIScript.ButtonState, expectedX: Float) throws {
+    let image = try #require(try script(imageDocument(stateCount: 4)).resources.images["art"])
+
+    let source = image.sourceRectangle(for: state, textureWidth: 100, textureHeight: 25)
+    #expect(source == Rectangle(x: expectedX, y: 0, width: 25, height: 25))
+}
+
+@Test(arguments: [UIScript.ButtonState.normal, .pressed, .hovered, .disabled])
+func singleStateImagesShowWholeInEveryState(state: UIScript.ButtonState) throws {
+    let image = try #require(try script(imageDocument(stateCount: nil)).resources.images["art"])
+
+    #expect(image.stateCount == 1)
+    let source = image.sourceRectangle(for: state, textureWidth: 40, textureHeight: 20)
+    #expect(source == Rectangle(x: 0, y: 0, width: 40, height: 20))
+}
+
+@Test(arguments: [0, 2, 3, 5, -4])
+func uiScriptRejectsUnsupportedStateCounts(stateCount: Int) {
+    #expect(throws: UIScriptError.invalidStateCount(image: "art")) {
+        try script(imageDocument(stateCount: stateCount))
+    }
+}
+
+@Test(arguments: ["Text", "List", "TextField", "Slider", "Region"])
+func uiScriptRejectsImagesOnOtherControls(element: String) {
+    #expect(throws: UIScriptError.invalidImage(owner: "owner")) {
+        try script("<Image name='art' path='a.bmp'/><\(element) name='owner' \(tenByTen) image='art'/>")
+    }
+}
+
+@Test(arguments: ["Button", "Text", "List", "TextField", "Slider", "Region"])
+func controlsWithoutAnImageNeedASize(element: String) {
+    #expect(throws: UIScriptError.missingSize(owner: "owner")) {
+        try script("<\(element) name='owner' x='0' y='0'/>")
+    }
+    #expect(throws: UIScriptError.missingSize(owner: "owner")) {
+        try script("<\(element) name='owner' x='0' y='0' width='10'/>")
+    }
+}
+
+// MARK: View
+
+@Test func viewTakesMissingSizesFromOneImageSlice() throws {
+    let loaded = try script("""
+    <Image name='strip' path='strip.bmp' stateCount='4'/>
+    <Image name='plain' path='plain.bmp'/>
+    <Button name='fromStrip' x='5' y='6' image='strip'/>
+    <Button name='wider' x='5' y='6' width='70' image='strip'/>
+    <Visual name='fromPlain' x='1' y='2' image='plain'/>
+    """)
+    let view = UIScriptView(script: loaded, loadImage: { resource in
+        resource.stateCount == 4 ? stubTexture(width: 100, height: 25) : stubTexture(width: 40, height: 20)
+    })
+    let origin = Vector2(x: 10, y: 20)
+
+    #expect(view.bounds(named: "fromStrip", at: origin) == Rectangle(x: 15, y: 26, width: 25, height: 25))
+    #expect(view.bounds(named: "wider", at: origin) == Rectangle(x: 15, y: 26, width: 70, height: 25))
+    #expect(view.bounds(named: "fromPlain", at: origin) == Rectangle(x: 11, y: 22, width: 40, height: 20))
+    #expect(view.bounds(named: "missing", at: origin) == nil)
+    #expect(view.pressButton(at: Vector2(x: 39, y: 50), origin: origin) == .pressed(control: "wider"))
+}
+
+@Test func viewFallsBackToASmallSizeForMissingImages() throws {
+    let view = UIScriptView(script: try script(imageDocument(stateCount: 4)))
+
+    #expect(view.missingImages == ["art"])
+    #expect(view.bounds(named: "owner", at: .zero) == Rectangle(x: 5, y: 6, width: 24, height: 24))
+}
+
+@Test func viewAsksTheHostForEachImageOnce() throws {
+    var requestedPaths: [String?] = []
+    let view = UIScriptView(script: try script(imageDocument(stateCount: 4)), loadImage: { resource in
+        requestedPaths.append(resource.path)
+        return Texture2D()
+    })
+
+    #expect(requestedPaths == ["ui/art.bmp"])
+    #expect(view.missingImages.isEmpty)
+}
+
+@Test func viewBuildsControlsAndFindsThemByKind() throws {
+    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.xml")))
+
+    #expect(view.list(named: "chatHistory") != nil)
+    #expect(view.textField(named: "chatEntry") != nil)
+    #expect(view.list(named: "chatEntry") == nil)
+    #expect(view.textField(named: "missing") == nil)
+}
+
+@Test func viewAppliesDocumentSettingsToTextFields() throws {
+    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.xml")))
+    let entry = try #require(view.textField(named: "chatEntry"))
+
+    entry.text = String(repeating: "a", count: 500)
+    #expect(entry.length == 120)
+}
+
+@Test func viewScrollButtonsMoveTheirListWithoutReportingAnEvent() throws {
+    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.xml")))
+    let history = try #require(view.list(named: "chatHistory"))
+    let origin = Vector2(x: 1000, y: 1000)
+    history.items = (1...20).map { "Message \($0)" }
+    _ = view.update(at: origin)
+
+    #expect(view.pressButton(at: Vector2(x: 1370, y: 1035), origin: origin) == nil)
+    #expect(history.scrollOffset == 1)
+    #expect(view.pressButton(at: Vector2(x: 1370, y: 1200), origin: origin) == nil)
+    #expect(history.scrollOffset == 0)
+}
+
+@Test func viewReportsOtherButtonsAndSkipsHiddenOnes() throws {
+    let view = UIScriptView(script: try script("<Button name='lower' \(tenByTen)/><Button name='upper' \(tenByTen)/>"))
+    let point = Vector2(x: 5, y: 5)
+
+    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
+
+    view.setHidden(true, named: "upper")
+    #expect(view.isHidden(named: "upper"))
+    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "lower"))
+
+    view.setHidden(false, named: "upper")
+    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
+    #expect(view.pressButton(at: Vector2(x: 50, y: 50), origin: .zero) == nil)
+}
+
+@Test func disabledButtonsAbsorbPressesWithoutReporting() throws {
+    let view = UIScriptView(script: try script("<Button name='lower' \(tenByTen)/><Button name='upper' \(tenByTen)/>"))
+    let point = Vector2(x: 5, y: 5)
+
+    view.setDisabled(true, named: "upper")
+    #expect(view.isDisabled(named: "upper"))
+    #expect(view.pressButton(at: point, origin: .zero) == nil)
+
+    view.setDisabled(false, named: "upper")
+    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
+}
+
+@Test func viewResolvesStringReferencesThroughTheHost() throws {
+    let parsed = try script("<String name='hint' table='UIText' index='7'/><TextField name='entry' \(tenByTen) string='hint'/>")
+
+    let resolved = UIScriptView(script: parsed, resolveString: { "\($0.table) string \($0.index)" })
+    #expect(resolved.textField(named: "entry")?.text == "UIText string 7")
+
+    let unresolved = UIScriptView(script: parsed)
+    #expect(unresolved.textField(named: "entry")?.text == "UIText#7")
 }
 
 @Test func chatDialogControlsFitInsideItsWindow() throws {
-    let chat = try UIScript(contentsOf: demoResource("chatdialog.json"))
+    let chat = try UIScript(contentsOf: demoResource("chatdialog.xml"))
+    let view = UIScriptView(script: chat)
 
     for control in chat.controls {
-        #expect(control.frame.x + control.frame.width <= chat.window.size.width, "\(control.name) is too wide")
-        #expect(control.frame.y + control.frame.height <= chat.window.size.height, "\(control.name) is too tall")
+        let bounds = try #require(view.bounds(named: control.name, at: .zero))
+        #expect(bounds.x + bounds.width <= chat.window.size.width, "\(control.name) is too wide")
+        #expect(bounds.y + bounds.height <= chat.window.size.height, "\(control.name) is too tall")
     }
 }
+
+// Both roadmap examples must work through the same model and view, with different compositions.
+@Test func chatAndLivePanelShareOneModelWithoutSharingALayout() throws {
+    let chat = try UIScript(contentsOf: demoResource("chatdialog.xml"))
+    let panel = try UIScript(contentsOf: demoResource("livepanel1024.xml"))
+    let chatView = UIScriptView(script: chat)
+    let panelView = UIScriptView(script: panel)
+
+    #expect(chat.controls.contains { $0.scrolls != nil })
+    #expect(!panel.controls.contains { $0.scrolls != nil })
+    #expect(panel.controls.contains { $0.type == .region })
+    #expect(!chat.controls.contains { $0.type == .region })
+    #expect(chatView.missingImages.isEmpty)
+    #expect(panelView.missingImages.count == panel.resources.images.count)
+    #expect(panelView.textField(named: "statusBarTimerEntry") != nil)
+}
+
+@Test func demoDocumentsUseNoAttributesTheReaderIgnores() throws {
+    for name in ["chatdialog.xml", "livepanel1024.xml"] {
+        #expect(try UIScript(contentsOf: demoResource(name)).ignoredAttributes.isEmpty, "\(name)")
+    }
+}
+
+@Test func livePanelReadsWithTheCurrentModel() throws {
+    let panel = try UIScript(contentsOf: demoResource("livepanel1024.xml"))
+
+    #expect(panel.window.size.width == 1024)
+    #expect(panel.controls.count == 14)
+    #expect(panel.visuals.count == 4)
+    #expect(panel.control(named: "peopleList")?.type == .region)
+    #expect(panel.resources.images["nextPage"]?.stateCount == 4)
+    #expect(panel.resources.images["nextPage"]?.assetID == "0x0000049000000001")
+    #expect(panel.control(named: "nextPage")?.frame.width == nil)
+}
+
+// MARK: Text list
 
 // Headless, the 100-tall viewport shows five lines and each item measures as one line.
 private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangle) {
@@ -397,259 +654,6 @@ private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangl
     list.update(in: Rectangle(x: 500, y: 500, width: 200, height: 20))
 
     #expect(abs(list.scrollThumbFraction - (1.0 / 3.0)) < 0.001)
-}
-
-private func frameJSON(x: Int = 0) -> String {
-    #"{ "x": \#(x), "y": 0, "width": 10, "height": 10 }"#
-}
-
-private func scrollControls(type: String, scrolls: String) -> String {
-    #"""
-    [
-      { "name": "history", "type": "list", "frame": \#(frameJSON()) },
-      { "name": "label", "type": "text", "frame": \#(frameJSON()) },
-      { "name": "scroller", "type": "\#(type)", "frame": \#(frameJSON()), "scrolls": \#(scrolls) }
-    ]
-    """#
-}
-
-@Test func scrollBindingsDecodeForSlidersAndButtons() throws {
-    let slider = try script(controls: scrollControls(type: "slider", scrolls: #"{ "list": "history" }"#))
-    #expect(slider.control(named: "scroller")?.scrolls?.list == "history")
-    #expect(slider.control(named: "scroller")?.scrolls?.direction == nil)
-
-    let button = try script(controls: scrollControls(type: "button", scrolls: #"{ "list": "history", "direction": "up" }"#))
-    #expect(button.control(named: "scroller")?.scrolls?.direction == .up)
-}
-
-@Test(arguments: [
-    ("slider", #"{ "list": "history", "direction": "up" }"#),
-    ("button", #"{ "list": "history" }"#),
-    ("text", #"{ "list": "history" }"#),
-    ("slider", #"{ "list": "label" }"#),
-])
-func uiScriptRejectsMismatchedScrollBindings(type: String, scrolls: String) {
-    #expect(throws: UIScriptError.invalidScrollBinding(owner: "scroller")) {
-        try script(controls: scrollControls(type: type, scrolls: scrolls))
-    }
-}
-
-@Test func uiScriptRejectsScrollBindingsToMissingLists() {
-    let controls = scrollControls(type: "slider", scrolls: #"{ "list": "missing" }"#)
-    #expect(throws: UIScriptError.unknownReference(owner: "scroller", property: "scrolls", reference: "missing")) {
-        try script(controls: controls)
-    }
-}
-
-@Test(arguments: [
-    #"{ "name": "entry", "type": "textField", "frame": { "x": 0, "y": 0, "width": 1, "height": 1 }, "maximumLength": 0 }"#,
-    #"{ "name": "entry", "type": "button", "frame": { "x": 0, "y": 0, "width": 1, "height": 1 }, "maximumLength": 5 }"#,
-])
-func uiScriptRejectsInvalidMaximumLengths(control: String) {
-    #expect(throws: UIScriptError.invalidMaximumLength(owner: "entry")) {
-        try script(controls: "[\(control)]")
-    }
-}
-
-@Test func viewBuildsControlsAndFindsThemByKind() throws {
-    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.json")))
-
-    #expect(view.list(named: "chatHistory") != nil)
-    #expect(view.textField(named: "chatEntry") != nil)
-    #expect(view.list(named: "chatEntry") == nil)
-    #expect(view.textField(named: "missing") == nil)
-}
-
-@Test func viewAppliesDocumentSettingsToTextFields() throws {
-    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.json")))
-    let entry = try #require(view.textField(named: "chatEntry"))
-
-    entry.text = String(repeating: "a", count: 500)
-    #expect(entry.length == 120)
-}
-
-@Test func viewScrollButtonsMoveTheirListWithoutReportingAnEvent() throws {
-    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.json")))
-    let history = try #require(view.list(named: "chatHistory"))
-    let origin = Vector2(x: 1000, y: 1000)
-    history.items = (1...20).map { "Message \($0)" }
-    _ = view.update(at: origin)
-
-    #expect(view.pressButton(at: Vector2(x: 1370, y: 1035), origin: origin) == nil)
-    #expect(history.scrollOffset == 1)
-    #expect(view.pressButton(at: Vector2(x: 1370, y: 1200), origin: origin) == nil)
-    #expect(history.scrollOffset == 0)
-}
-
-@Test func viewReportsOtherButtonsAndSkipsHiddenOnes() throws {
-    let view = UIScriptView(script: try script(controls: #"""
-    [
-      { "name": "lower", "type": "button", "frame": \#(frameJSON()) },
-      { "name": "upper", "type": "button", "frame": \#(frameJSON()) }
-    ]
-    """#))
-    let point = Vector2(x: 5, y: 5)
-
-    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
-
-    view.setHidden(true, named: "upper")
-    #expect(view.isHidden(named: "upper"))
-    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "lower"))
-
-    view.setHidden(false, named: "upper")
-    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
-    #expect(view.pressButton(at: Vector2(x: 50, y: 50), origin: .zero) == nil)
-}
-
-@Test func disabledButtonsAbsorbPressesWithoutReporting() throws {
-    let view = UIScriptView(script: try script(controls: #"""
-    [
-      { "name": "lower", "type": "button", "frame": \#(frameJSON()) },
-      { "name": "upper", "type": "button", "frame": \#(frameJSON()) }
-    ]
-    """#))
-    let point = Vector2(x: 5, y: 5)
-
-    view.setDisabled(true, named: "upper")
-    #expect(view.isDisabled(named: "upper"))
-    #expect(view.pressButton(at: point, origin: .zero) == nil)
-
-    view.setDisabled(false, named: "upper")
-    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
-}
-
-private func imageDocument(stateCount: Int?, imageOwnerType: String = "button") -> Data {
-    let count = stateCount.map { #", "stateCount": \#($0)"# } ?? ""
-    return Data(#"""
-    {
-      "window": { "size": { "width": 100, "height": 80 } },
-      "resources": { "images": { "art": { "path": "ui/art.bmp"\#(count) } } },
-      "controls": [
-        { "name": "owner", "type": "\#(imageOwnerType)", "frame": \#(frameJSON()), "image": "art" }
-      ]
-    }
-    """#.utf8)
-}
-
-@Test(arguments: zip(
-    [UIScript.ButtonState.normal, .pressed, .hovered, .disabled],
-    [Float(0), 25, 50, 75]
-))
-func fourStateImagesSliceInStateOrder(state: UIScript.ButtonState, expectedX: Float) throws {
-    let image = try #require(try UIScript(data: imageDocument(stateCount: 4)).resources.images["art"])
-
-    let source = image.sourceRectangle(for: state, textureWidth: 100, textureHeight: 25)
-    #expect(source == Rectangle(x: expectedX, y: 0, width: 25, height: 25))
-}
-
-@Test(arguments: [UIScript.ButtonState.normal, .pressed, .hovered, .disabled])
-func singleStateImagesShowWholeInEveryState(state: UIScript.ButtonState) throws {
-    let image = try #require(try UIScript(data: imageDocument(stateCount: nil)).resources.images["art"])
-
-    #expect(image.stateCount == 1)
-    let source = image.sourceRectangle(for: state, textureWidth: 40, textureHeight: 20)
-    #expect(source == Rectangle(x: 0, y: 0, width: 40, height: 20))
-}
-
-@Test(arguments: [0, 2, 3, 5, -4])
-func uiScriptRejectsUnsupportedStateCounts(stateCount: Int) {
-    #expect(throws: UIScriptError.invalidStateCount(image: "art")) {
-        try UIScript(data: imageDocument(stateCount: stateCount))
-    }
-}
-
-@Test(arguments: ["text", "list", "textField", "slider", "region"])
-func uiScriptRejectsImagesOnOtherControls(type: String) {
-    #expect(throws: UIScriptError.invalidImage(owner: "owner")) {
-        try UIScript(data: imageDocument(stateCount: nil, imageOwnerType: type))
-    }
-}
-
-@Test func uiScriptRejectsAVisualAndControlSharingAName() {
-    let document = Data(#"""
-    {
-      "window": { "size": { "width": 100, "height": 80 } },
-      "resources": { "images": { "art": { "path": "ui/art.bmp" } } },
-      "visuals": [{ "name": "twin", "image": "art", "frame": \#(frameJSON()) }],
-      "controls": [{ "name": "twin", "type": "text", "frame": \#(frameJSON()) }]
-    }
-    """#.utf8)
-    #expect(throws: UIScriptError.duplicateName("twin")) {
-        try UIScript(data: document)
-    }
-}
-
-@Test func viewReportsImagesTheHostCouldNotSupply() throws {
-    let view = UIScriptView(script: try UIScript(data: imageDocument(stateCount: 4)))
-
-    #expect(view.missingImages == ["art"])
-}
-
-@Test func viewAsksTheHostForEachImageOnce() throws {
-    var requestedPaths: [String] = []
-    let view = UIScriptView(script: try UIScript(data: imageDocument(stateCount: 4))) { _ in
-        ""
-    } loadImage: { resource in
-        requestedPaths.append(resource.path)
-        return Texture2D()
-    }
-
-    #expect(requestedPaths == ["ui/art.bmp"])
-    #expect(view.missingImages.isEmpty)
-}
-
-// Both roadmap examples must work through the same model and view, with different compositions.
-@Test func chatAndLivePanelShareOneModelWithoutSharingALayout() throws {
-    let chat = try UIScript(contentsOf: demoResource("chatdialog.json"))
-    let panel = try UIScript(contentsOf: demoResource("livepanel1024.json"))
-    let chatView = UIScriptView(script: chat)
-    let panelView = UIScriptView(script: panel)
-
-    #expect(chat.controls.contains { $0.scrolls != nil })
-    #expect(!panel.controls.contains { $0.scrolls != nil })
-    #expect(panel.controls.contains { $0.type == .region })
-    #expect(!chat.controls.contains { $0.type == .region })
-    #expect(chatView.missingImages.isEmpty)
-    #expect(panelView.missingImages.count == panel.resources.images.count)
-    #expect(panelView.textField(named: "statusBarTimerEntry") != nil)
-}
-
-@Test func livePanelFramesStayInsideItsWindow() throws {
-    let panel = try UIScript(contentsOf: demoResource("livepanel1024.json"))
-
-    for frame in panel.controls.map(\.frame) + panel.visuals.map(\.frame) {
-        #expect(frame.x + frame.width <= panel.window.size.width)
-        #expect(frame.y + frame.height <= panel.window.size.height)
-    }
-}
-
-@Test func viewResolvesStringReferencesThroughTheHost() throws {
-    let document = Data(#"""
-    {
-      "window": { "size": { "width": 100, "height": 80 } },
-      "resources": { "strings": { "hint": { "table": "UIText", "index": 7 } } },
-      "controls": [
-        { "name": "entry", "type": "textField", "frame": { "x": 0, "y": 0, "width": 9, "height": 9 }, "text": { "string": "hint" } }
-      ]
-    }
-    """#.utf8)
-    let parsed = try UIScript(data: document)
-
-    let resolved = UIScriptView(script: parsed) { "\($0.table) string \($0.index)" }
-    #expect(resolved.textField(named: "entry")?.text == "UIText string 7")
-
-    let unresolved = UIScriptView(script: parsed)
-    #expect(unresolved.textField(named: "entry")?.text == "UIText#7")
-}
-
-@Test func livePanelDraftDecodesWithTheCurrentUIScriptModel() throws {
-    let script = try UIScript(contentsOf: demoResource("livepanel1024.json"))
-
-    #expect(script.window.size.width == 1024)
-    #expect(script.controls.count == 14)
-    #expect(script.visuals.count == 4)
-    #expect(script.control(named: "peopleList")?.type == .region)
-    #expect(script.resources.images["nextPage"]?.stateCount == 4)
 }
 
 @Test func formLayoutStacksLabeledControlsAndReservesFooterSpace() {

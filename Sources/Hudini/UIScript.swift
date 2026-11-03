@@ -1,11 +1,24 @@
 import Foundation
 import Raylib
 
-/// A decoded Hudini interface document.
+/// A loaded Hudini interface document.
 ///
 /// UIScript documents describe presentation. The host game remains responsible
 /// for control state, actions, and resolving image and localized-string data.
-public struct UIScript: Decodable, Sendable {
+/// See `doc/UISCRIPT.md` for the XML format.
+public struct UIScript: Sendable {
+    /// The newest document version this reader understands.
+    public static let supportedVersion = 1
+
+    /// The named features this reader understands in a document's `requires` list.
+    public static let supportedFeatures: Set<String> = []
+
+    /// The document's format version.
+    public let version: Int
+
+    /// The features the document says a reader must understand.
+    public let requiredFeatures: [String]
+
     /// Window-level size settings.
     public let window: Window
 
@@ -21,16 +34,42 @@ public struct UIScript: Decodable, Sendable {
     /// The controls in document order.
     public let controls: [Control]
 
-    /// Decodes and validates a UIScript JSON document.
+    /// Attributes this reader did not recognize and ignored.
+    ///
+    /// Newer documents may add optional attributes, so these are not errors. A
+    /// misspelled attribute also lands here, so hosts may want to log them.
+    public let ignoredAttributes: [IgnoredAttribute]
+
+    /// Parses and validates a UIScript XML document, which must be UTF-8.
     public init(data: Data) throws {
-        let document = try JSONDecoder().decode(Self.self, from: data)
+        let document = try UIScriptParser.parse(data)
         try document.validate()
         self = document
     }
 
-    /// Loads and validates a UIScript JSON document from a file URL.
+    /// Loads and validates a UIScript XML document from a file URL.
     public init(contentsOf url: URL) throws {
         try self.init(data: Data(contentsOf: url))
+    }
+
+    init(
+        version: Int,
+        requiredFeatures: [String],
+        window: Window,
+        resources: Resources,
+        styles: [String: Style],
+        visuals: [Visual],
+        controls: [Control],
+        ignoredAttributes: [IgnoredAttribute]
+    ) {
+        self.version = version
+        self.requiredFeatures = requiredFeatures
+        self.window = window
+        self.resources = resources
+        self.styles = styles
+        self.visuals = visuals
+        self.controls = controls
+        self.ignoredAttributes = ignoredAttributes
     }
 
     /// Returns the style a control refers to, or `nil` when it has none.
@@ -43,24 +82,9 @@ public struct UIScript: Decodable, Sendable {
         controls.first { $0.name == name }
     }
 
-    private enum CodingKeys: String, CodingKey {
-        case window
-        case resources
-        case styles
-        case visuals
-        case controls
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        try validateKnownKeys(in: decoder, allowing: [
-            "window", "resources", "styles", "visuals", "controls"
-        ])
-        window = try container.decode(Window.self, forKey: .window)
-        resources = try container.decodeIfPresent(Resources.self, forKey: .resources) ?? Resources()
-        styles = try container.decodeIfPresent([String: Style].self, forKey: .styles) ?? [:]
-        visuals = try container.decodeIfPresent([Visual].self, forKey: .visuals) ?? []
-        controls = try container.decodeIfPresent([Control].self, forKey: .controls) ?? []
+    /// Returns the visual with this name, or `nil` when there is none.
+    public func visual(named name: String) -> Visual? {
+        visuals.first { $0.name == name }
     }
 
     private func validate() throws {
@@ -78,8 +102,13 @@ public struct UIScript: Decodable, Sendable {
                 throw UIScriptError.invalidFontSize(style: name)
             }
         }
-        for (name, image) in resources.images where image.stateCount != 1 && image.stateCount != 4 {
-            throw UIScriptError.invalidStateCount(image: name)
+        for (name, image) in resources.images {
+            guard image.path != nil || image.assetID != nil else {
+                throw UIScriptError.invalidImageResource(image: name)
+            }
+            guard image.stateCount == 1 || image.stateCount == 4 else {
+                throw UIScriptError.invalidStateCount(image: name)
+            }
         }
         try validateUniqueNames(visuals.map(\.name) + controls.map(\.name))
 
@@ -121,6 +150,8 @@ public struct UIScript: Decodable, Sendable {
                     owner: control.name,
                     property: "image"
                 )
+            } else if control.frame.width == nil || control.frame.height == nil {
+                throw UIScriptError.missingSize(owner: control.name)
             }
             if case let .string(stringName)? = control.text,
                resources.strings[stringName] == nil {
@@ -191,78 +222,48 @@ public struct UIScript: Decodable, Sendable {
     }
 
     private func validate(frame: Frame, owner: String) throws {
-        guard frame.width >= 0, frame.height >= 0 else {
+        guard (frame.width ?? 0) >= 0, (frame.height ?? 0) >= 0 else {
             throw UIScriptError.invalidFrame(owner: owner)
         }
     }
 
+    /// An attribute the reader did not recognize.
+    public struct IgnoredAttribute: Sendable, Equatable {
+        /// The name of the element holding the attribute.
+        public let element: String
+
+        /// The attribute's name.
+        public let attribute: String
+
+        /// The line of the element in the document.
+        public let line: Int
+    }
+
     /// Window-level size settings.
-    public struct Window: Decodable, Sendable {
+    public struct Window: Sendable {
         /// The initial window size in pixels.
         public let size: Size
 
         /// The smallest user-resizable window size, when specified.
         public let minSize: Size?
-
-        private enum CodingKeys: String, CodingKey {
-            case size
-            case minSize
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["size", "minSize"])
-            size = try container.decode(Size.self, forKey: .size)
-            minSize = try container.decodeIfPresent(Size.self, forKey: .minSize)
-        }
     }
 
     /// A width and height in pixels.
-    public struct Size: Decodable, Sendable {
+    public struct Size: Sendable {
         /// The width.
         public let width: Float
 
         /// The height.
         public let height: Float
-
-        private enum CodingKeys: String, CodingKey {
-            case width
-            case height
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["width", "height"])
-            width = try container.decode(Float.self, forKey: .width)
-            height = try container.decode(Float.self, forKey: .height)
-        }
     }
 
     /// The named resources used by a document.
-    public struct Resources: Decodable, Sendable {
+    public struct Resources: Sendable {
         /// Image resources keyed by their document-local names.
         public let images: [String: ImageResource]
 
         /// Localized strings keyed by their document-local names.
         public let strings: [String: StringResource]
-
-        /// Creates an empty resource collection.
-        public init() {
-            images = [:]
-            strings = [:]
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case images
-            case strings
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["images", "strings"])
-            images = try container.decodeIfPresent([String: ImageResource].self, forKey: .images) ?? [:]
-            strings = try container.decodeIfPresent([String: StringResource].self, forKey: .strings) ?? [:]
-        }
     }
 
     /// The state a button image shows.
@@ -283,9 +284,14 @@ public struct UIScript: Decodable, Sendable {
     }
 
     /// A reference to an image asset resolved by the host game.
-    public struct ImageResource: Decodable, Sendable {
-        /// A host-defined asset path or identifier.
-        public let path: String
+    ///
+    /// A resource has a path, an asset ID, or both. The host decides which to use.
+    public struct ImageResource: Sendable {
+        /// A host-defined asset path.
+        public let path: String?
+
+        /// A host-defined asset identifier, kept exactly as the document writes it.
+        public let assetID: String?
 
         /// How many equal-width slices the image holds, either one or four.
         ///
@@ -303,46 +309,21 @@ public struct UIScript: Decodable, Sendable {
             let slice = stateCount == 4 ? state.rawValue : 0
             return Rectangle(x: Float(slice) * sliceWidth, y: 0, width: sliceWidth, height: textureHeight)
         }
-
-        private enum CodingKeys: String, CodingKey {
-            case path
-            case stateCount
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["path", "stateCount"])
-            path = try container.decode(String.self, forKey: .path)
-            stateCount = try container.decodeIfPresent(Int.self, forKey: .stateCount) ?? 1
-        }
     }
 
     /// A localized string reference resolved by the host game.
-    public struct StringResource: Decodable, Sendable {
+    public struct StringResource: Sendable {
         /// The host-defined string table or localization domain.
         public let table: String
 
         /// The string's index within its table.
         public let index: Int
-
-        private enum CodingKeys: String, CodingKey {
-            case table
-            case index
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["table", "index"])
-            table = try container.decode(String.self, forKey: .table)
-            index = try container.decode(Int.self, forKey: .index)
-        }
     }
 
     /// A named collection of visual properties.
     ///
-    /// Documents write colors as `#RRGGBB` or `#RRGGBBAA`. Any other form fails
-    /// decoding.
-    public struct Style: Decodable, Sendable {
+    /// Documents write colors as `#RRGGBB` or `#RRGGBBAA`.
+    public struct Style: Sendable {
         /// The primary text color.
         public let textColor: Color?
 
@@ -363,114 +344,31 @@ public struct UIScript: Decodable, Sendable {
 
         /// The font size in pixels. It must be positive.
         public let fontSize: Int?
-
-        private enum CodingKeys: String, CodingKey {
-            case textColor
-            case selectedTextColor
-            case highlightedTextColor
-            case disabledTextColor
-            case backgroundColor
-            case borderColor
-            case fontSize
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: [
-                "textColor", "selectedTextColor", "highlightedTextColor",
-                "disabledTextColor", "backgroundColor", "borderColor", "fontSize"
-            ])
-            textColor = try Self.decodeColor(in: container, forKey: .textColor)
-            selectedTextColor = try Self.decodeColor(in: container, forKey: .selectedTextColor)
-            highlightedTextColor = try Self.decodeColor(in: container, forKey: .highlightedTextColor)
-            disabledTextColor = try Self.decodeColor(in: container, forKey: .disabledTextColor)
-            backgroundColor = try Self.decodeColor(in: container, forKey: .backgroundColor)
-            borderColor = try Self.decodeColor(in: container, forKey: .borderColor)
-            fontSize = try container.decodeIfPresent(Int.self, forKey: .fontSize)
-        }
-
-        private static func decodeColor(
-            in container: KeyedDecodingContainer<CodingKeys>,
-            forKey key: CodingKeys
-        ) throws -> Color? {
-            guard let hex = try container.decodeIfPresent(String.self, forKey: key) else {
-                return nil
-            }
-            guard let color = color(fromHex: hex) else {
-                throw DecodingError.dataCorruptedError(
-                    forKey: key,
-                    in: container,
-                    debugDescription: "Color '\(hex)' must be #RRGGBB or #RRGGBBAA."
-                )
-            }
-            return color
-        }
-
-        private static func color(fromHex hex: String) -> Color? {
-            guard hex.hasPrefix("#") else {
-                return nil
-            }
-            let digits = hex.dropFirst()
-            guard digits.count == 6 || digits.count == 8,
-                  digits.allSatisfy({ $0.isASCII && $0.isHexDigit }),
-                  let value = UInt32(digits, radix: 16) else {
-                return nil
-            }
-            let rgba = digits.count == 6 ? (value << 8) | 0xFF : value
-            return Color(
-                r: UInt8(truncatingIfNeeded: rgba >> 24),
-                g: UInt8(truncatingIfNeeded: rgba >> 16),
-                b: UInt8(truncatingIfNeeded: rgba >> 8),
-                a: UInt8(truncatingIfNeeded: rgba)
-            )
-        }
     }
 
     /// A rectangle placed in the window's pixel coordinate space.
-    public struct Frame: Decodable, Sendable {
+    ///
+    /// A button or visual with an image may leave out its size to use the image's.
+    /// `UIScriptView.bounds(named:at:)` reports the final bounds.
+    public struct Frame: Sendable {
         /// The horizontal position.
         public let x: Float
 
         /// The vertical position.
         public let y: Float
 
-        /// The width.
-        public let width: Float
+        /// The width, or `nil` to use the image's.
+        public let width: Float?
 
-        /// The height.
-        public let height: Float
+        /// The height, or `nil` to use the image's.
+        public let height: Float?
 
         /// Optional offsets from the window edges used during resizing.
         public let edgeOffsets: EdgeOffsets?
-
-        /// Returns this frame as screen bounds for a window whose corner is at `origin`.
-        public func rectangle(at origin: Vector2) -> Rectangle {
-            Rectangle(x: origin.x + x, y: origin.y + y, width: width, height: height)
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case x
-            case y
-            case width
-            case height
-            case edgeOffsets
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: [
-                "x", "y", "width", "height", "edgeOffsets"
-            ])
-            x = try container.decode(Float.self, forKey: .x)
-            y = try container.decode(Float.self, forKey: .y)
-            width = try container.decode(Float.self, forKey: .width)
-            height = try container.decode(Float.self, forKey: .height)
-            edgeOffsets = try container.decodeIfPresent(EdgeOffsets.self, forKey: .edgeOffsets)
-        }
     }
 
     /// Distances from a frame to the corresponding window edges.
-    public struct EdgeOffsets: Decodable, Sendable {
+    public struct EdgeOffsets: Sendable {
         /// The distance from the left edge.
         public let left: Float?
 
@@ -482,52 +380,22 @@ public struct UIScript: Decodable, Sendable {
 
         /// The distance from the bottom edge.
         public let bottom: Float?
-
-        private enum CodingKeys: String, CodingKey {
-            case left
-            case right
-            case top
-            case bottom
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["left", "right", "top", "bottom"])
-            left = try container.decodeIfPresent(Float.self, forKey: .left)
-            right = try container.decodeIfPresent(Float.self, forKey: .right)
-            top = try container.decodeIfPresent(Float.self, forKey: .top)
-            bottom = try container.decodeIfPresent(Float.self, forKey: .bottom)
-        }
     }
 
     /// A decorative image positioned independently from a control.
-    public struct Visual: Decodable, Sendable {
+    public struct Visual: Sendable {
         /// The stable document-local name.
         public let name: String
 
         /// The name of an image in `resources.images`.
         public let image: String
 
-        /// The visual's pixel bounds and optional resize offsets.
+        /// The visual's position and optional size and resize offsets.
         public let frame: Frame
-
-        private enum CodingKeys: String, CodingKey {
-            case name
-            case image
-            case frame
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["name", "image", "frame"])
-            name = try container.decode(String.self, forKey: .name)
-            image = try container.decode(String.self, forKey: .image)
-            frame = try container.decode(Frame.self, forKey: .frame)
-        }
     }
 
-    /// A supported control category in the initial UIScript scaffold.
-    public enum ControlType: String, Decodable, Sendable {
+    /// A supported control category.
+    public enum ControlType: Sendable {
         /// Static text.
         case text
 
@@ -551,41 +419,16 @@ public struct UIScript: Decodable, Sendable {
     }
 
     /// Text content expressed literally or by a localized-string reference.
-    public enum Text: Decodable, Sendable, Equatable {
+    public enum Text: Sendable, Equatable {
         /// Literal text.
         case literal(String)
 
         /// The name of a string in `resources.strings`.
         case string(String)
-
-        private enum CodingKeys: String, CodingKey {
-            case literal
-            case string
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["literal", "string"])
-            let literal = try container.decodeIfPresent(String.self, forKey: .literal)
-            let string = try container.decodeIfPresent(String.self, forKey: .string)
-            switch (literal, string) {
-            case let (.some(value), .none):
-                self = .literal(value)
-            case let (.none, .some(value)):
-                self = .string(value)
-            default:
-                throw DecodingError.dataCorrupted(
-                    DecodingError.Context(
-                        codingPath: decoder.codingPath,
-                        debugDescription: "Text must contain exactly one of 'literal' or 'string'."
-                    )
-                )
-            }
-        }
     }
 
     /// The direction a scroll button moves through its list.
-    public enum ScrollDirection: String, Decodable, Sendable {
+    public enum ScrollDirection: String, Sendable {
         /// Toward the top of the list, which holds the oldest content.
         case up
 
@@ -597,41 +440,29 @@ public struct UIScript: Decodable, Sendable {
     ///
     /// A slider shows the list's position and has no direction. A button
     /// requires a direction.
-    public struct ScrollBinding: Decodable, Sendable, Equatable {
+    public struct ScrollBinding: Sendable, Equatable {
         /// The name of the list control.
         public let list: String
 
         /// The direction a button scrolls.
         public let direction: ScrollDirection?
-
-        private enum CodingKeys: String, CodingKey {
-            case list
-            case direction
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["list", "direction"])
-            list = try container.decode(String.self, forKey: .list)
-            direction = try container.decodeIfPresent(ScrollDirection.self, forKey: .direction)
-        }
     }
 
     /// A control described by a UIScript document.
-    public struct Control: Decodable, Sendable {
+    public struct Control: Sendable {
         /// The stable document-local name.
         public let name: String
 
         /// The control category.
         public let type: ControlType
 
-        /// An optional legacy identifier retained for adapter or host use.
+        /// An optional legacy identifier retained for `.uis` conversion or host use.
         public let legacyID: Int?
 
-        /// The control's pixel bounds and optional resize offsets.
+        /// The control's position and optional size and resize offsets.
         public let frame: Frame
 
-        /// The name of a style in the document's `styles` section.
+        /// The name of a style in the document's styles.
         public let style: String?
 
         /// Literal or localized text displayed by the control.
@@ -651,75 +482,53 @@ public struct UIScript: Decodable, Sendable {
 
         /// The list a slider or button scrolls.
         public let scrolls: ScrollBinding?
-
-        private enum CodingKeys: String, CodingKey {
-            case name
-            case type
-            case legacyID
-            case frame
-            case style
-            case text
-            case placeholder
-            case image
-            case tooltip
-            case maximumLength
-            case scrolls
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: [
-                "name", "type", "legacyID", "frame", "style", "text",
-                "placeholder", "image", "tooltip", "maximumLength", "scrolls"
-            ])
-            name = try container.decode(String.self, forKey: .name)
-            type = try container.decode(ControlType.self, forKey: .type)
-            legacyID = try container.decodeIfPresent(Int.self, forKey: .legacyID)
-            frame = try container.decode(Frame.self, forKey: .frame)
-            style = try container.decodeIfPresent(String.self, forKey: .style)
-            text = try container.decodeIfPresent(Text.self, forKey: .text)
-            placeholder = try container.decodeIfPresent(Text.self, forKey: .placeholder)
-            image = try container.decodeIfPresent(String.self, forKey: .image)
-            tooltip = try container.decodeIfPresent(String.self, forKey: .tooltip)
-            maximumLength = try container.decodeIfPresent(Int.self, forKey: .maximumLength)
-            scrolls = try container.decodeIfPresent(ScrollBinding.self, forKey: .scrolls)
-        }
     }
 }
 
-private func validateKnownKeys(
-    in decoder: Decoder,
-    allowing knownKeys: [String]
-) throws {
-    let knownKeys = Set(knownKeys)
-    let container = try decoder.container(keyedBy: AnyCodingKey.self)
-    guard let unknownKey = container.allKeys.first(where: { !knownKeys.contains($0.stringValue) }) else {
-        return
-    }
-    throw DecodingError.dataCorruptedError(
-        forKey: unknownKey,
-        in: container,
-        debugDescription: "Unknown field '\(unknownKey.stringValue)' is not supported."
-    )
-}
-
-private struct AnyCodingKey: CodingKey {
-    let stringValue: String
-    let intValue: Int?
-
-    init?(stringValue: String) {
-        self.stringValue = stringValue
-        intValue = nil
-    }
-
-    init?(intValue: Int) {
-        stringValue = String(intValue)
-        self.intValue = intValue
-    }
-}
-
-/// Errors raised while validating a UIScript document.
+/// Errors raised while reading or validating a UIScript document.
 public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
+    /// The document is not UTF-8.
+    case unsupportedEncoding
+
+    /// The document declares a DOCTYPE, which UIScript does not allow.
+    case doctypeNotAllowed
+
+    /// The document is not well-formed XML.
+    case malformed(line: Int, column: Int)
+
+    /// The root element is not `UIScript`.
+    case invalidRoot(String)
+
+    /// The document's version is newer than this reader supports.
+    case unsupportedVersion(Int)
+
+    /// The document requires a feature this reader does not understand.
+    case unsupportedFeature(String)
+
+    /// An element is not part of the format.
+    case unknownElement(String, line: Int)
+
+    /// An element appears inside one that does not hold elements.
+    case unexpectedNesting(String, line: Int)
+
+    /// Text appears outside of an attribute.
+    case unexpectedText(line: Int)
+
+    /// A required element is absent.
+    case missingElement(String)
+
+    /// An element that may appear once appears again.
+    case duplicateElement(String, line: Int)
+
+    /// An element lacks a required attribute.
+    case missingAttribute(element: String, attribute: String, line: Int)
+
+    /// An attribute's value cannot be used.
+    case invalidAttribute(element: String, attribute: String, value: String, line: Int)
+
+    /// An element has two attributes that cannot be used together.
+    case conflictingAttributes(element: String, first: String, second: String, line: Int)
+
     /// The initial window size has a nonpositive dimension.
     case invalidWindowSize
 
@@ -729,14 +538,20 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A style has a nonpositive font size.
     case invalidFontSize(style: String)
 
-    /// Two controls or visuals share a name.
+    /// Two controls or visuals share a name, or two resources of a kind do.
     case duplicateName(String)
+
+    /// An image resource has neither a path nor an asset ID.
+    case invalidImageResource(image: String)
 
     /// An image resource has a state count other than one or four.
     case invalidStateCount(image: String)
 
     /// An image is attached to a control other than a button.
     case invalidImage(owner: String)
+
+    /// A control without an image leaves out its width or height.
+    case missingSize(owner: String)
 
     /// A visual or control has a negative frame size.
     case invalidFrame(owner: String)
@@ -755,6 +570,34 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
 
     public var errorDescription: String? {
         switch self {
+        case .unsupportedEncoding:
+            "UIScript documents must be UTF-8."
+        case .doctypeNotAllowed:
+            "UIScript documents must not declare a DOCTYPE."
+        case let .malformed(line, column):
+            "UIScript document is not well-formed XML near line \(line), column \(column)."
+        case let .invalidRoot(name):
+            "UIScript root element must be 'UIScript', not '\(name)'."
+        case let .unsupportedVersion(version):
+            "UIScript version \(version) is newer than this reader supports (\(UIScript.supportedVersion)). Update Hudini to load this document."
+        case let .unsupportedFeature(feature):
+            "UIScript document requires feature '\(feature)', which this reader does not support. Update Hudini to load this document."
+        case let .unknownElement(name, line):
+            "UIScript line \(line): element '\(name)' is not supported."
+        case let .unexpectedNesting(name, line):
+            "UIScript line \(line): element '\(name)' must be a direct child of 'UIScript'."
+        case let .unexpectedText(line):
+            "UIScript line \(line): text must be written in an attribute."
+        case let .missingElement(name):
+            "UIScript document needs a '\(name)' element."
+        case let .duplicateElement(name, line):
+            "UIScript line \(line): only one '\(name)' element is allowed."
+        case let .missingAttribute(element, attribute, line):
+            "UIScript line \(line): '\(element)' needs a '\(attribute)' attribute."
+        case let .invalidAttribute(element, attribute, value, line):
+            "UIScript line \(line): '\(element)' cannot use '\(value)' for '\(attribute)'."
+        case let .conflictingAttributes(element, first, second, line):
+            "UIScript line \(line): '\(element)' cannot have both '\(first)' and '\(second)'."
         case .invalidWindowSize:
             "UIScript window size must be positive."
         case .invalidMinimumWindowSize:
@@ -763,10 +606,14 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript font size for style '\(style)' must be positive."
         case let .duplicateName(name):
             "UIScript name '\(name)' is used more than once."
+        case let .invalidImageResource(image):
+            "UIScript image '\(image)' needs a 'path' or an 'assetID'."
         case let .invalidStateCount(image):
             "UIScript state count for image '\(image)' must be 1 or 4."
         case let .invalidImage(owner):
             "UIScript image for '\(owner)' requires a button control."
+        case let .missingSize(owner):
+            "UIScript control '\(owner)' needs a width and height, because it has no image to take them from."
         case let .invalidFrame(owner):
             "UIScript frame for '\(owner)' cannot have a negative size."
         case let .unknownReference(owner, property, reference):

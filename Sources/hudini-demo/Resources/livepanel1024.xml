@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A live mode panel based on the positions in TSO's live panel UIScript.
+  The demo host owns the needs, people, and images. Buttons and visuals without a
+  size take it from their image.
+-->
+<UIScript version="1">
+  <!-- The reference declares no window size. This is the smallest that holds the controls. -->
+  <Window width="1024" height="160"/>
+
+  <Image name="moodPositive" path="UCP/LivePanel/lpanel_moodPositive.bmp" assetID="0x0000048F00000001"/>
+  <Image name="moodNegative" path="UCP/LivePanel/lpanel_moodNegative.bmp" assetID="0x0000048C00000001"/>
+  <Image name="moodPanel" path="./uigraphics/ucp/livepanel/lpanel_moodpanelbtn.bmp" assetID="0x0000048E00000001" stateCount="4"/>
+  <Image name="previousPage" path="UCP/LivePanel/lpanel_previousPageBtn.bmp" assetID="0x0000049200000001" stateCount="4"/>
+  <Image name="nextPage" path="UCP/LivePanel/lpanel_nextPageBtn.bmp" assetID="0x0000049000000001" stateCount="4"/>
+  <Image name="peopleListBackground" path="./uigraphics/ucp/livepanel/livepanel_headsbackground_1024.bmp" assetID="0x0000088000000001"/>
+  <Image name="divider" path="UCP/LivePanel/lpanel_divider.bmp" assetID="0x0000048800000001"/>
+  <Image name="eodHelp" path="./uigraphics/ucp/livepanel/lpanel_eodhelpbtn.bmp" assetID="0x000004E100000001" stateCount="4"/>
+  <Image name="eodClose" path="./uigraphics/ucp/livepanel/lpanel_eodclosexbtn.bmp" assetID="0x000004EE00000001" stateCount="4"/>
+  <Image name="eodExpand" path="./uigraphics/ucp/livepanel/lpanel_eodexpandbtn.bmp" assetID="0x00000CB000000001" stateCount="4"/>
+  <Image name="eodContract" path="./uigraphics/ucp/livepanel/lpanel_eodcontractbtn.bmp" assetID="0x00000CAE00000001" stateCount="4"/>
+
+  <String name="previousPageTooltip" table="UIText:174" index="1"/>
+  <String name="nextPageTooltip" table="UIText:174" index="2"/>
+  <String name="needs" table="UIText:174" index="3"/>
+  <String name="eodHelpTooltip" table="UIText:174" index="4"/>
+  <String name="eodCloseTooltip" table="UIText:174" index="5"/>
+  <String name="eodTimerTip" table="UIText:174" index="6"/>
+  <String name="eodExpandTooltip" table="UIText:174" index="8"/>
+  <String name="eodContractTooltip" table="UIText:174" index="9"/>
+  <String name="statusBarTimerTooltip" table="UIText:174" index="10"/>
+
+  <Style name="panelText" textColor="#FFF99D" fontSize="12"/>
+  <Style name="timerEntry" textColor="#FFF99D" backgroundColor="#000000" borderColor="#F7D025" fontSize="10"/>
+  <Style name="messageWindow" textColor="#FFF99D" backgroundColor="#17212A" fontSize="12"/>
+  <Style name="statusBarMessage" textColor="#FFF99D" backgroundColor="#17212A" fontSize="10"/>
+
+  <Visual name="moodPositiveImage" image="moodPositive" x="69" y="11"/>
+  <Visual name="moodNegativeImage" image="moodNegative" x="31" y="11"/>
+  <Visual name="dividerImage" image="divider" x="140" y="49"/>
+  <Visual name="peopleListBackgroundImage" image="peopleListBackground" x="375" y="38"/>
+
+  <!-- Needs -->
+  <Text name="needsLabel" legacyID="11" x="163" y="42" width="160" height="16" style="panelText" string="needs"/>
+  <Button name="moodPanel" x="31" y="63" image="moodPanel"/>
+  <Region name="motives" x="165" y="59" width="205" height="100"/>
+
+  <!-- People -->
+  <Button name="previousPage" legacyID="12" x="386" y="63" image="previousPage" tooltip="previousPageTooltip"/>
+  <Button name="nextPage" legacyID="13" x="828" y="63" image="nextPage" tooltip="nextPageTooltip"/>
+  <Region name="peopleList" x="409" y="51" width="441" height="34"/>
+
+  <!-- Work session controls, which overlap the status bar. The host shows one set at a time. -->
+  <Button name="eodHelp" legacyID="14" x="596" y="87" image="eodHelp" tooltip="eodHelpTooltip"/>
+  <Button name="eodClose" legacyID="15" x="589" y="0" image="eodClose" tooltip="eodCloseTooltip"/>
+  <Button name="eodExpand" legacyID="17" x="150" y="-1" image="eodExpand" tooltip="eodExpandTooltip"/>
+  <Button name="eodContract" legacyID="18" x="150" y="-1" image="eodContract" tooltip="eodContractTooltip"/>
+  <TextField name="timerEntry" legacyID="100" x="526" y="13" width="50" height="15"
+             style="timerEntry" tooltip="eodTimerTip" maximumLength="8"/>
+  <List name="messageWindow" legacyID="102" x="190" y="7" width="317" height="20" style="messageWindow"/>
+
+  <!-- Status bar -->
+  <TextField name="statusBarTimerEntry" legacyID="101" x="752" y="12" width="50" height="15"
+             style="timerEntry" tooltip="statusBarTimerTooltip" maximumLength="8"/>
+  <List name="statusBarMessageWindow" legacyID="103" x="410" y="9" width="315" height="18" style="statusBarMessage"/>
+</UIScript>
