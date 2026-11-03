@@ -1,4 +1,5 @@
 import Foundation
+import Raylib
 
 /// A decoded Hudini interface document.
 ///
@@ -32,6 +33,11 @@ public struct UIScript: Decodable, Sendable {
         try self.init(data: Data(contentsOf: url))
     }
 
+    /// Returns the style a control refers to, or `nil` when it has none.
+    public func style(for control: Control) -> Style? {
+        control.style.flatMap { styles[$0] }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case window
         case resources
@@ -57,9 +63,18 @@ public struct UIScript: Decodable, Sendable {
             throw UIScriptError.invalidWindowSize
         }
         if let minimumSize = window.minSize,
-           minimumSize.width <= 0 || minimumSize.height <= 0 {
+           minimumSize.width <= 0 || minimumSize.height <= 0
+            || minimumSize.width > window.size.width
+            || minimumSize.height > window.size.height {
             throw UIScriptError.invalidMinimumWindowSize
         }
+        for (name, style) in styles {
+            if let fontSize = style.fontSize, fontSize <= 0 {
+                throw UIScriptError.invalidFontSize(style: name)
+            }
+        }
+        try validateUniqueNames(visuals.map(\.name))
+        try validateUniqueNames(controls.map(\.name))
 
         for visual in visuals {
             try validateReference(
@@ -115,6 +130,13 @@ public struct UIScript: Decodable, Sendable {
                 )
             }
             try validate(frame: control.frame, owner: control.name)
+        }
+    }
+
+    private func validateUniqueNames(_ names: [String]) throws {
+        var seenNames: Set<String> = []
+        for name in names where !seenNames.insert(name).inserted {
+            throw UIScriptError.duplicateName(name)
         }
     }
 
@@ -246,26 +268,29 @@ public struct UIScript: Decodable, Sendable {
     }
 
     /// A named collection of visual properties.
+    ///
+    /// Documents write colors as `#RRGGBB` or `#RRGGBBAA`. Any other form fails
+    /// decoding.
     public struct Style: Decodable, Sendable {
-        /// The primary text color, expressed as a hex color string.
-        public let textColor: String?
+        /// The primary text color.
+        public let textColor: Color?
 
-        /// The selected text color, expressed as a hex color string.
-        public let selectedTextColor: String?
+        /// The selected text color.
+        public let selectedTextColor: Color?
 
-        /// The highlighted text color, expressed as a hex color string.
-        public let highlightedTextColor: String?
+        /// The highlighted text color.
+        public let highlightedTextColor: Color?
 
-        /// The disabled text color, expressed as a hex color string.
-        public let disabledTextColor: String?
+        /// The disabled text color.
+        public let disabledTextColor: Color?
 
-        /// The background color, expressed as a hex color string.
-        public let backgroundColor: String?
+        /// The background color.
+        public let backgroundColor: Color?
 
-        /// The border color, expressed as a hex color string.
-        public let borderColor: String?
+        /// The border color.
+        public let borderColor: Color?
 
-        /// The font size in pixels.
+        /// The font size in pixels. It must be positive.
         public let fontSize: Int?
 
         private enum CodingKeys: String, CodingKey {
@@ -284,13 +309,49 @@ public struct UIScript: Decodable, Sendable {
                 "textColor", "selectedTextColor", "highlightedTextColor",
                 "disabledTextColor", "backgroundColor", "borderColor", "fontSize"
             ])
-            textColor = try container.decodeIfPresent(String.self, forKey: .textColor)
-            selectedTextColor = try container.decodeIfPresent(String.self, forKey: .selectedTextColor)
-            highlightedTextColor = try container.decodeIfPresent(String.self, forKey: .highlightedTextColor)
-            disabledTextColor = try container.decodeIfPresent(String.self, forKey: .disabledTextColor)
-            backgroundColor = try container.decodeIfPresent(String.self, forKey: .backgroundColor)
-            borderColor = try container.decodeIfPresent(String.self, forKey: .borderColor)
+            textColor = try Self.decodeColor(in: container, forKey: .textColor)
+            selectedTextColor = try Self.decodeColor(in: container, forKey: .selectedTextColor)
+            highlightedTextColor = try Self.decodeColor(in: container, forKey: .highlightedTextColor)
+            disabledTextColor = try Self.decodeColor(in: container, forKey: .disabledTextColor)
+            backgroundColor = try Self.decodeColor(in: container, forKey: .backgroundColor)
+            borderColor = try Self.decodeColor(in: container, forKey: .borderColor)
             fontSize = try container.decodeIfPresent(Int.self, forKey: .fontSize)
+        }
+
+        private static func decodeColor(
+            in container: KeyedDecodingContainer<CodingKeys>,
+            forKey key: CodingKeys
+        ) throws -> Color? {
+            guard let hex = try container.decodeIfPresent(String.self, forKey: key) else {
+                return nil
+            }
+            guard let color = color(fromHex: hex) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: key,
+                    in: container,
+                    debugDescription: "Color '\(hex)' must be #RRGGBB or #RRGGBBAA."
+                )
+            }
+            return color
+        }
+
+        private static func color(fromHex hex: String) -> Color? {
+            guard hex.hasPrefix("#") else {
+                return nil
+            }
+            let digits = hex.dropFirst()
+            guard digits.count == 6 || digits.count == 8,
+                  digits.allSatisfy({ $0.isASCII && $0.isHexDigit }),
+                  let value = UInt32(digits, radix: 16) else {
+                return nil
+            }
+            let rgba = digits.count == 6 ? (value << 8) | 0xFF : value
+            return Color(
+                r: UInt8(truncatingIfNeeded: rgba >> 24),
+                g: UInt8(truncatingIfNeeded: rgba >> 16),
+                b: UInt8(truncatingIfNeeded: rgba >> 8),
+                a: UInt8(truncatingIfNeeded: rgba)
+            )
         }
     }
 
@@ -310,6 +371,11 @@ public struct UIScript: Decodable, Sendable {
 
         /// Optional offsets from the window edges used during resizing.
         public let edgeOffsets: EdgeOffsets?
+
+        /// Returns this frame as screen bounds for a window whose corner is at `origin`.
+        public func rectangle(at origin: Vector2) -> Rectangle {
+            Rectangle(x: origin.x + x, y: origin.y + y, width: width, height: height)
+        }
 
         private enum CodingKeys: String, CodingKey {
             case x
@@ -540,8 +606,14 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// The initial window size has a nonpositive dimension.
     case invalidWindowSize
 
-    /// The minimum window size has a nonpositive dimension.
+    /// The minimum window size has a nonpositive dimension or exceeds the window size.
     case invalidMinimumWindowSize
+
+    /// A style has a nonpositive font size.
+    case invalidFontSize(style: String)
+
+    /// Two controls or two visuals share a name.
+    case duplicateName(String)
 
     /// A visual or control has a negative frame size.
     case invalidFrame(owner: String)
@@ -557,7 +629,11 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case .invalidWindowSize:
             "UIScript window size must be positive."
         case .invalidMinimumWindowSize:
-            "UIScript minimum window size must be positive."
+            "UIScript minimum window size must be positive and no larger than the window size."
+        case let .invalidFontSize(style):
+            "UIScript font size for style '\(style)' must be positive."
+        case let .duplicateName(name):
+            "UIScript name '\(name)' is used more than once."
         case let .invalidFrame(owner):
             "UIScript frame for '\(owner)' cannot have a negative size."
         case let .unknownReference(owner, property, reference):

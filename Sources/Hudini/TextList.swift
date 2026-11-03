@@ -4,10 +4,13 @@ import Raylib
 public final class TextList {
     private static let padding: Int = 6
     private static let lineGap: Int = 2
+    private static let linesPerWheelNotch: Float = 3
+    private static let minimumThumbHeight: Float = 6
 
     private var lines: [String] = []
     private var lineWidth: Int?
     private var visibleLineCount = 1
+    private var pendingWheelLines: Float = 0
 
     private let fontSize: Int
     private let textColor: Color
@@ -44,6 +47,22 @@ public final class TextList {
         return min(1, Float(visibleLineCount) / Float(lines.count))
     }
 
+    /// Returns the scrollbar thumb's bounds inside `track`.
+    ///
+    /// The thumb sits at the bottom of the track while the newest content is
+    /// showing. Call this after `update(in:)` or `draw(in:)` so it reflects the
+    /// current items.
+    public func scrollThumbBounds(in track: Rectangle) -> Rectangle {
+        let innerHeight = max(0, track.height - 2)
+        let thumbHeight = min(innerHeight, max(Self.minimumThumbHeight, innerHeight * scrollThumbFraction))
+        return Rectangle(
+            x: track.x + 1,
+            y: track.y + 1 + ((innerHeight - thumbHeight) * scrollFraction),
+            width: max(0, track.width - 2),
+            height: thumbHeight
+        )
+    }
+
     /// Creates a text list using the host's ordered items.
     public init(
         items: [String] = [],
@@ -75,10 +94,7 @@ public final class TextList {
             guard CheckCollisionPointRec(mouse, bounds) else {
                 return
             }
-            let wheel = Int(GetMouseWheelMove())
-            if wheel != 0 {
-                scroll(byLines: wheel * 3)
-            }
+            scroll(byWheelMovement: GetMouseWheelMove())
             if IsKeyPressed(KeyboardKey.pageUp) {
                 scroll(byLines: visibleLineCount)
             } else if IsKeyPressed(KeyboardKey.pageDown) {
@@ -98,6 +114,22 @@ public final class TextList {
     public func scroll(byLines lineCount: Int) {
         let maximumOffset = max(0, lines.count - visibleLineCount)
         scrollOffset = min(max(scrollOffset + lineCount, 0), maximumOffset)
+    }
+
+    /// Moves through the list by a mouse wheel reading. Positive values reveal older content.
+    ///
+    /// Partial lines carry over to later calls, so the small steps a trackpad
+    /// reports still add up to movement.
+    public func scroll(byWheelMovement movement: Float) {
+        guard movement.isFinite else {
+            return
+        }
+        pendingWheelLines += movement * Self.linesPerWheelNotch
+        let lineCount = Int(clamping: pendingWheelLines)
+        pendingWheelLines -= Float(lineCount)
+        if lineCount != 0 {
+            scroll(byLines: lineCount)
+        }
     }
 
     /// Draws the list background, border, and visible text.
@@ -140,10 +172,12 @@ public final class TextList {
         let width = max(1, Int(clamping: bounds.width) - (Self.padding * 2) - 2)
         if lineWidth != width {
             lines = items.flatMap { item in
-                let itemLines = item
+                item
                     .split(separator: "\n", omittingEmptySubsequences: false)
-                    .flatMap { TextWrapper.lines(for: String($0), fontSize: fontSize, maximumWidth: width) }
-                return itemLines.isEmpty ? [""] : itemLines
+                    .flatMap { paragraph -> [String] in
+                        let wrapped = TextWrapper.lines(for: String(paragraph), fontSize: fontSize, maximumWidth: width)
+                        return wrapped.isEmpty ? [""] : wrapped
+                    }
             }
             lineWidth = width
         }

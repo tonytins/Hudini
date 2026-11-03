@@ -67,6 +67,9 @@ public final class NoticePanel: MovableWindow {
     }
 
     /// Handles input for this frame and reports whether the notice was dismissed.
+    ///
+    /// Escape dismisses. raylib also closes the window on Escape by default, so
+    /// call `SetExitKey(.null)` after `InitWindow` when using this panel.
     public func update() -> Bool {
         if !isOpen {
             return false

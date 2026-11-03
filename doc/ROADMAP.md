@@ -10,6 +10,12 @@ UIScript examples; the larger breadth target is a 1024-wide live mode panel
 from the same set. These are references for original implementations, not a
 goal of reproducing TSO's code or runtime.
 
+The demo's longer-term goal is still a Sims-inspired HUD, based on the fourth
+iteration of The Sims' interface. The chat window and live panel are stepping
+stones toward it, so components the demo does not currently show remain part of
+the library. CityLimits has no separate proof here: TSO's interface is broad
+enough that CityLimits is expected to benefit and adopt UIScript later.
+
 Milestones use cat-named Mac OS X releases as inspiration only. They are
 ordered stages, not promises to implement every behavior from the legacy
 scripts. Stop when the outcomes below are met and Hudini can support both
@@ -38,7 +44,7 @@ Turn the chat preview into a usable property-chat interface while keeping
 game behavior in the host.
 
 - [x] Draw and update the text field and message list through reusable Hudini
-  code driven by the JSON model.
+  controls, configured by the demo from the JSON model.
 - [x] Support click focus, text editing, and a typed submit event the host can
   handle.
 - [x] Support wheel and arrow-button scrolling over host-provided chat content.
@@ -71,6 +77,8 @@ interface description and rendering support.
 - [ ] Document the JSON format fields that both examples actually use.
 - [ ] Define clear validation and loading errors for unsupported or malformed
   documents.
+- [ ] Decide how older readers tell optional additions they may ignore from
+  required features they must reject.
 - [ ] Keep controls, resources, and host data/actions clearly separated.
 - [ ] Add focused headless tests for decoding, validation, and layout, plus
   runtime checks for rendering that needs raylib.

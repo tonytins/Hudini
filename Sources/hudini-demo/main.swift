@@ -19,31 +19,6 @@ func loadUIScript() throws -> UIScript {
     return try UIScript(contentsOf: url)
 }
 
-func color(from hex: String?, fallback: Color) -> Color {
-    guard let hex else {
-        return fallback
-    }
-    let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
-    guard digits.count == 6 || digits.count == 8,
-          let value = UInt32(digits, radix: 16) else {
-        return fallback
-    }
-    if digits.count == 6 {
-        return Color(
-            r: UInt8((value >> 16) & 0xFF),
-            g: UInt8((value >> 8) & 0xFF),
-            b: UInt8(value & 0xFF),
-            a: 255
-        )
-    }
-    return Color(
-        r: UInt8((value >> 24) & 0xFF),
-        g: UInt8((value >> 16) & 0xFF),
-        b: UInt8((value >> 8) & 0xFF),
-        a: UInt8(value & 0xFF)
-    )
-}
-
 func text(in value: UIScript.Text?) -> String {
     guard let value else {
         return ""
@@ -54,15 +29,6 @@ func text(in value: UIScript.Text?) -> String {
     }
 }
 
-func frame(of control: UIScript.Control, at origin: Vector2) -> Rectangle {
-    Rectangle(
-        x: origin.x + control.frame.x,
-        y: origin.y + control.frame.y,
-        width: control.frame.width,
-        height: control.frame.height
-    )
-}
-
 func pixel(_ value: Float) -> Int {
     Int(value)
 }
@@ -70,17 +36,14 @@ func pixel(_ value: Float) -> Int {
 func draw(
     _ script: UIScript,
     at origin: Vector2,
-    dynamicSliderName: String,
-    sliderFraction: Float,
-    sliderThumbFraction: Float,
     theme: InterfaceTheme
 ) {
     for control in script.controls {
-        let frame = frame(of: control, at: origin)
-        let style = control.style.flatMap { script.styles[$0] }
-        let textColor = color(from: style?.textColor, fallback: theme.text)
-        let backgroundColor = color(from: style?.backgroundColor, fallback: theme.panel)
-        let borderColor = color(from: style?.borderColor, fallback: theme.border)
+        let frame = control.frame.rectangle(at: origin)
+        let style = script.style(for: control)
+        let textColor = style?.textColor ?? theme.text
+        let backgroundColor = style?.backgroundColor ?? theme.panel
+        let borderColor = style?.borderColor ?? theme.border
         let fontSize = style?.fontSize ?? 14
         let content = text(in: control.text)
 
@@ -119,22 +82,9 @@ func draw(
                 fontSize,
                 textColor
             )
-        case .list:
+        case .list, .slider:
             DrawRectangleRec(frame, backgroundColor)
             DrawRectangleLinesEx(frame, 1, borderColor)
-        case .slider:
-            DrawRectangleRec(frame, backgroundColor)
-            DrawRectangleLinesEx(frame, 1, borderColor)
-            let isDynamicSlider = control.name == dynamicSliderName
-            let thumbHeight = max(6, frame.height * (isDynamicSlider ? sliderThumbFraction : 0.2))
-            let position = isDynamicSlider ? sliderFraction : 0.65
-            let thumb = Rectangle(
-                x: frame.x + 1,
-                y: frame.y + max(0, frame.height - thumbHeight - 2) * (1 - position),
-                width: max(0, frame.width - 2),
-                height: min(max(0, frame.height - 2), thumbHeight)
-            )
-            DrawRectangleRec(thumb, theme.accent)
         }
     }
 }
@@ -205,31 +155,32 @@ let residentReplies = [
     "I'll come by again soon!",
     "It's nice having friendly neighbors."
 ]
-let historyStyle = historyControl.style.flatMap { script.styles[$0] }
+let historyStyle = script.style(for: historyControl)
 var chatMessages = initialMessages
 let history = TextList(
     items: chatMessages,
     fontSize: historyStyle?.fontSize ?? 14,
     theme: theme,
-    textColor: color(from: historyStyle?.textColor, fallback: theme.text),
-    backgroundColor: color(from: historyStyle?.backgroundColor, fallback: theme.panel),
-    borderColor: color(from: historyStyle?.borderColor, fallback: theme.border)
+    textColor: historyStyle?.textColor,
+    backgroundColor: historyStyle?.backgroundColor,
+    borderColor: historyStyle?.borderColor
 )
-let entryStyle = entryControl.style.flatMap { script.styles[$0] }
+let entryStyle = script.style(for: entryControl)
 let entry = TextField(
-    maximumLength: 256,
+    maximumLength: 120,
     fontSize: entryStyle?.fontSize ?? 14,
     theme: theme,
     placeholder: text(in: entryControl.placeholder),
-    textColor: color(from: entryStyle?.textColor, fallback: theme.text),
-    backgroundColor: color(from: entryStyle?.backgroundColor, fallback: theme.inputBackground),
-    borderColor: color(from: entryStyle?.borderColor, fallback: theme.border)
+    textColor: entryStyle?.textColor,
+    backgroundColor: entryStyle?.backgroundColor,
+    borderColor: entryStyle?.borderColor
 )
 var residentReplyIndex = 0
 
 SetTraceLogLevel(.warning)
 SetConfigFlags(screenshot == nil ? [.windowResizable, .vsyncHint] : [.windowHidden])
 InitWindow(960, 600, "Hudini Chat Dialog")
+SetExitKey(.null)
 SetTargetFPS(60)
 
 let window = WindowFrame(title: "Maple Street - Property Chat", theme: theme)
@@ -248,12 +199,14 @@ while running && !WindowShouldClose() {
         running = false
     }
     let controlOrigin = Vector2(x: bounds.x, y: bounds.y)
+    let historyBounds = historyControl.frame.rectangle(at: controlOrigin)
+    let entryBounds = entryControl.frame.rectangle(at: controlOrigin)
     history.update(
-        in: frame(of: historyControl, at: controlOrigin),
-        scrollUpButton: frame(of: scrollUpControl, at: controlOrigin),
-        scrollDownButton: frame(of: scrollDownControl, at: controlOrigin)
+        in: historyBounds,
+        scrollUpButton: scrollUpControl.frame.rectangle(at: controlOrigin),
+        scrollDownButton: scrollDownControl.frame.rectangle(at: controlOrigin)
     )
-    if case let .submitted(message)? = entry.update(in: frame(of: entryControl, at: controlOrigin)) {
+    if case let .submitted(message)? = entry.update(in: entryBounds) {
         chatMessages.append("You: \(message)")
         chatMessages.append("Maya: \(residentReplies[residentReplyIndex])")
         history.items = chatMessages
@@ -263,16 +216,13 @@ while running && !WindowShouldClose() {
     BeginDrawing()
     drawPropertyLot()
     window.draw(in: bounds)
-    draw(
-        script,
-        at: controlOrigin,
-        dynamicSliderName: sliderControl.name,
-        sliderFraction: history.scrollFraction,
-        sliderThumbFraction: history.scrollThumbFraction,
-        theme: theme
+    draw(script, at: controlOrigin, theme: theme)
+    history.draw(in: historyBounds)
+    DrawRectangleRec(
+        history.scrollThumbBounds(in: sliderControl.frame.rectangle(at: controlOrigin)),
+        theme.accent
     )
-    history.draw(in: frame(of: historyControl, at: controlOrigin))
-    entry.draw(in: frame(of: entryControl, at: controlOrigin), isFocused: entry.isFocused)
+    entry.draw(in: entryBounds, isFocused: entry.isFocused)
     EndDrawing()
 
     frameCount += 1

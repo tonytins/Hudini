@@ -50,6 +50,9 @@ public final class ConfirmPanel {
     }
 
     /// Handles this frame's input and returns the selected action.
+    ///
+    /// Escape cancels. raylib also closes the window on Escape by default, so
+    /// call `SetExitKey(.null)` after `InitWindow` when using this panel.
     public func update() -> ConfirmPanel.Answer {
         if frame.followPointer(in: bounds()) {
             return .pending

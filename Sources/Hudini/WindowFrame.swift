@@ -176,6 +176,9 @@ public final class WindowFrame {
     /// Takes this frame's clicks on the bar, and the typing while the title is edited. Call it
     /// before the window's own input: while `IsEditingTitle` was true at the start of
     /// the frame, the keyboard was the title's, and the window should leave Enter and Escape alone.
+    ///
+    /// Escape cancels a title edit. raylib also closes the window on Escape by default, so call
+    /// `SetExitKey(.null)` after `InitWindow` when titles are editable.
     public func update(in bounds: Rectangle) -> WindowFrame.Action {
         let mouse = GetMousePosition()
         let pressed = IsMouseButtonPressed(MouseButton.left)

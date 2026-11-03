@@ -65,6 +65,7 @@ import Hudini
 import Raylib
 
 InitWindow(800, 600, "Game")
+SetExitKey(.null)
 
 let theme = InterfaceTheme(
     accent: Color(r: 190, g: 145, b: 255, a: 255)
@@ -102,6 +103,9 @@ while !WindowShouldClose() {
 
 CloseWindow()
 ```
+
+raylib closes the window on Escape by default. `SetExitKey(.null)` turns that off
+so Escape can cancel title edits and dismiss panels instead of quitting the game.
 
 See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable, JSON-driven
 property-chat example. It uses reusable text-field and text-list controls; the

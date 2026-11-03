@@ -283,12 +283,124 @@ import Testing
     }
 }
 
-@Test func livePanelDraftDecodesWithTheCurrentUIScriptModel() throws {
-    let url = URL(fileURLWithPath: #filePath)
+private func demoResource(_ name: String) -> URL {
+    URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
-        .appendingPathComponent("../../Sources/hudini-demo/Resources/livepanel1024.json")
+        .appendingPathComponent("../../Sources/hudini-demo/Resources/\(name)")
         .standardizedFileURL
-    let script = try UIScript(contentsOf: url)
+}
+
+private func script(styles: String = "{}", controls: String = "[]", window: String = #"{ "size": { "width": 100, "height": 80 } }"#) throws -> UIScript {
+    try UIScript(data: Data(#"{ "window": \#(window), "styles": \#(styles), "controls": \#(controls) }"#.utf8))
+}
+
+@Test func uiScriptDecodesHexColors() throws {
+    let styles = ##"{ "plain": { "textColor": "#FFF99D" }, "faded": { "textColor": "#10203040" } }"##
+    let decoded = try script(styles: styles)
+
+    #expect(decoded.styles["plain"]?.textColor == Color(r: 255, g: 249, b: 157, a: 255))
+    #expect(decoded.styles["faded"]?.textColor == Color(r: 16, g: 32, b: 48, a: 64))
+}
+
+@Test(arguments: ["FFF99D", "#FFF", "#GGGGGG", "#+12345", "#FFF99D0", "", "#１２３４５６"])
+func uiScriptRejectsInvalidColors(color: String) {
+    let styles = #"{ "bad": { "backgroundColor": "\#(color)" } }"#
+    #expect(throws: DecodingError.self) {
+        try script(styles: styles)
+    }
+}
+
+@Test(arguments: [0, -4])
+func uiScriptRejectsNonpositiveFontSizes(fontSize: Int) {
+    #expect(throws: UIScriptError.invalidFontSize(style: "bad")) {
+        try script(styles: #"{ "bad": { "fontSize": \#(fontSize) } }"#)
+    }
+}
+
+@Test func uiScriptRejectsDuplicateControlNames() {
+    let control = #"{ "name": "twin", "type": "text", "frame": { "x": 0, "y": 0, "width": 1, "height": 1 } }"#
+    #expect(throws: UIScriptError.duplicateName("twin")) {
+        try script(controls: "[\(control), \(control)]")
+    }
+}
+
+@Test func uiScriptRejectsMinimumSizeLargerThanWindow() {
+    let window = #"{ "size": { "width": 100, "height": 80 }, "minSize": { "width": 101, "height": 80 } }"#
+    #expect(throws: UIScriptError.invalidMinimumWindowSize) {
+        try script(window: window)
+    }
+}
+
+@Test func uiScriptFindsAControlsStyleAndScreenBounds() throws {
+    let decoded = try script(
+        styles: #"{ "label": { "fontSize": 9 } }"#,
+        controls: #"[{ "name": "a", "type": "text", "style": "label", "frame": { "x": 5, "y": 6, "width": 7, "height": 8 } }]"#
+    )
+    let control = decoded.controls[0]
+
+    #expect(decoded.style(for: control)?.fontSize == 9)
+    #expect(control.frame.rectangle(at: Vector2(x: 10, y: 20)) == Rectangle(x: 15, y: 26, width: 7, height: 8))
+}
+
+@Test func chatDialogControlsFitInsideItsWindow() throws {
+    let chat = try UIScript(contentsOf: demoResource("chatdialog.json"))
+
+    for control in chat.controls {
+        #expect(control.frame.x + control.frame.width <= chat.window.size.width, "\(control.name) is too wide")
+        #expect(control.frame.y + control.frame.height <= chat.window.size.height, "\(control.name) is too tall")
+    }
+}
+
+// Headless, the 100-tall viewport shows five lines and each item measures as one line.
+private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangle) {
+    let list = TextList(items: (1...itemCount).map { "Item \($0)" })
+    let bounds = Rectangle(x: 500, y: 500, width: 200, height: 100)
+    list.update(in: bounds)
+    return (list, bounds)
+}
+
+@Test func scrollThumbSitsAtTheBottomForNewestContent() {
+    let (list, _) = scrollableList(itemCount: 20)
+    let track = Rectangle(x: 10, y: 100, width: 12, height: 102)
+
+    let newest = list.scrollThumbBounds(in: track)
+    #expect(newest == Rectangle(x: 11, y: 176, width: 10, height: 25))
+
+    list.scroll(byLines: 15)
+    let oldest = list.scrollThumbBounds(in: track)
+    #expect(oldest == Rectangle(x: 11, y: 101, width: 10, height: 25))
+}
+
+@Test func scrollThumbFillsTheTrackWhenEverythingFits() {
+    let (list, _) = scrollableList(itemCount: 2)
+    let thumb = list.scrollThumbBounds(in: Rectangle(x: 0, y: 0, width: 10, height: 52))
+
+    #expect(thumb == Rectangle(x: 1, y: 1, width: 8, height: 50))
+}
+
+@Test func wheelMovementAddsUpPartialLines() {
+    let (list, _) = scrollableList(itemCount: 20)
+
+    list.scroll(byWheelMovement: 0.2)
+    #expect(list.scrollOffset == 0)
+    list.scroll(byWheelMovement: 0.2)
+    #expect(list.scrollOffset == 1)
+    list.scroll(byWheelMovement: 1)
+    #expect(list.scrollOffset == 4)
+    list.scroll(byWheelMovement: .nan)
+    #expect(list.scrollOffset == 4)
+}
+
+@Test func textListKeepsBlankLinesInsideItems() {
+    let list = TextList(items: ["one\n\nthree"])
+    // Room for exactly one line, so the thumb's size reveals the line count.
+    list.update(in: Rectangle(x: 500, y: 500, width: 200, height: 20))
+
+    #expect(abs(list.scrollThumbFraction - (1.0 / 3.0)) < 0.001)
+}
+
+@Test func livePanelDraftDecodesWithTheCurrentUIScriptModel() throws {
+    let script = try UIScript(contentsOf: demoResource("livepanel1024.json"))
 
     #expect(script.window.size.width == 1024)
     #expect(script.controls.count == 12)

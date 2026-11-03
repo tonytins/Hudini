@@ -9,6 +9,8 @@ public final class TextField: FormLayoutControl {
 
     private static let padding: Int = 6
 
+    private static let caretRoom: Int = 4
+
     private var _text: String = ""
 
     private let maxLength: Int
@@ -140,12 +142,27 @@ public final class TextField: FormLayoutControl {
     }
 
     /// Draws the field in its bounds, showing a caret when it has focus.
+    ///
+    /// Contents are clipped to the field. Text too wide to fit shifts left so
+    /// its end and the caret stay visible.
     public func draw(in bounds: Rectangle, isFocused: Bool) {
         DrawRectangleRec(bounds, backgroundColor)
         DrawRectangleLinesEx(bounds, 1.0, isFocused ? theme.accent : borderColor)
         let text = text
-        let x = Int(clamping: bounds.x) + TextField.padding
+        let left = Int(clamping: bounds.x) + TextField.padding
+        let room = max(0, Int(clamping: bounds.width) - (TextField.padding * 2))
+        let overflow = max(0, MeasureText(text, fontSize) + TextField.caretRoom - room)
+        let x = left - overflow
         let y = Int(clamping: bounds.y) + TextField.padding
+        BeginScissorMode(
+            left,
+            Int(clamping: bounds.y) + 1,
+            room,
+            max(0, Int(clamping: bounds.height) - 2)
+        )
+        defer {
+            EndScissorMode()
+        }
         if text.isEmpty, let placeholder {
             DrawText(placeholder, x, y, fontSize, theme.secondaryText)
         } else {
