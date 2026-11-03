@@ -32,7 +32,7 @@ See [REVIEW.md](REVIEW.md) for the project's review checklist.
 ## Personal Configuration
 
 Keep personal preferences and machine-specific guidance in git-ignored
-`*.local` files or directories, rather than in shared project instructions.
+`*.local` (such as ``AGENTS.local.md``) files or directories, rather than in shared project instructions.
 Check for relevant local guidance before environment-specific work. You can
 create or update these files for details such as:
 

@@ -13,7 +13,14 @@ let package = Package(
     ],
     targets: [
         .target(name: "Hudini", dependencies: [.product(name: "Raylib", package: "raylib-swift")]),
-        .executableTarget(name: "hudini-demo", dependencies: ["Hudini", .product(name: "Raylib", package: "raylib-swift")]),
+        .executableTarget(
+            name: "hudini-demo",
+            dependencies: ["Hudini", .product(name: "Raylib", package: "raylib-swift")],
+            resources: [
+                .copy("Resources/chatdialog.json"),
+                .copy("Resources/livepanel1024.json")
+            ]
+        ),
         .testTarget(name: "HudiniTests", dependencies: ["Hudini", .product(name: "Raylib", package: "raylib-swift")]),
     ],
     swiftLanguageModes: [.v6]

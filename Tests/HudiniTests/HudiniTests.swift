@@ -223,6 +223,18 @@ import Testing
     }
 }
 
+@Test func livePanelDraftDecodesWithTheCurrentUIScriptModel() throws {
+    let url = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .appendingPathComponent("../../Sources/hudini-demo/Resources/livepanel1024.json")
+        .standardizedFileURL
+    let script = try UIScript(contentsOf: url)
+
+    #expect(script.window.size.width == 1024)
+    #expect(script.controls.count == 12)
+    #expect(script.controls.contains { $0.name == "peopleList" && $0.type == .list })
+}
+
 @Test func formLayoutStacksLabeledControlsAndReservesFooterSpace() {
     let name = TextField(maximumLength: 20)
     let description = TextField(maximumLength: 80)

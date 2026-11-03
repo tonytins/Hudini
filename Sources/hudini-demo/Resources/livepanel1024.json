@@ -1,0 +1,187 @@
+{
+  "window": {
+    "size": { "width": 1024, "height": 120 }
+  },
+  "resources": {
+    "images": {
+      "moodPositive": {
+        "path": "UCP/LivePanel/lpanel_moodPositive.bmp"
+      },
+      "moodNegative": {
+        "path": "UCP/LivePanel/lpanel_moodNegative.bmp"
+      },
+      "previousPage": {
+        "path": "UCP/LivePanel/lpanel_previousPageBtn.bmp"
+      },
+      "nextPage": {
+        "path": "UCP/LivePanel/lpanel_nextPageBtn.bmp"
+      },
+      "peopleListBackground": {
+        "path": "./uigraphics/ucp/livepanel/livepanel_headsbackground_1024.bmp"
+      },
+      "peopleListEODBackground": {
+        "path": "UCP/LivePanel/lpanel_peopleListBackground.bmp"
+      },
+      "divider": {
+        "path": "UCP/LivePanel/lpanel_divider.bmp"
+      },
+      "eodHelp": {
+        "path": "./uigraphics/ucp/livepanel/lpanel_eodhelpbtn.bmp"
+      },
+      "eodClose": {
+        "path": "./uigraphics/ucp/livepanel/lpanel_eodclosexbtn.bmp"
+      },
+      "eodExpand": {
+        "path": "./uigraphics/ucp/livepanel/lpanel_eodexpandbtn.bmp"
+      },
+      "eodContract": {
+        "path": "./uigraphics/ucp/livepanel/lpanel_eodcontractbtn.bmp"
+      }
+    },
+    "strings": {
+      "previousPageTooltip": { "table": "UIText:174", "index": 1 },
+      "nextPageTooltip": { "table": "UIText:174", "index": 2 },
+      "needs": { "table": "UIText:174", "index": 3 },
+      "eodHelpTooltip": { "table": "UIText:174", "index": 4 },
+      "eodCloseTooltip": { "table": "UIText:174", "index": 5 },
+      "eodTimerTip": { "table": "UIText:174", "index": 6 },
+      "eodMessageTip": { "table": "UIText:174", "index": 7 },
+      "eodExpandTooltip": { "table": "UIText:174", "index": 8 },
+      "eodContractTooltip": { "table": "UIText:174", "index": 9 },
+      "statusBarTimerTooltip": { "table": "UIText:174", "index": 10 }
+    }
+  },
+  "styles": {
+    "panelText": {
+      "textColor": "#FFF99D",
+      "fontSize": 12
+    },
+    "peopleList": {
+      "textColor": "#FFF99D",
+      "selectedTextColor": "#FFFF00",
+      "highlightedTextColor": "#FFFFFF",
+      "backgroundColor": "#37485A",
+      "fontSize": 12
+    },
+    "eodButton": {
+      "textColor": "#37516F",
+      "selectedTextColor": "#2385BB",
+      "highlightedTextColor": "#436388",
+      "disabledTextColor": "#5077A3"
+    },
+    "timerEntry": {
+      "textColor": "#FFF99D",
+      "backgroundColor": "#000000",
+      "borderColor": "#F7D025",
+      "fontSize": 14
+    },
+    "messageWindow": {
+      "textColor": "#FFF99D",
+      "backgroundColor": "#17212A",
+      "fontSize": 14
+    }
+  },
+  "controls": [
+    {
+      "name": "needsLabel",
+      "type": "text",
+      "legacyID": 11,
+      "frame": { "x": 163, "y": 42, "width": 160, "height": 16 },
+      "style": "panelText",
+      "text": { "string": "needs" }
+    },
+    {
+      "name": "previousPage",
+      "type": "button",
+      "legacyID": 12,
+      "frame": { "x": 386, "y": 63, "width": 24, "height": 24 },
+      "image": "previousPage",
+      "tooltip": "previousPageTooltip"
+    },
+    {
+      "name": "nextPage",
+      "type": "button",
+      "legacyID": 13,
+      "frame": { "x": 828, "y": 63, "width": 24, "height": 24 },
+      "image": "nextPage",
+      "tooltip": "nextPageTooltip"
+    },
+    {
+      "name": "peopleList",
+      "type": "list",
+      "frame": { "x": 409, "y": 51, "width": 441, "height": 34 },
+      "style": "peopleList",
+      "image": "peopleListBackground"
+    },
+    {
+      "name": "eodHelp",
+      "type": "button",
+      "legacyID": 14,
+      "frame": { "x": 596, "y": 87, "width": 23, "height": 23 },
+      "style": "eodButton",
+      "image": "eodHelp",
+      "tooltip": "eodHelpTooltip"
+    },
+    {
+      "name": "eodClose",
+      "type": "button",
+      "legacyID": 15,
+      "frame": { "x": 589, "y": 0, "width": 23, "height": 23 },
+      "style": "eodButton",
+      "image": "eodClose",
+      "tooltip": "eodCloseTooltip"
+    },
+    {
+      "name": "eodExpand",
+      "type": "button",
+      "legacyID": 17,
+      "frame": { "x": 150, "y": 0, "width": 23, "height": 23 },
+      "style": "eodButton",
+      "image": "eodExpand",
+      "tooltip": "eodExpandTooltip"
+    },
+    {
+      "name": "eodContract",
+      "type": "button",
+      "legacyID": 18,
+      "frame": { "x": 150, "y": 0, "width": 23, "height": 23 },
+      "style": "eodButton",
+      "image": "eodContract",
+      "tooltip": "eodContractTooltip"
+    },
+    {
+      "name": "timerEntry",
+      "type": "textField",
+      "legacyID": 100,
+      "frame": { "x": 526, "y": 13, "width": 50, "height": 15 },
+      "style": "timerEntry",
+      "tooltip": "eodTimerTip",
+      "text": { "literal": "08:00" }
+    },
+    {
+      "name": "statusBarTimerEntry",
+      "type": "textField",
+      "legacyID": 101,
+      "frame": { "x": 752, "y": 12, "width": 50, "height": 15 },
+      "style": "timerEntry",
+      "tooltip": "statusBarTimerTooltip",
+      "text": { "literal": "08:00" }
+    },
+    {
+      "name": "messageWindow",
+      "type": "list",
+      "legacyID": 102,
+      "frame": { "x": 190, "y": 7, "width": 317, "height": 20 },
+      "style": "messageWindow",
+      "text": { "literal": "Work session started." }
+    },
+    {
+      "name": "statusBarMessageWindow",
+      "type": "list",
+      "legacyID": 103,
+      "frame": { "x": 410, "y": 9, "width": 315, "height": 18 },
+      "style": "messageWindow",
+      "text": { "literal": "Ready" }
+    }
+  ]
+}

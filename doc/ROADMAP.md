@@ -1,65 +1,101 @@
 # Hudini Roadmap
 
-Hudini is a Swift-friendly interface library for games using raylib. Its
-direction is guided by Apple's and GNOME's human interface guidelines, while
-leaving room for game-specific interaction and Hudini's own visual language.
-The goal is to help a game build a clear, cohesive interface without hiding
-raylib or growing a general-purpose application UI framework.
+Hudini is a Swift interface library for games using raylib. It aims to make
+game interfaces easier to describe and compose without hiding raylib or
+growing into a general-purpose application UI framework.
 
-The demo explores an interface inspired by The Sims while Hudini remains a
-reusable, raylib-friendly library. Its API should support different kinds of
-games without imposing one game's layout or interaction model.
+The demo is the proving ground for a standalone, JSON-driven interface
+description. The first concrete target is a small chat dialog based on TSO's
+UIScript examples; the larger breadth target is a 1024-wide live mode panel
+from the same set. These are references for original implementations, not a
+goal of reproducing TSO's code or runtime.
 
-Milestones use names from Apple's cat-named Mac OS X releases. The names are
-inspiration only; this project is independent and is not affiliated with Apple.
-Only Cheetah has planned work. Future milestones will be added when their scope
-is clear.
+Milestones use cat-named Mac OS X releases as inspiration only. They are
+ordered stages, not promises to implement every behavior from the legacy
+scripts. Stop when the outcomes below are met and Hudini can support both
+examples through a small, reusable JSON interface model and renderer. A `.uis`
+compatibility adapter is not required for this stopping point.
 
-## Cheetah — Simplifying the API
+## Cheetah — JSON chat window
 
-Cheetah focuses on making common interface work take less code while keeping
-the library small, Swift-like, and easy to customize.
+Prove that a standalone JSON document can describe a small window and that the
+demo can render it.
 
-### Completed
+- [x] Add the initial typed UIScript JSON model and decoding validation.
+- [x] Replace the demo's floating settings window with a chat-window preview
+  loaded from JSON.
+- [x] Render placeholder history, a scrollbar, scroll buttons, and an entry
+  field from JSON-described bounds and styles.
+- [ ] Keep the model and preview aligned as the smallest useful field set
+  becomes clear.
+- [ ] Replace preview-only drawing with a focused reusable rendering path
+  without turning the library into a general view framework.
 
-- [x] Give the extracted library its own Hudini package, module, and demo names.
-- [x] Replace project-specific interface colors with a per-interface
-  `InterfaceTheme`, while keeping the original palette as the standard theme.
-- [x] Add an initial `FormLayout` for vertically stacked, labeled controls, and
-  update the demo to use it.
-- [x] Bind form fields directly to controls so layout assigns their bounds and
-  callers can draw them without repeating frame lookups.
-- [x] Add a host-controlled icon toolbar and a single, fixed-height HUD panel
-  to the demo.
-- [x] Let a selected toolbar item also serve as a window drag area.
+## Puma — Usable chat controls
 
-### Still to explore
+Turn the static chat preview into a convincing small interface while keeping
+game behavior in the host.
 
-- [ ] Continue building the Sims-inspired demo HUD with reusable components
-  while keeping game-specific composition in the demo.
-- [ ] Try the current API in host games and note which call sites still need
-  repetitive setup or geometry calculations.
-- [ ] Simplify the remaining common window and control setup where a focused
-  Hudini helper improves the call site. Keep direct raylib drawing available
-  for custom layouts and visuals.
-- [ ] Refine the layout API based on real forms: sizing, spacing, and how
-  callers place controls and action rows.
-- [ ] Review the public API and demo together for consistent Swift naming,
-  argument labels, and clear update/draw responsibilities.
+- [ ] Draw and update the initial controls through reusable Hudini code driven
+  by the JSON model.
+- [ ] Support input focus, text editing, and a submit event the host can handle.
+- [ ] Support scroll control interaction over host-provided chat content.
+- [ ] Apply declared window sizing and edge offsets consistently when the
+  preview window changes size.
+- [ ] Keep content, actions, and chat-history state owned by the demo host.
 
-These are investigation and design tasks, not commitments to add a view tree,
-custom geometry system, or replacement for raylib.
+## Jaguar — Live-panel breadth proof
 
-## Cat-named Mac OS X releases
+Use the larger live-panel reference to test whether the same JSON model and
+renderer can describe a substantially different game interface.
 
-Reference list of Apple's Mac OS X releases named after cats:
+- [ ] Review the unwired `livepanel1024.json` draft against
+  the corresponding TSO live-panel UIScript.
+- [ ] Add only the reusable control or presentation features needed to render
+  the panel's concrete layout, such as list presentation and image-backed
+  controls.
+- [ ] Provide representative host-owned data for the live panel in the demo.
+- [ ] Render the live panel from JSON without special-casing its composition
+  inside the renderer.
+- [ ] Compare the chat and live-panel examples to ensure they share the model
+  without forcing a single layout or interaction pattern.
+
+## Panther — Consolidate the UIScript foundation
+
+Stop after the two examples validate the useful scope of Hudini's reusable
+interface description and rendering support.
+
+- [ ] Document the JSON format fields that both examples actually use.
+- [ ] Define clear validation and loading errors for unsupported or malformed
+  documents.
+- [ ] Keep controls, resources, and host data/actions clearly separated.
+- [ ] Add focused headless tests for decoding, validation, and layout, plus
+  runtime checks for rendering that needs raylib.
+- [ ] Review public APIs and documentation for a small, understandable library
+  surface.
+
+### Stopping point
+
+The roadmap is complete when:
+
+1. The chat window and live mode panel both load from JSON and render through
+   reusable Hudini support.
+2. The host can provide data and handle control events without embedding
+   game-specific decisions in Hudini.
+3. Unsupported or invalid JSON fails clearly, and the implemented format is
+   documented and tested.
+
+The `.uis` adapter, full TSO runtime compatibility, every control in the full
+TSO UIScript collection, and a general-purpose layout engine are explicitly
+beyond this stopping point unless real users or host-game needs justify them.
+
+## Later cat-named Mac OS X releases
+
+These are available as inspiration if the project later needs another
+roadmap; they are not planned milestones:
 
 | Version | Release name |
 | --- | --- |
-| Mac OS X 10.0 | Cheetah |
-| Mac OS X 10.1 | Puma |
-| Mac OS X 10.2 | Jaguar |
-| Mac OS X 10.3 | Panther |
 | Mac OS X 10.4 | Tiger |
 | Mac OS X 10.5 | Leopard |
 | Mac OS X 10.6 | Snow Leopard |

@@ -1,43 +1,121 @@
-// A window with the interface's controls, to look at them and try them by hand.
+// A JSON-driven chat window preview.
 //
 // Usage: hudini-demo [--screenshot <file.png>]
-//
-// With --screenshot it draws a few frames in a hidden window, saves the last one, and quits,
-// so a change can be checked without anyone at the screen.
 
 import Foundation
 import Hudini
 import Raylib
 
-func drawHudIcon(_ index: Int, _ bounds: Rectangle, _ color: Color) {
-    let centerX = Int(bounds.x + (bounds.width / 2))
-    let centerY = Int(bounds.y + (bounds.height / 2))
-    switch index {
-    case 0:
-        DrawRectangle(centerX - 4, centerY - 12, 8, 8, color)
-        DrawRectangle(centerX - 7, centerY - 2, 14, 12, color)
-        DrawRectangle(centerX - 6, centerY + 12, 5, 6, color)
-        DrawRectangle(centerX + 1, centerY + 12, 5, 6, color)
-    case 1:
-        DrawRectangle(centerX - 12, centerY - 10, 24, 4, color)
-        DrawRectangle(centerX - 8, centerY - 14, 16, 4, color)
-        DrawRectangle(centerX - 4, centerY - 18, 8, 4, color)
-        DrawRectangleLinesEx(
-            Rectangle(x: Float(centerX - 9), y: Float(centerY - 6), width: 18, height: 20),
-            2,
-            color
+func loadUIScript() throws -> UIScript {
+    guard let url = Bundle.module.url(forResource: "chatdialog", withExtension: "json") else {
+        throw CocoaError(.fileNoSuchFile)
+    }
+    return try UIScript(contentsOf: url)
+}
+
+func color(from hex: String?, fallback: Color) -> Color {
+    guard let hex else {
+        return fallback
+    }
+    let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+    guard digits.count == 6 || digits.count == 8,
+          let value = UInt32(digits, radix: 16) else {
+        return fallback
+    }
+    if digits.count == 6 {
+        return Color(
+            r: UInt8((value >> 16) & 0xFF),
+            g: UInt8((value >> 8) & 0xFF),
+            b: UInt8(value & 0xFF),
+            a: 255
         )
-        DrawRectangle(centerX - 3, centerY + 5, 6, 9, color)
-    case 2:
-        DrawRectangle(centerX - 13, centerY - 2, 8, 16, color)
-        DrawRectangle(centerX - 3, centerY - 11, 8, 25, color)
-        DrawRectangle(centerX + 7, centerY - 6, 8, 20, color)
-    case 3:
-        DrawText("$", centerX - 7, centerY - 14, 28, color)
-    default:
-        DrawRectangle(centerX - 12, centerY - 3, 6, 6, color)
-        DrawRectangle(centerX - 3, centerY - 3, 6, 6, color)
-        DrawRectangle(centerX + 6, centerY - 3, 6, 6, color)
+    }
+    return Color(
+        r: UInt8((value >> 24) & 0xFF),
+        g: UInt8((value >> 16) & 0xFF),
+        b: UInt8((value >> 8) & 0xFF),
+        a: UInt8(value & 0xFF)
+    )
+}
+
+func text(in control: UIScript.Control) -> String {
+    guard let text = control.text else {
+        return ""
+    }
+    switch text {
+    case let .literal(value), let .string(value):
+        return value
+    }
+}
+
+func pixel(_ value: Float) -> Int {
+    Int(value)
+}
+
+func draw(_ script: UIScript, at origin: Vector2, theme: InterfaceTheme) {
+    for control in script.controls {
+        let frame = Rectangle(
+            x: origin.x + control.frame.x,
+            y: origin.y + control.frame.y,
+            width: control.frame.width,
+            height: control.frame.height
+        )
+        let style = control.style.flatMap { script.styles[$0] }
+        let textColor = color(from: style?.textColor, fallback: theme.text)
+        let backgroundColor = color(from: style?.backgroundColor, fallback: theme.panel)
+        let borderColor = color(from: style?.borderColor, fallback: theme.border)
+        let fontSize = style?.fontSize ?? 14
+        let content = text(in: control)
+
+        switch control.type {
+        case .text, .formattedText:
+            if case .formattedText = control.type {
+                DrawRectangleRec(frame, backgroundColor)
+            }
+            for (line, value) in content.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                DrawText(
+                    String(value),
+                    pixel(frame.x) + 6,
+                    pixel(frame.y) + 6 + (line * (fontSize + 4)),
+                    fontSize,
+                    textColor
+                )
+            }
+        case .button:
+            DrawRectangleRec(frame, backgroundColor)
+            DrawRectangleLinesEx(frame, 1, borderColor)
+            let width = MeasureText(content, fontSize)
+            DrawText(
+                content,
+                pixel(frame.x + ((frame.width - Float(width)) / 2)),
+                pixel(frame.y + ((frame.height - Float(fontSize)) / 2)),
+                fontSize,
+                textColor
+            )
+        case .textField:
+            DrawRectangleRec(frame, backgroundColor)
+            DrawRectangleLinesEx(frame, 1, borderColor)
+            DrawText(
+                content,
+                pixel(frame.x) + 6,
+                pixel(frame.y + ((frame.height - Float(fontSize)) / 2)),
+                fontSize,
+                textColor
+            )
+        case .list:
+            DrawRectangleRec(frame, backgroundColor)
+            DrawRectangleLinesEx(frame, 1, borderColor)
+        case .slider:
+            DrawRectangleRec(frame, backgroundColor)
+            DrawRectangleLinesEx(frame, 1, borderColor)
+            let thumb = Rectangle(
+                x: frame.x + 1,
+                y: frame.y + (frame.height * 0.35),
+                width: max(0, frame.width - 2),
+                height: max(6, frame.height * 0.2)
+            )
+            DrawRectangleRec(thumb, theme.accent)
+        }
     }
 }
 
@@ -51,136 +129,48 @@ while let argument = arguments.popFirst() {
     screenshot = path
 }
 
+let script: UIScript
+do {
+    script = try loadUIScript()
+} catch {
+    FileHandle.standardError.write(Data("Unable to load chatdialog.json: \(error.localizedDescription)\n".utf8))
+    exit(1)
+}
+
 SetTraceLogLevel(.warning)
 SetConfigFlags(screenshot == nil ? [.windowResizable, .vsyncHint] : [.windowHidden])
-InitWindow(960, 600, "Interface Demo")
+InitWindow(960, 600, "Hudini Chat Dialog")
 SetTargetFPS(60)
 
 let theme = InterfaceTheme(
-    accent: Color(r: 190, g: 145, b: 255, a: 255),
-    panel: Color(r: 25, g: 21, b: 36, a: 235),
+    panel: Color(r: 25, g: 21, b: 36, a: 255),
     border: Color(r: 83, g: 72, b: 105, a: 255),
-    titleBar: Color(r: 43, g: 35, b: 61, a: 245),
-    selectedItem: Color(r: 66, g: 52, b: 91, a: 255)
+    titleBar: Color(r: 43, g: 35, b: 61, a: 255)
 )
-let frame = WindowFrame(title: "Settings", theme: theme)
-frame.allowsTitleEditing = true
-frame.toolbarItems = ["General", "Details"]
-frame.selectedToolbarIndex = 0
-let name = TextField(text: "Blazing Falls", maximumLength: 32, theme: theme)
-let description = TextArea(
-    text: "A peaceful place with room to make it your own.",
-    maximumLength: 200,
-    fontSize: 16,
-    width: 380,
-    theme: theme
-)
-// ConfirmPanel keeps no open state: it's updated and drawn only while it asks something.
-enum Question { case close, apply }
-let confirm = ConfirmPanel(theme: theme)
-var asking: Question?
-let notice = NoticePanel(theme: theme)
-let buttons = ["Cancel", "Apply"]
-let hudModeCount = 5
-var selectedHudMode = 0
-let hudPanelHeight: Float = 84
-let hudPanelInset: Float = 12
-let form = FormLayout(
-    fields: [
-        .init(label: "Name", control: name),
-        .init(label: "Description", control: description)
-    ],
-    footerHeight: Float(ButtonRow.rowHeight + 10)
-)
-var focusOnName = true
-
-var frames = 0
+let window = WindowFrame(title: "Chat", theme: theme)
+var frameCount = 0
 var running = true
-while running && !WindowShouldClose() {
-    let bounds = frame.place(size: Vector2(x: 420, y: 300), at: Vector2(x: 60, y: 60))
-    let content = WindowFrame.content(in: bounds)
-    form.layout(in: content)
-    let mouse = GetMousePosition()
-    let screenBounds = Rectangle(
-        x: 0,
-        y: 0,
-        width: Float(GetScreenWidth()),
-        height: Float(GetScreenHeight())
-    )
-    let hudPanelBounds = Rectangle(
-        x: hudPanelInset,
-        y: screenBounds.height - hudPanelHeight - hudPanelInset,
-        width: max(0, screenBounds.width - (hudPanelInset * 2)),
-        height: hudPanelHeight
-    )
 
-    if let question = asking {
-        switch confirm.update() {
-        case .confirmed:
-            asking = nil
-            if question == .close {
-                running = false
-            } else {
-                notice.show(title: "Saved", message: "\(name.text) is saved.")
-            }
-        case .cancelled:
-            asking = nil
-        default:
-            break
-        }
-    } else if !notice.isOpen {
-        let clickedHudMode = IsMouseButtonPressed(.left)
-            ? IconToolbar.buttonIndex(at: mouse, itemCount: hudModeCount, in: hudPanelBounds)
-            : nil
-        if let clickedHudMode {
-            selectedHudMode = clickedHudMode
-        } else {
-            _ = frame.followPointer(in: bounds)
-            switch frame.update(in: bounds) {
-            case .close:
-                confirm.ask(title: "Close", message: "Close settings without saving?", confirmTitle: "Close", cancelTitle: "Keep")
-                asking = .close
-            case .toolbarItemSelected: frame.selectedToolbarIndex = frame.clickedToolbarIndex
-            default: break
-            }
-            if IsMouseButtonPressed(.left) {
-                if CheckCollisionPointRec(mouse, name.bounds) { focusOnName = true }
-                if CheckCollisionPointRec(mouse, description.bounds) { focusOnName = false }
-                if ButtonRow.buttonIndex(at: mouse, endingAt: form.buttonRowCorner, labels: buttons) == 1 {
-                    confirm.ask(title: "Apply", message: "Save the changes to \(name.text)?", confirmTitle: "Save", cancelTitle: "Back")
-                    asking = .apply
-                }
-            }
-            _ = focusOnName ? name.update() : description.update()
-        }
+while running && !WindowShouldClose() {
+    let size = Vector2(x: script.window.size.width, y: script.window.size.height)
+    let origin = Vector2(
+        x: (Float(GetScreenWidth()) - size.x) / 2,
+        y: (Float(GetScreenHeight()) - size.y) / 2
+    )
+    let bounds = window.place(size: size, at: origin)
+    _ = window.followPointer(in: bounds)
+    if case .close = window.update(in: bounds) {
+        running = false
     }
-    _ = notice.update()
 
     BeginDrawing()
     ClearBackground(Color(r: 54, g: 84, b: 120, a: 255))
-    DrawRectangleRec(hudPanelBounds, theme.panel)
-    DrawRectangleLinesEx(hudPanelBounds, 1, theme.border)
-    frame.draw(in: bounds)
-    form.drawLabels(theme: theme)
-    name.draw(isFocused: focusOnName)
-    description.draw(isFocused: !focusOnName)
-    ButtonRow.draw(labels: buttons, endingAt: form.buttonRowCorner, mousePosition: mouse, theme: theme)
-    IconToolbar.draw(
-        itemCount: hudModeCount,
-        selectedIndex: selectedHudMode,
-        mousePosition: mouse,
-        in: hudPanelBounds,
-        theme: theme,
-        showsBackground: false,
-        drawIcon: drawHudIcon
-    )
-    if asking != nil { confirm.draw() }
-    notice.draw()
+    window.draw(in: bounds)
+    draw(script, at: Vector2(x: bounds.x, y: bounds.y), theme: theme)
     EndDrawing()
 
-    frames += 1
-    if let screenshot, frames == 3 {
-        // TakeScreenshot only writes into the working directory; this takes any path.
+    frameCount += 1
+    if let screenshot, frameCount == 3 {
         let image = LoadImageFromScreen()
         let saved = ExportImage(image, screenshot)
         UnloadImage(image)
@@ -188,4 +178,5 @@ while running && !WindowShouldClose() {
         exit(saved ? 0 : 1)
     }
 }
+
 CloseWindow()

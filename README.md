@@ -16,6 +16,7 @@ form layout.
 - A 2D camera with pointer-centered zoom and coordinate conversion
 - Declarative, vertically stacked form layout
 - Per-interface color themes
+- Initial JSON UIScript decoding for named resources, styles, visuals, and controls
 
 ## Requirements
 
@@ -101,9 +102,14 @@ while !WindowShouldClose() {
 CloseWindow()
 ```
 
-See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable example with
-text editing, toolbar selection, form layout, confirmation, and notices. The
-demo also explores a game interface inspired by The Sims.
+See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable, JSON-driven
+chat-window preview. It demonstrates basic rendering from the initial UIScript
+model with placeholder content; it is not yet a full UIScript renderer or a
+TSO `.uis` compatibility implementation.
+
+The demo also includes an unwired [`livepanel1024.json`](Sources/hudini-demo/Resources/livepanel1024.json)
+draft based on the TSO live mode panel. It is a broader format example, not
+currently loaded or rendered by the demo.
 
 ## Supported Versions
 
