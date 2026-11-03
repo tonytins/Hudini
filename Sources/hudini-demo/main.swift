@@ -6,11 +6,7 @@ import Foundation
 import Hudini
 import Raylib
 
-let theme = InterfaceTheme(
-    panel: Color(r: 25, g: 21, b: 36, a: 255),
-    border: Color(r: 83, g: 72, b: 105, a: 255),
-    titleBar: Color(r: 43, g: 35, b: 61, a: 255)
-)
+let theme = InterfaceTheme.standard
 
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data("\(message)\n".utf8))

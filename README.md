@@ -70,7 +70,7 @@ InitWindow(800, 600, "Game")
 SetExitKey(.null)
 
 let theme = InterfaceTheme(
-    accent: Color(r: 190, g: 145, b: 255, a: 255)
+    accent: Color(r: 120, g: 180, b: 240, a: 255)
 )
 let window = WindowFrame(title: "Settings", theme: theme)
 let playerName = TextField(
