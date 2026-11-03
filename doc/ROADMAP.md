@@ -82,8 +82,8 @@ interface description and rendering support.
 - [x] Decide how older readers tell optional additions they may ignore from
   required features they must reject.
 - [x] Keep controls, resources, and host data/actions clearly separated.
-- [ ] Add focused headless tests for decoding, validation, and layout, plus
-  runtime checks for rendering that needs raylib.
+- [x] Add focused headless tests for decoding, validation, and layout. Rendering
+  is exercised through the demo, and runtime checks beyond that belong to hosts.
 - [x] Review public APIs and documentation for a small, understandable library
   surface.
 
