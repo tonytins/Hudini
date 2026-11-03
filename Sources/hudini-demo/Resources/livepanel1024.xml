@@ -56,11 +56,11 @@
   <Button name="eodExpand" legacyID="17" x="150" y="-1" image="eodExpand" tooltip="eodExpandTooltip"/>
   <Button name="eodContract" legacyID="18" x="150" y="-1" image="eodContract" tooltip="eodContractTooltip"/>
   <TextField name="timerEntry" legacyID="100" x="526" y="13" width="50" height="15"
-             style="timerEntry" tooltip="eodTimerTip" maximumLength="8"/>
+             style="timerEntry" tooltip="eodTimerTip" maximumLength="8" readOnly="true"/>
   <List name="messageWindow" legacyID="102" x="190" y="7" width="317" height="20" style="messageWindow"/>
 
   <!-- Status bar -->
   <TextField name="statusBarTimerEntry" legacyID="101" x="752" y="12" width="50" height="15"
-             style="timerEntry" tooltip="statusBarTimerTooltip" maximumLength="8"/>
+             style="timerEntry" tooltip="statusBarTimerTooltip" maximumLength="8" readOnly="true"/>
   <List name="statusBarMessageWindow" legacyID="103" x="410" y="9" width="315" height="18" style="statusBarMessage"/>
 </UIScript>

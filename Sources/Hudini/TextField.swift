@@ -4,9 +4,10 @@ import Raylib
 /// A one-line text box: it takes typed characters while it has focus, and Backspace removes the
 /// last one, repeating while held. Raylib's built-in font draws only printable ASCII, so other
 /// characters are not taken.
+///
+/// A field can remember its bounds through `place(in:)`, for example from a `FormLayout`, or
+/// receive them on each `update(in:)` and `draw(in:)`.
 public final class TextField: FormLayoutControl {
-    private static let defaultFontSize: Int = 20
-
     private static let padding: Int = 6
 
     private static let caretRoom: Int = 4
@@ -29,6 +30,10 @@ public final class TextField: FormLayoutControl {
 
     private let borderColor: Color
 
+    /// Whether this field only displays text. A read-only field never takes focus or typing, and
+    /// the host can still set its `text`.
+    public let isReadOnly: Bool
+
     /// Whether this field currently receives keyboard input.
     public private(set) var isFocused = false
 
@@ -45,7 +50,8 @@ public final class TextField: FormLayoutControl {
         placeholder: String? = nil,
         textColor: Color? = nil,
         backgroundColor: Color? = nil,
-        borderColor: Color? = nil
+        borderColor: Color? = nil,
+        isReadOnly: Bool = false
     ) {
         precondition(maximumLength > 0, "maximumLength must be positive")
         precondition(fontSize > 0, "fontSize must be positive")
@@ -57,6 +63,7 @@ public final class TextField: FormLayoutControl {
         self.textColor = textColor ?? theme.text
         self.backgroundColor = backgroundColor ?? theme.inputBackground
         self.borderColor = borderColor ?? theme.border
+        self.isReadOnly = isReadOnly
         self.text = text
     }
 
@@ -79,16 +86,6 @@ public final class TextField: FormLayoutControl {
         }
     }
 
-    /// How many characters the field holds, without making its text.
-    public var length: Int {
-        _text.count
-    }
-
-    /// The height a field of the usual size is drawn at.
-    public static var defaultHeight: Int {
-        defaultFontSize + (padding * 2)
-    }
-
     /// The height this field is drawn at.
     public var height: Int {
         fontSize + (TextField.padding * 2)
@@ -104,13 +101,27 @@ public final class TextField: FormLayoutControl {
         self.bounds = bounds
     }
 
-    func clearFocus() {
-        isFocused = false
+    func setFocused(_ isFocused: Bool) {
+        self.isFocused = isFocused
     }
 
-    /// Takes this frame's typing and reports whether the text changed.
-    public func update() -> Bool {
-        updateText()
+    /// Takes this frame's typing regardless of focus and reports whether the text changed.
+    func takeTyping() -> Bool {
+        let length = _text.count
+        var key = Int(GetCharPressed())
+        while key != 0 {
+            add(Character(codePoint: key))
+            key = Int(GetCharPressed())
+        }
+        if (IsKeyPressed(KeyboardKey.backspace) || IsKeyPressedRepeat(KeyboardKey.backspace)), _text.count > 0 {
+            _text.removeLast()
+        }
+        return _text.count != length
+    }
+
+    /// Updates focus and keyboard input using the field's most recently assigned bounds.
+    public func update() -> Event? {
+        update(in: bounds)
     }
 
     /// Updates focus from pointer input and handles keyboard input while focused.
@@ -119,13 +130,16 @@ public final class TextField: FormLayoutControl {
     /// event for non-empty text and clears the draft.
     public func update(in bounds: Rectangle) -> Event? {
         self.bounds = bounds
+        guard !isReadOnly else {
+            return nil
+        }
         if IsMouseButtonPressed(MouseButton.left) {
             isFocused = CheckCollisionPointRec(GetMousePosition(), bounds)
         }
         guard isFocused else {
             return nil
         }
-        _ = update()
+        _ = takeTyping()
         if IsKeyPressed(KeyboardKey.enter) || IsKeyPressed(KeyboardKey.kpEnter) {
             return submit()
         }
@@ -135,9 +149,10 @@ public final class TextField: FormLayoutControl {
     /// Submits and clears the current draft when it contains non-whitespace text.
     ///
     /// The submitted text is preserved exactly. An empty or whitespace-only
-    /// draft remains in the field and produces no event.
+    /// draft remains in the field and produces no event, and a read-only field
+    /// never submits.
     public func submit() -> Event? {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !isReadOnly, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
         let submittedText = text
@@ -145,11 +160,16 @@ public final class TextField: FormLayoutControl {
         return .submitted(submittedText)
     }
 
-    /// Draws the field in its bounds, showing a caret when it has focus.
+    /// Draws the field in its most recently assigned bounds.
+    public func draw() {
+        draw(in: bounds)
+    }
+
+    /// Draws the field in `bounds`, showing a caret when it has focus.
     ///
     /// Contents are clipped to the field. Text too wide to fit shifts left so
     /// its end and the caret stay visible.
-    public func draw(in bounds: Rectangle, isFocused: Bool) {
+    public func draw(in bounds: Rectangle) {
         DrawRectangleRec(bounds, backgroundColor)
         DrawRectangleLinesEx(bounds, 1.0, isFocused ? theme.accent : borderColor)
         let text = text
@@ -178,27 +198,9 @@ public final class TextField: FormLayoutControl {
         }
     }
 
-    /// Draws the field in its most recently assigned bounds.
-    public func draw(isFocused: Bool) {
-        draw(in: bounds, isFocused: isFocused)
-    }
-
     private func add(_ c: Character) {
         if _text.count < maxLength, (c >= " " && c <= "~"), accepts(c) {
             _text.append(c)
         }
-    }
-
-    private func updateText() -> Bool {
-        let length = _text.count
-        var key = Int(GetCharPressed())
-        while key != 0 {
-            add(Character(codePoint: key))
-            key = Int(GetCharPressed())
-        }
-        if (IsKeyPressed(KeyboardKey.backspace) || IsKeyPressedRepeat(KeyboardKey.backspace)), _text.count > 0 {
-            _text.removeLast()
-        }
-        return _text.count != length
     }
 }

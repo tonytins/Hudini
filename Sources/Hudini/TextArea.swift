@@ -1,8 +1,11 @@
 import Foundation
 import Raylib
 
-/// A multiline text box that wraps input to its width and keeps the caret at the end.
+/// A multiline text box that wraps input to its bounds and keeps the caret at the end.
 /// The built-in raylib font draws printable ASCII, so other characters are ignored.
+///
+/// An area can remember its bounds through `place(in:)`, for example from a `FormLayout`, or
+/// receive them on each `update(in:)` and `draw(in:)`.
 public final class TextArea: FormLayoutControl {
     private static let padding: Int = 6
 
@@ -14,29 +17,30 @@ public final class TextArea: FormLayoutControl {
 
     private let fontSize: Int
 
-    private let width: Int
-
     private var lines: [String] = []
 
+    // The width `lines` was wrapped to, or nil when the text has changed since.
+    private var wrappedWidth: Int?
+
     private let theme: InterfaceTheme
+
+    /// Whether this area currently receives keyboard input.
+    public private(set) var isFocused = false
 
     /// The area's most recently assigned bounds.
     public private(set) var bounds = Rectangle()
 
-    /// Creates a box with a character limit, font size, and wrapping width.
+    /// Creates a box with a character limit and font size.
     public init(
         text: String = "",
         maximumLength: Int,
         fontSize: Int = 20,
-        width: Int,
         theme: InterfaceTheme = .standard
     ) {
         precondition(maximumLength > 0, "maximumLength must be positive")
         precondition(fontSize > 0, "fontSize must be positive")
-        precondition(width > TextArea.padding * 2, "width must be more than TextArea.padding * 2")
         self.maxLength = maximumLength
         self.fontSize = fontSize
-        self.width = width
         self.theme = theme
         self.text = text
     }
@@ -51,7 +55,7 @@ public final class TextArea: FormLayoutControl {
             for c in newValue {
                 add(c)
             }
-            wrap()
+            wrappedWidth = nil
         }
     }
 
@@ -70,10 +74,23 @@ public final class TextArea: FormLayoutControl {
         self.bounds = bounds
     }
 
-    /// Takes this frame's typing and reports whether the text changed.
+    /// Updates focus and typing using the area's most recently assigned bounds, and reports
+    /// whether the text changed.
     public func update() -> Bool {
+        update(in: bounds)
+    }
+
+    /// Updates focus from pointer input, takes typing while focused, and reports whether the
+    /// text changed. Clicking outside the area gives up focus.
+    public func update(in bounds: Rectangle) -> Bool {
+        self.bounds = bounds
+        if IsMouseButtonPressed(MouseButton.left) {
+            isFocused = CheckCollisionPointRec(GetMousePosition(), bounds)
+        }
+        guard isFocused else {
+            return false
+        }
         let length = _text.count
-        var changed = false
         var key = Int(GetCharPressed())
         while key != 0 {
             add(Character(codePoint: key))
@@ -81,18 +98,23 @@ public final class TextArea: FormLayoutControl {
         }
         if (IsKeyPressed(KeyboardKey.backspace) || IsKeyPressedRepeat(KeyboardKey.backspace)), _text.count > 0 {
             _text.removeLast()
-            changed = true
         }
-        changed = _text.count != length || changed
-        if changed {
-            wrap()
+        guard _text.count != length else {
+            return false
         }
-        return changed
+        wrappedWidth = nil
+        return true
     }
 
-    /// Draws the box in its bounds, with a caret at the end when it has focus. Lines past what the
+    /// Draws the box in its most recently assigned bounds.
+    public func draw() {
+        draw(in: bounds)
+    }
+
+    /// Draws the box in `bounds`, with a caret at the end when it has focus. Lines past what the
     /// box can show are left out from the top, so the end being typed stays in view.
-    public func draw(in bounds: Rectangle, isFocused: Bool) {
+    public func draw(in bounds: Rectangle) {
+        wrap(toFit: bounds)
         DrawRectangleRec(bounds, theme.inputBackground)
         DrawRectangleLinesEx(bounds, 1.0, isFocused ? theme.accent : theme.border)
         let room = max(1, (Int(clamping: bounds.height) - (TextArea.padding * 2) + TextArea.lineGap) / (fontSize + TextArea.lineGap))
@@ -104,21 +126,19 @@ public final class TextArea: FormLayoutControl {
             y += fontSize + TextArea.lineGap
         }
         if isFocused, Int(clamping: GetTime() * 2) % 2 == 0 {
-            let last = lines.count == 0 ? "" : lines[lines.count - 1]
+            let last = lines.last ?? ""
             let caretY = Int(clamping: bounds.y) + TextArea.padding + ((max(lines.count, 1) - 1 - first) * (fontSize + TextArea.lineGap))
             DrawRectangle(x + MeasureText(last, fontSize) + 2, caretY, 2, fontSize, theme.text)
         }
     }
 
-    /// Draws the area in its most recently assigned bounds.
-    public func draw(isFocused: Bool) {
-        draw(in: bounds, isFocused: isFocused)
-    }
-
-    private func wrap() {
-        lines = _text.isEmpty
-            ? []
-            : TextWrapper.lines(for: _text, fontSize: fontSize, maximumWidth: width - (TextArea.padding * 2) - 4)
+    private func wrap(toFit bounds: Rectangle) {
+        let width = max(1, Int(clamping: bounds.width) - (TextArea.padding * 2) - 4)
+        guard wrappedWidth != width else {
+            return
+        }
+        lines = TextWrapper.lines(for: _text, fontSize: fontSize, maximumWidth: width)
+        wrappedWidth = width
     }
 
     private func add(_ c: Character) {

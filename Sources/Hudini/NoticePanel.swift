@@ -2,7 +2,7 @@ import Foundation
 import Raylib
 
 /// A movable notice with a title, message, and dismiss button.
-public final class NoticePanel: MovableWindow {
+public final class NoticePanel {
     private static let fontSize: Int = 14
 
     private static let padding: Int = 12
@@ -28,11 +28,6 @@ public final class NoticePanel: MovableWindow {
     /// Whether the notice is currently visible.
     public private(set) var isOpen: Bool = false
 
-    /// Whether the notice is being dragged by its title bar.
-    public var isDragging: Bool {
-        frame.isDragging
-    }
-
     /// The notice's screen bounds.
     public var bounds: Rectangle {
         let size = Vector2(x: Float(Self.width), y: Float(height))
@@ -44,8 +39,6 @@ public final class NoticePanel: MovableWindow {
 
     /// Presents the notice with a title and message.
     public func show(title: String, message: String) {
-        precondition(!title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "title must not be blank")
-        precondition(!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "message must not be blank")
         frame.title = title
         lines.removeAll()
         lines.append(contentsOf: TextWrapper.lines(
@@ -56,22 +49,13 @@ public final class NoticePanel: MovableWindow {
         isOpen = true
     }
 
-    /// Starts moving the notice when a press lands on its title bar.
-    public func beginDragging(at point: Vector2) -> Bool {
-        isOpen && frame.beginDragging(at: point, within: bounds)
-    }
-
-    /// Moves the notice with the pointer while the button is held.
-    public func drag(to point: Vector2, isHeld: Bool) {
-        frame.drag(to: point, isHeld: isHeld, windowSize: Vector2(x: Float(Self.width), y: Float(height)))
-    }
-
-    /// Handles input for this frame and reports whether the notice was dismissed.
+    /// Handles input for this frame, including dragging, and reports whether the notice was
+    /// dismissed.
     ///
     /// Escape dismisses. raylib also closes the window on Escape by default, so
     /// call `SetExitKey(.null)` after `InitWindow` when using this panel.
     public func update() -> Bool {
-        if !isOpen {
+        if !isOpen || frame.followPointer(in: bounds) {
             return false
         }
         let closed = IsKeyPressed(KeyboardKey.enter) || IsKeyPressed(KeyboardKey.kpEnter) || IsKeyPressed(KeyboardKey.escape) || (IsMouseButtonPressed(MouseButton.left) && CheckCollisionPointRec(GetMousePosition(), Self.buttonBounds(bounds))) || frame.update(in: bounds) == .close

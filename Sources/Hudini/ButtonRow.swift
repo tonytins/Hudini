@@ -14,9 +14,15 @@ public enum ButtonRow {
     /// How tall the row is.
     public static let rowHeight: Int = height
 
-    /// Returns the index of the button containing `point`, or `nil` if there is no hit.
-    public static func buttonIndex(at point: Vector2, endingAt corner: Vector2, labels: [String]) -> Int? {
-        for index in labels.indices {
+    /// Returns the index of the enabled button containing `point`, or `nil` if there is none.
+    /// Missing enabled flags leave buttons enabled.
+    public static func buttonIndex(
+        at point: Vector2,
+        endingAt corner: Vector2,
+        labels: [String],
+        enabled: [Bool]? = nil
+    ) -> Int? {
+        for index in labels.indices where isEnabled(index, enabled) {
             if CheckCollisionPointRec(point, bounds(endingAt: corner, labels: labels, index: index)) {
                 return index
             }
@@ -34,13 +40,19 @@ public enum ButtonRow {
     ) {
         for index in labels.indices {
             let buttonBounds = bounds(endingAt: corner, labels: labels, index: index)
-            let isEnabled = enabled.map { $0.indices.contains(index) ? $0[index] : true } ?? true
             DrawRectangleRec(buttonBounds, theme.border)
-            let color = !isEnabled
+            let color = !isEnabled(index, enabled)
                 ? theme.secondaryText
                 : CheckCollisionPointRec(mousePosition, buttonBounds) ? theme.accent : theme.text
             DrawText(labels[index], Int(clamping: buttonBounds.x) + labelPadding, Int(clamping: buttonBounds.y) + 5, fontSize, color)
         }
+    }
+
+    private static func isEnabled(_ index: Int, _ enabled: [Bool]?) -> Bool {
+        guard let enabled, enabled.indices.contains(index) else {
+            return true
+        }
+        return enabled[index]
     }
 
     private static func bounds(endingAt corner: Vector2, labels: [String], index: Int) -> Rectangle {

@@ -29,6 +29,9 @@ public final class ConfirmPanel {
 
     private var cancelTitle = "No"
 
+    /// Whether the panel is currently visible.
+    public private(set) var isOpen: Bool = false
+
     /// The result of updating the panel for the current frame.
     public enum Answer {
         /// No answer was selected.
@@ -39,41 +42,62 @@ public final class ConfirmPanel {
         case cancelled
     }
 
-    /// Presents a question with custom titles for its confirm and cancel actions.
-    public func ask(title: String, message: String, confirmTitle: String, cancelTitle: String) {
+    /// The panel's screen bounds.
+    public var bounds: Rectangle {
+        frame.place(
+            size: Vector2(x: Float(Self.width), y: Float(height)),
+            at: Vector2(
+                x: Float((Int(GetScreenWidth()) - Self.width) / 2),
+                y: Float((Int(GetScreenHeight()) - height) / 2)
+            )
+        )
+    }
+
+    /// Creates a confirmation panel using `theme`.
+    public init(theme: InterfaceTheme = .standard) {
+        self.theme = theme
+        frame = WindowFrame(title: "", theme: theme)
+    }
+
+    /// Presents a question with titles for its confirm and cancel actions.
+    public func show(
+        title: String,
+        message: String,
+        confirmTitle: String = "Yes",
+        cancelTitle: String = "No"
+    ) {
         (frame.title, self.confirmTitle, self.cancelTitle) = (title, confirmTitle, cancelTitle)
         lines = TextWrapper.lines(
             for: message,
             fontSize: Self.textSize,
             maximumWidth: Self.width - (Self.padding * 2)
         )
+        isOpen = true
     }
 
-    /// Handles this frame's input and returns the selected action.
+    /// Handles this frame's input, including dragging, and returns the selected action. Any
+    /// answer closes the panel.
     ///
     /// Escape cancels. raylib also closes the window on Escape by default, so
     /// call `SetExitKey(.null)` after `InitWindow` when using this panel.
     public func update() -> ConfirmPanel.Answer {
-        if frame.followPointer(in: bounds()) {
+        guard isOpen else {
             return .pending
         }
-        if IsKeyPressed(KeyboardKey.escape) || frame.update(in: bounds()) == .close {
-            return .cancelled
+        let answer = currentAnswer()
+        if answer != .pending {
+            isOpen = false
         }
-        if IsKeyPressed(KeyboardKey.enter) || IsKeyPressed(KeyboardKey.kpEnter) {
-            return .confirmed
-        }
-        if !IsMouseButtonPressed(MouseButton.left) {
-            return .pending
-        }
-        let mouse = GetMousePosition()
-        return CheckCollisionPointRec(mouse, yesBounds()) ? .confirmed : CheckCollisionPointRec(mouse, noBounds()) ? .cancelled : .pending
+        return answer
     }
 
-    /// Draws the panel centered on the screen until the user moves it.
+    /// Draws the panel when it is open, centered on the screen until the user moves it.
     public func draw() {
+        guard isOpen else {
+            return
+        }
         DrawRectangle(0, 0, Int(GetScreenWidth()), Int(GetScreenHeight()), theme.overlay)
-        let bounds = bounds()
+        let bounds = bounds
         frame.draw(in: bounds)
         var y = Int(clamping: bounds.y) + WindowFrame.titleHeight + 12
         for line in lines {
@@ -81,8 +105,28 @@ public final class ConfirmPanel {
             y += Self.lineHeight
         }
         let mouse = GetMousePosition()
-        ConfirmPanel.drawButton(yesBounds(), confirmTitle, mouse, theme: theme)
-        ConfirmPanel.drawButton(noBounds(), cancelTitle, mouse, theme: theme)
+        ConfirmPanel.drawButton(confirmBounds(), confirmTitle, mouse, theme: theme)
+        ConfirmPanel.drawButton(cancelBounds(), cancelTitle, mouse, theme: theme)
+    }
+
+    private func currentAnswer() -> ConfirmPanel.Answer {
+        if frame.followPointer(in: bounds) {
+            return .pending
+        }
+        if IsKeyPressed(KeyboardKey.escape) || frame.update(in: bounds) == .close {
+            return .cancelled
+        }
+        if IsKeyPressed(KeyboardKey.enter) || IsKeyPressed(KeyboardKey.kpEnter) {
+            return .confirmed
+        }
+        guard IsMouseButtonPressed(MouseButton.left) else {
+            return .pending
+        }
+        let mouse = GetMousePosition()
+        if CheckCollisionPointRec(mouse, confirmBounds()) {
+            return .confirmed
+        }
+        return CheckCollisionPointRec(mouse, cancelBounds()) ? .cancelled : .pending
     }
 
     private static func drawButton(_ bounds: Rectangle, _ label: String, _ mouse: Vector2, theme: InterfaceTheme) {
@@ -96,18 +140,8 @@ public final class ConfirmPanel {
         max(Self.leastHeight, WindowFrame.titleHeight + 12 + (lines.count * Self.lineHeight) + 16 + Self.buttonHeight + Self.padding)
     }
 
-    private func bounds() -> Rectangle {
-        frame.place(
-            size: Vector2(x: Float(Self.width), y: Float(height)),
-            at: Vector2(
-                x: Float((Int(GetScreenWidth()) - Self.width) / 2),
-                y: Float((Int(GetScreenHeight()) - height) / 2)
-            )
-        )
-    }
-
-    private func noBounds() -> Rectangle {
-        let bounds = bounds()
+    private func cancelBounds() -> Rectangle {
+        let bounds = bounds
         let buttonWidth = MeasureText(cancelTitle, Self.fontSize) + (Self.buttonPadding * 2)
         return Rectangle(
             x: bounds.x + Float(Self.width - Self.padding - buttonWidth),
@@ -117,20 +151,14 @@ public final class ConfirmPanel {
         )
     }
 
-    private func yesBounds() -> Rectangle {
-        let cancelBounds = noBounds()
+    private func confirmBounds() -> Rectangle {
+        let cancel = cancelBounds()
         let buttonWidth = MeasureText(confirmTitle, Self.fontSize) + (Self.buttonPadding * 2)
         return Rectangle(
-            x: cancelBounds.x - Float(buttonWidth) - 10,
-            y: cancelBounds.y,
+            x: cancel.x - Float(buttonWidth) - 10,
+            y: cancel.y,
             width: Float(buttonWidth),
-            height: cancelBounds.height
+            height: cancel.height
         )
-    }
-
-    /// Creates a confirmation panel using `theme`.
-    public init(theme: InterfaceTheme = .standard) {
-        self.theme = theme
-        frame = WindowFrame(title: "", theme: theme)
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 import Raylib
 
 /// Stores a window's position and keeps it within the screen while it is dragged.
-public final class WindowPlacement {
+final class WindowPlacement {
     private let titleHeight: Int
 
     private var position: Vector2? = nil
@@ -10,22 +10,22 @@ public final class WindowPlacement {
     private var grab: Vector2 = Vector2()
 
     /// Creates a placement for a window whose title bar is the given height.
-    public init(titleBarHeight: Int) {
+    init(titleBarHeight: Int) {
         precondition(titleBarHeight > 0, "titleBarHeight must be positive")
         titleHeight = titleBarHeight
     }
 
     /// Whether the user is dragging the window.
-    public private(set) var isDragging: Bool = false
+    private(set) var isDragging: Bool = false
 
     /// Returns the window's current bounds, using `initialOrigin` until it is moved.
-    public func bounds(size: Vector2, initialOrigin: Vector2) -> Rectangle {
+    func bounds(size: Vector2, initialOrigin: Vector2) -> Rectangle {
         let position = Self.keep(position ?? initialOrigin, size)
         return Rectangle(x: position.x, y: position.y, width: size.x, height: size.y)
     }
 
     /// Starts a drag when `point` lands on the title bar.
-    public func beginDragging(at point: Vector2, within bounds: Rectangle) -> Bool {
+    func beginDragging(at point: Vector2, within bounds: Rectangle) -> Bool {
         var titleBounds = bounds
         titleBounds.height = min(Float(titleHeight), bounds.height)
         guard CheckCollisionPointRec(point, titleBounds) else {
@@ -38,7 +38,7 @@ public final class WindowPlacement {
     }
 
     /// Moves the window while the pointer button is held.
-    public func drag(to point: Vector2, isHeld: Bool, windowSize: Vector2) {
+    func drag(to point: Vector2, isHeld: Bool, windowSize: Vector2) {
         guard isDragging else {
             return
         }

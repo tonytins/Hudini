@@ -92,7 +92,7 @@ state.
 | --- | --- |
 | `name` | Required. The name controls use. |
 | `textColor`, `backgroundColor`, `borderColor` | Colors used when drawing. |
-| `selectedTextColor`, `highlightedTextColor`, `disabledTextColor` | Colors that are read but not yet drawn. |
+| `selectedTextColor`, `highlightedTextColor`, `disabledTextColor` | Button label colors while pressed, hovered, and disabled. |
 | `fontSize` | A positive size in pixels. |
 
 ## Position and size
@@ -130,7 +130,7 @@ optional:
 | `<Text>` | Text at its position | `text` or `string` |
 | `<FormattedText>` | Text on a background, with an inset | `text` or `string` |
 | `<Button>` | A clickable button | `text` or `string`, `image`, `scrolls`, `direction` |
-| `<TextField>` | A one-line text entry | `text` or `string`, `placeholder` or `placeholderString`, `maximumLength` |
+| `<TextField>` | A one-line text entry | `text` or `string`, `placeholder` or `placeholderString`, `maximumLength`, `readOnly` |
 | `<List>` | A scrollable list the host fills | `text` or `string`, shown as its first item |
 | `<Slider>` | A scrollbar track and thumb | `scrolls` |
 | `<Region>` | A rectangle the host draws into | None |
@@ -140,6 +140,8 @@ optional:
   the same way.
 - **`maximumLength`:** the most characters a text field accepts, which defaults
   to 256.
+- **`readOnly`:** `true` or `false`, which defaults to `false`. A read-only text
+  field never takes focus or typing, and the host can still set its text.
 - **`scrolls`:** names the `<List>` a slider or button scrolls.
 - **`direction`:** `up` or `down`. A button with `scrolls` needs it, and a slider
   must not have it.
@@ -203,6 +205,12 @@ view.draw(at: origin) { name, bounds in /* draw into regions */ }
 - Check `view.missingImages` to find images that could not be supplied.
 - Show and hide controls with `setHidden(_:named:)`, and disable buttons with
   `setDisabled(_:named:)`.
+- Change text at runtime with `setText(_:named:)`, which is cheap enough to call
+  every frame.
+- Use `containsPoint(_:origin:)` to keep a click on the interface from also
+  reaching the game behind it. It covers visible controls and visuals, so a
+  background the host draws itself needs its own check. When views overlap, the
+  host decides which one gets the pointer.
 - Draw any window frame or background behind the view.
 
 ## Platform requirements

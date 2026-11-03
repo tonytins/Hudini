@@ -61,7 +61,7 @@ import Testing
 }
 
 @Test func textAreaKeepsItsLimit() {
-    let area = TextArea(text: "one two three", maximumLength: 7, fontSize: 20, width: 200)
+    let area = TextArea(text: "one two three", maximumLength: 7, fontSize: 20)
     #expect(area.text == "one two")
 }
 
@@ -508,7 +508,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
     let entry = try #require(view.textField(named: "chatEntry"))
 
     entry.text = String(repeating: "a", count: 500)
-    #expect(entry.length == 120)
+    #expect(entry.text.count == 120)
 }
 
 @Test func viewScrollButtonsMoveTheirListWithoutReportingAnEvent() throws {
@@ -684,7 +684,7 @@ private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangl
 
 @Test func formLayoutPlacesBoundControls() {
     let name = TextField(text: "Player", maximumLength: 24)
-    let description = TextArea(text: "A place to explore.", maximumLength: 200, width: 300)
+    let description = TextArea(text: "A place to explore.", maximumLength: 200)
     let layout = FormLayout(fields: [
         .init(label: "Name", control: name),
         .init(label: "Description", control: description)
@@ -721,4 +721,168 @@ private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangl
     #expect(IconToolbar.buttonIndex(at: Vector2(x: 62, y: 550), itemCount: 3, in: screen) == nil)
     #expect(IconToolbar.buttonIndex(at: Vector2(x: 790, y: 10), itemCount: 3, in: screen) == nil)
     #expect(IconToolbar.buttonIndex(at: Vector2(x: 30, y: 550), itemCount: 0, in: screen) == nil)
+}
+
+// MARK: API review
+
+@Test func panelsAcceptBlankTextWithoutCrashing() {
+    let notice = NoticePanel()
+    notice.show(title: "", message: "   ")
+    #expect(notice.isOpen)
+}
+
+@Test func confirmPanelOpensOnShowAndStaysPendingWithoutInput() {
+    let panel = ConfirmPanel()
+    #expect(!panel.isOpen)
+    #expect(panel.update() == .pending)
+
+    panel.show(title: "Leave?", message: "Your lot will stay open.")
+    #expect(panel.isOpen)
+    #expect(panel.update() == .pending)
+    #expect(panel.isOpen)
+}
+
+@Test func formLayoutToleratesBoundsTooSmallForIt() {
+    let name = TextField(maximumLength: 20)
+    let layout = FormLayout(fields: [.init(label: "Name", control: name)], footerHeight: 40)
+
+    layout.layout(in: Rectangle(x: 0, y: 0, width: 4, height: 4))
+
+    #expect(name.bounds.width == 0)
+}
+
+private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
+    TextWrapper.lines(for: text, maximumWidth: maximumWidth) { $0.count }
+}
+
+@Test func textWrapperBreaksBetweenWords() {
+    #expect(wrapped("one two three", maximumWidth: 7) == ["one two", "three"])
+    #expect(wrapped("", maximumWidth: 7).isEmpty)
+}
+
+@Test func textWrapperBreaksWordsTooWideForALine() {
+    #expect(wrapped("abcdefghij", maximumWidth: 4) == ["abcd", "efgh", "ij"])
+    #expect(wrapped("hi abcdefghij ok", maximumWidth: 4) == ["hi", "abcd", "efgh", "ij", "ok"])
+}
+
+@Test func textWrapperAlwaysMakesProgressWhenNothingFits() {
+    #expect(wrapped("abc", maximumWidth: 0) == ["a", "b", "c"])
+}
+
+@Test func buttonRowIgnoresDisabledButtons() {
+    // Headless, labels measure as empty, so each button is 28 wide with a 10 gap.
+    let corner = Vector2(x: 200, y: 100)
+    let labels = ["Save", "Cancel"]
+    let onCancel = Vector2(x: 180, y: 85)
+    let onSave = Vector2(x: 140, y: 85)
+
+    #expect(ButtonRow.buttonIndex(at: onCancel, endingAt: corner, labels: labels) == 1)
+    #expect(ButtonRow.buttonIndex(at: onCancel, endingAt: corner, labels: labels, enabled: [true, false]) == nil)
+    #expect(ButtonRow.buttonIndex(at: onSave, endingAt: corner, labels: labels, enabled: [true, false]) == 0)
+    #expect(ButtonRow.buttonIndex(at: onCancel, endingAt: corner, labels: labels, enabled: [true]) == 1)
+}
+
+@Test func readOnlyFieldsDisplayTextButNeverSubmit() {
+    let field = TextField(text: "08:00", maximumLength: 8, isReadOnly: true)
+
+    #expect(field.submit() == nil)
+    #expect(field.text == "08:00")
+    #expect(field.update(in: Rectangle(x: 0, y: 0, width: 50, height: 15)) == nil)
+    #expect(!field.isFocused)
+
+    field.text = "08:01"
+    #expect(field.text == "08:01")
+}
+
+@Test func fieldsAndAreasRememberBoundsFromUpdate() {
+    let bounds = Rectangle(x: 500, y: 500, width: 80, height: 30)
+    let field = TextField(maximumLength: 8)
+    let area = TextArea(maximumLength: 8)
+
+    #expect(field.update(in: bounds) == nil)
+    #expect(field.bounds == bounds)
+    #expect(field.update() == nil)
+    #expect(!area.update(in: bounds))
+    #expect(area.bounds == bounds)
+    #expect(!area.update())
+    #expect(!area.isFocused)
+}
+
+@Test func uiScriptReadsReadOnly() throws {
+    let loaded = try script("<TextField name='a' \(tenByTen) readOnly='true'/><TextField name='b' \(tenByTen)/>")
+
+    #expect(loaded.control(named: "a")?.isReadOnly == true)
+    #expect(loaded.control(named: "b")?.isReadOnly == false)
+    #expect(UIScriptView(script: loaded).textField(named: "a")?.isReadOnly == true)
+}
+
+@Test func uiScriptRejectsInvalidReadOnly() {
+    #expect(throws: UIScriptError.invalidReadOnly(owner: "a")) {
+        try script("<Button name='a' \(tenByTen) readOnly='true'/>")
+    }
+    #expect(throws: UIScriptError.invalidAttribute(element: "TextField", attribute: "readOnly", value: "yes", line: 1)) {
+        try script("<TextField name='a' \(tenByTen) readOnly='yes'/>")
+    }
+}
+
+@Test func stylesPickButtonLabelColorsByState() throws {
+    let white = "#FFFFFF", red = "#FF0000", green = "#00FF00", blue = "#0000FF"
+    let loaded = try script("""
+    <Style name='full' textColor='\(white)' selectedTextColor='\(red)' highlightedTextColor='\(green)' disabledTextColor='\(blue)'/>
+    <Style name='plain' textColor='\(white)'/>
+    """)
+    let full = try #require(loaded.styles["full"])
+    let plain = try #require(loaded.styles["plain"])
+    let whiteColor = Color(r: 255, g: 255, b: 255, a: 255)
+
+    #expect(full.textColor(for: .normal) == whiteColor)
+    #expect(full.textColor(for: .pressed) == Color(r: 255, g: 0, b: 0, a: 255))
+    #expect(full.textColor(for: .hovered) == Color(r: 0, g: 255, b: 0, a: 255))
+    #expect(full.textColor(for: .disabled) == Color(r: 0, g: 0, b: 255, a: 255))
+    #expect(plain.textColor(for: .pressed) == whiteColor)
+    #expect(plain.textColor(for: .hovered) == whiteColor)
+    #expect(plain.textColor(for: .disabled) == nil)
+}
+
+@Test func viewChangesTextAtRuntime() throws {
+    let view = UIScriptView(script: try script("""
+    <Text name='label' \(tenByTen) text='Funds'/>
+    <Button name='button' \(tenByTen)/>
+    <TextField name='field' \(tenByTen) maximumLength='3'/>
+    <List name='list' \(tenByTen)/>
+    """))
+
+    #expect(view.text(named: "label") == "Funds")
+    view.setText("$100", named: "label")
+    #expect(view.text(named: "label") == "$100")
+
+    #expect(view.text(named: "button") == nil)
+    view.setText("Go", named: "button")
+    #expect(view.text(named: "button") == "Go")
+
+    view.setText("08:00", named: "field")
+    #expect(view.text(named: "field") == "08:")
+
+    view.setText("ignored", named: "list")
+    view.setText("ignored", named: "missing")
+    #expect(view.text(named: "list") == nil)
+    #expect(view.text(named: "missing") == nil)
+}
+
+@Test func viewReportsWhenAPointIsOverItsVisibleParts() throws {
+    let view = UIScriptView(script: try script("""
+    <Image name='art' path='a.bmp'/>
+    <Visual name='backdrop' image='art' x='100' y='100' width='10' height='10'/>
+    <Region name='area' x='0' y='0' width='10' height='10'/>
+    """))
+    let origin = Vector2(x: 50, y: 50)
+
+    #expect(view.containsPoint(Vector2(x: 55, y: 55), origin: origin))
+    #expect(view.containsPoint(Vector2(x: 155, y: 155), origin: origin))
+    #expect(!view.containsPoint(Vector2(x: 5, y: 5), origin: origin))
+
+    view.setHidden(true, named: "area")
+    #expect(!view.containsPoint(Vector2(x: 55, y: 55), origin: origin))
+    view.setHidden(true, named: "backdrop")
+    #expect(!view.containsPoint(Vector2(x: 155, y: 155), origin: origin))
 }

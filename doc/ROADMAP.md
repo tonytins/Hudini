@@ -32,7 +32,7 @@ demo can render it.
   loaded from a document.
 - [x] Render initial history, a scrollbar, scroll buttons, and an entry
   field from document-described bounds and styles.
-- [ ] Keep the model and preview aligned as the smallest useful field set
+- [x] Keep the model and preview aligned as the smallest useful field set
   becomes clear.
 - [x] Replace the remaining preview-only drawing with a focused reusable
   UIScript rendering path without turning the library into a general view
@@ -81,10 +81,10 @@ interface description and rendering support.
   documents.
 - [x] Decide how older readers tell optional additions they may ignore from
   required features they must reject.
-- [ ] Keep controls, resources, and host data/actions clearly separated.
+- [x] Keep controls, resources, and host data/actions clearly separated.
 - [ ] Add focused headless tests for decoding, validation, and layout, plus
   runtime checks for rendering that needs raylib.
-- [ ] Review public APIs and documentation for a small, understandable library
+- [x] Review public APIs and documentation for a small, understandable library
   surface.
 
 ### Stopping point

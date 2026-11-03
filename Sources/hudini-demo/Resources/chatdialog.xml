@@ -5,7 +5,8 @@
 
   <Style name="history" textColor="#FFF99D" backgroundColor="#101820" fontSize="14"/>
   <Style name="entry" textColor="#FFF99D" backgroundColor="#000000" borderColor="#FAD31C" fontSize="14"/>
-  <Style name="scrollButton" textColor="#FFF99D" backgroundColor="#37485A" borderColor="#778899" fontSize="12"/>
+  <Style name="scrollButton" textColor="#FFF99D" highlightedTextColor="#FFFFFF" selectedTextColor="#00F3F7"
+         backgroundColor="#37485A" borderColor="#778899" fontSize="12"/>
   <Style name="scrollTrack" backgroundColor="#17212A" borderColor="#778899"/>
 
   <List name="chatHistory" legacyID="1" x="40" y="45" width="310" height="150" style="history"/>

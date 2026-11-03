@@ -18,7 +18,7 @@ public final class UIScriptView {
 
     private let script: UIScript
     private let theme: InterfaceTheme
-    private let labels: [String: String]
+    private var labels: [String: String]
     private let lists: [String: TextList]
     private let textFields: [String: TextField]
     private let textures: [String: Texture2D]
@@ -97,7 +97,8 @@ public final class UIScriptView {
                     placeholder: resolved(control.placeholder),
                     textColor: style?.textColor,
                     backgroundColor: style?.backgroundColor,
-                    borderColor: style?.borderColor
+                    borderColor: style?.borderColor,
+                    isReadOnly: control.isReadOnly
                 )
             case .slider, .region:
                 break
@@ -174,11 +175,49 @@ public final class UIScriptView {
         textFields[name]
     }
 
+    /// Returns the text of a text, formatted text, button, or text field control, or `nil` when
+    /// it has none.
+    public func text(named name: String) -> String? {
+        textFields[name]?.text ?? labels[name]
+    }
+
+    /// Replaces the text of a text, formatted text, button, or text field control.
+    ///
+    /// This is cheap enough to call every frame, for example for a clock or a
+    /// balance. Other controls and unknown names are left alone.
+    public func setText(_ text: String, named name: String) {
+        if let field = textFields[name] {
+            field.text = text
+            return
+        }
+        switch script.control(named: name)?.type {
+        case .text, .formattedText, .button:
+            labels[name] = text
+        default:
+            break
+        }
+    }
+
+    /// Returns whether `point` is over a visible control or visual in a view whose corner is at
+    /// `origin`.
+    ///
+    /// Use this to keep a click on the interface from also reaching the game
+    /// behind it. A background the host draws itself is not part of the view.
+    public func containsPoint(_ point: Vector2, origin: Vector2) -> Bool {
+        let names = script.controls.map(\.name) + script.visuals.map(\.name)
+        return names.contains { name in
+            guard !hiddenNames.contains(name), let bounds = bounds(named: name, at: origin) else {
+                return false
+            }
+            return CheckCollisionPointRec(point, bounds)
+        }
+    }
+
     /// Shows or hides a control or visual. A hidden one takes no input and draws nothing.
     public func setHidden(_ isHidden: Bool, named name: String) {
         if isHidden {
             hiddenNames.insert(name)
-            textFields[name]?.clearFocus()
+            textFields[name]?.setFocused(false)
         } else {
             hiddenNames.remove(name)
         }
@@ -269,9 +308,7 @@ public final class UIScriptView {
             case .button:
                 drawButton(control, in: bounds)
             case .textField:
-                if let field = textFields[control.name] {
-                    field.draw(in: bounds, isFocused: field.isFocused)
-                }
+                textFields[control.name]?.draw(in: bounds)
             case .list:
                 lists[control.name]?.draw(in: bounds)
             case .slider:
@@ -323,8 +360,9 @@ public final class UIScriptView {
 
     private func drawButton(_ control: UIScript.Control, in bounds: Rectangle) {
         let style = script.style(for: control)
+        let state = buttonState(of: control, in: bounds)
         if let image = control.image {
-            drawImage(named: image, state: buttonState(of: control, in: bounds), in: bounds)
+            drawImage(named: image, state: state, in: bounds)
         } else {
             DrawRectangleRec(bounds, style?.backgroundColor ?? theme.panel)
             DrawRectangleLinesEx(bounds, 1, style?.borderColor ?? theme.border)
@@ -338,7 +376,7 @@ public final class UIScriptView {
             Int(clamping: bounds.x + ((bounds.width - Float(MeasureText(label, fontSize))) / 2)),
             Int(clamping: bounds.y + ((bounds.height - Float(fontSize)) / 2)),
             fontSize,
-            style?.textColor ?? theme.text
+            style?.textColor(for: state) ?? (state == .disabled ? theme.secondaryText : theme.text)
         )
     }
 

@@ -18,7 +18,11 @@ func loadUIScript(named name: String) -> UIScript {
         guard let url = Bundle.module.url(forResource: name, withExtension: "xml") else {
             throw CocoaError(.fileNoSuchFile)
         }
-        return try UIScript(contentsOf: url)
+        let script = try UIScript(contentsOf: url)
+        for ignored in script.ignoredAttributes {
+            FileHandle.standardError.write(Data("\(name).xml line \(ignored.line): \(ignored.element) ignores '\(ignored.attribute)'\n".utf8))
+        }
+        return script
     } catch {
         fail("Unable to load \(name).xml: \(error.localizedDescription)")
     }
@@ -121,7 +125,6 @@ let peopleMarginY: Float = 11
 let lastPeoplePage = (residents.count - 1) / peoplePerPage
 var peoplePage = 0
 
-@MainActor
 func drawNeeds(in bounds: Rectangle) {
     let columnWidth = bounds.width / 2
     let rowHeight = bounds.height / 4
@@ -197,7 +200,7 @@ guard let history = chat.list(named: "chatHistory"),
     fail("chatdialog.xml is missing a required property-chat control")
 }
 guard let statusMessage = panel.list(named: "statusBarMessageWindow"),
-      let statusTimer = panel.textField(named: "statusBarTimerEntry"),
+      panel.textField(named: "statusBarTimerEntry") != nil,
       panelScript.control(named: "previousPage") != nil,
       panelScript.control(named: "nextPage") != nil else {
     fail("livepanel1024.xml is missing a required live-panel control")
@@ -208,7 +211,6 @@ for name in ["eodHelp", "eodClose", "eodExpand", "eodContract", "timerEntry", "m
     panel.setHidden(true, named: name)
 }
 statusMessage.items = ["Maya is visiting"]
-statusTimer.text = "08:00"
 
 @MainActor
 func showPeoplePage(_ page: Int) {
@@ -252,7 +254,7 @@ while running && !WindowShouldClose() {
         at: Vector2(x: (Float(GetScreenWidth()) - chatSize.x) / 2, y: (panelTop - chatSize.y) / 2)
     )
     _ = window.followPointer(in: bounds)
-    if case .close = window.update(in: bounds) {
+    if window.update(in: bounds) == .close {
         running = false
     }
 
@@ -264,20 +266,40 @@ while running && !WindowShouldClose() {
         residentReplyIndex = (residentReplyIndex + 1) % residentReplies.count
     }
 
+    // The chat window draws over the panel, so it gets the pointer first.
+    let pointer = GetMousePosition()
+    let isOverChat = CheckCollisionPointRec(pointer, bounds)
     let panelOrigin = Vector2(x: 0, y: panelTop)
-    for event in panel.update(at: panelOrigin) {
-        switch event {
-        case .pressed(control: "previousPage"):
-            showPeoplePage(peoplePage - 1)
-        case .pressed(control: "nextPage"):
-            showPeoplePage(peoplePage + 1)
-        default:
-            break
+    if !isOverChat {
+        for event in panel.update(at: panelOrigin) {
+            switch event {
+            case .pressed(control: "previousPage"):
+                showPeoplePage(peoplePage - 1)
+            case .pressed(control: "nextPage"):
+                showPeoplePage(peoplePage + 1)
+            default:
+                break
+            }
         }
     }
+    let isOverInterface = isOverChat || panel.containsPoint(pointer, origin: panelOrigin)
+
+    // One real second is one game minute, starting from 08:00.
+    let gameMinutes = (8 * 60) + Int(GetTime())
+    panel.setText(
+        String(format: "%02d:%02d", (gameMinutes / 60) % 24, gameMinutes % 60),
+        named: "statusBarTimerEntry"
+    )
 
     BeginDrawing()
     drawPropertyLot(groundBottom: Int32(panelTop))
+    DrawText(
+        isOverInterface ? "Pointer: interface" : "Pointer: lot",
+        20,
+        44,
+        14,
+        Color(r: 255, g: 255, b: 255, a: 255)
+    )
     DrawRectangle(0, Int32(panelTop), GetScreenWidth(), Int32(panelHeight), theme.titleBar)
     panel.draw(at: panelOrigin) { name, regionBounds in
         switch name {

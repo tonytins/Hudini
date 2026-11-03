@@ -93,13 +93,13 @@ while !WindowShouldClose() {
     layout.layout(in: content)
 
     _ = window.followPointer(in: bounds)
-    _ = playerName.update(in: playerName.bounds)
+    _ = playerName.update()
 
     BeginDrawing()
     ClearBackground(Color(r: 54, g: 84, b: 120, a: 255))
     window.draw(in: bounds)
     layout.drawLabels(theme: theme)
-    playerName.draw(isFocused: playerName.isFocused)
+    playerName.draw()
     EndDrawing()
 }
 

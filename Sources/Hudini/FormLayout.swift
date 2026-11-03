@@ -94,7 +94,9 @@ public final class FormLayout {
 
     /// Calculates field positions before `fields` or `drawLabels` are used.
     ///
-    /// Repeated calls with unchanged bounds do not recalculate the layout.
+    /// Repeated calls with unchanged bounds do not recalculate the layout. Bounds too small for
+    /// the form, such as a window the player shrank, leave controls narrow or overlapping the
+    /// footer rather than failing.
     public func layout(in bounds: Rectangle) {
         if lastBounds == bounds {
             for (description, field) in zip(descriptions, fields) {
@@ -102,11 +104,6 @@ public final class FormLayout {
             }
             return
         }
-        precondition(
-            bounds.width > horizontalInset * 2,
-            "bounds must be wider than its horizontal insets"
-        )
-
         var top = bounds.y + topInset
         fields.removeAll(keepingCapacity: true)
 
@@ -116,7 +113,7 @@ public final class FormLayout {
             let controlBounds = Rectangle(
                 x: bounds.x + horizontalInset,
                 y: controlY,
-                width: bounds.width - (horizontalInset * 2),
+                width: max(0, bounds.width - (horizontalInset * 2)),
                 height: description.height
             )
             description.control.place(in: controlBounds)
@@ -127,11 +124,6 @@ public final class FormLayout {
             ))
             top = controlY + description.height + fieldSpacing
         }
-
-        let fieldsBottom = fields.last.map { $0.controlBounds.y + $0.controlBounds.height }
-            ?? (bounds.y + topInset)
-        let footerTop = bounds.y + bounds.height - bottomInset - footerHeight
-        precondition(fieldsBottom <= footerTop, "form fields overlap the reserved footer")
 
         buttonRowCorner = Vector2(
             x: bounds.x + bounds.width - horizontalInset,

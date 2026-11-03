@@ -130,6 +130,9 @@ public struct UIScript: Sendable {
                maximumLength <= 0 || control.type != .textField {
                 throw UIScriptError.invalidMaximumLength(owner: control.name)
             }
+            if control.isReadOnly, control.type != .textField {
+                throw UIScriptError.invalidReadOnly(owner: control.name)
+            }
             if let binding = control.scrolls {
                 try validate(binding, of: control)
             }
@@ -344,6 +347,23 @@ public struct UIScript: Sendable {
 
         /// The font size in pixels. It must be positive.
         public let fontSize: Int?
+
+        /// Returns the color for a button label in `state`.
+        ///
+        /// Pressed and hovered buttons fall back to `textColor`. A disabled button
+        /// has no fallback, so it does not look enabled by accident.
+        public func textColor(for state: ButtonState) -> Color? {
+            switch state {
+            case .normal:
+                textColor
+            case .pressed:
+                selectedTextColor ?? textColor
+            case .hovered:
+                highlightedTextColor ?? textColor
+            case .disabled:
+                disabledTextColor
+            }
+        }
     }
 
     /// A rectangle placed in the window's pixel coordinate space.
@@ -396,22 +416,22 @@ public struct UIScript: Sendable {
 
     /// A supported control category.
     public enum ControlType: Sendable {
-        /// Static text.
+        /// Text drawn at its position.
         case text
 
-        /// Formatted or styled text content.
+        /// Text drawn on a background, with an inset.
         case formattedText
 
         /// A clickable button.
         case button
 
-        /// A single-line or multiline text input.
+        /// A one-line text input.
         case textField
 
-        /// A selectable list.
+        /// A scrollable list of text the host fills.
         case list
 
-        /// A range or scroll control.
+        /// A scrollbar track and thumb for a list.
         case slider
 
         /// A named area Hudini positions and the host draws into.
@@ -482,6 +502,9 @@ public struct UIScript: Sendable {
 
         /// The list a slider or button scrolls.
         public let scrolls: ScrollBinding?
+
+        /// Whether a text field only displays text.
+        public let isReadOnly: Bool
     }
 }
 
@@ -565,6 +588,9 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A maximum length is not positive or is attached to a control other than a text field.
     case invalidMaximumLength(owner: String)
 
+    /// A control other than a text field is marked read-only.
+    case invalidReadOnly(owner: String)
+
     /// A scroll binding targets a control other than a list, or does not suit its control.
     case invalidScrollBinding(owner: String)
 
@@ -622,6 +648,8 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript placeholder for '\(owner)' requires a text field control."
         case let .invalidMaximumLength(owner):
             "UIScript maximum length for '\(owner)' must be positive and requires a text field control."
+        case let .invalidReadOnly(owner):
+            "UIScript readOnly for '\(owner)' requires a text field control."
         case let .invalidScrollBinding(owner):
             "UIScript scrolls for '\(owner)' must target a list, from a slider without a direction or a button with one."
         }

@@ -1,7 +1,7 @@
 import Raylib
 
 /// Semantic colors used to draw Hudini components.
-public struct InterfaceTheme {
+public struct InterfaceTheme: Sendable {
     /// Highlights focused and selected interface elements.
     public let accent: Color
     /// Fills text fields and other editable controls.
@@ -57,7 +57,5 @@ public struct InterfaceTheme {
     }
 
     /// Hudini's default dark palette with a warm accent.
-    public static var standard: InterfaceTheme {
-        InterfaceTheme()
-    }
+    public static let standard = InterfaceTheme()
 }

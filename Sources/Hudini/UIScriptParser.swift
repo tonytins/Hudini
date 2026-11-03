@@ -183,7 +183,8 @@ enum UIScriptParser {
             image: reader.string("image"),
             tooltip: reader.string("tooltip"),
             maximumLength: try reader.integer("maximumLength"),
-            scrolls: try makeScrollBinding(owner: name, reader)
+            scrolls: try makeScrollBinding(owner: name, reader),
+            isReadOnly: try reader.boolean("readOnly") ?? false
         )
     }
 
@@ -343,6 +344,19 @@ private final class AttributeReader {
             throw missing(attribute)
         }
         return number
+    }
+
+    func boolean(_ attribute: String) throws -> Bool? {
+        switch string(attribute) {
+        case nil:
+            nil
+        case "true":
+            true
+        case "false":
+            false
+        case let value?:
+            throw invalid(attribute, value)
+        }
     }
 
     func color(_ attribute: String) throws -> Color? {
