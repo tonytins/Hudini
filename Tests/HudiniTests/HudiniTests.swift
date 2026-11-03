@@ -920,7 +920,7 @@ private func uis(_ text: String) throws -> UIScript {
     #expect(bar.control(named: "HelpButton")?.frame.edgeOffsets?.right == 8)
     #expect(bar.control(named: "SpeedSlow")?.legacyID == 2)
     #expect(bar.control(named: "SpeedSlow")?.tooltip == "SlowSpeedTip")
-    #expect(bar.resources.strings["HelpTip"]?.table == "DebugBar:1")
+    #expect(bar.resources.strings["HelpTip"]?.table == "DemoText:5")
     #expect(bar.resources.images["SpeedArrowImg"]?.stateCount == 4)
     #expect(bar.resources.images["BarBackgroundImg"]?.stateCount == 1)
 }
@@ -1467,4 +1467,351 @@ private func tooltipView() throws -> UIScriptView {
         #expect(panel.ignoredAttributes.isEmpty)
         #expect(panel.window.size.height == 160)
     }
+}
+
+// MARK: CST text
+
+private func cst(_ text: String) -> CSTFile {
+    CSTFile(data: Data(text.utf8))
+}
+
+/// Writes tables to a new temporary directory, which the caller removes.
+private func temporaryTextDirectory(_ files: [String: String], under path: String = "") throws -> (root: URL, tables: URL) {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("HudiniCST-\(UUID().uuidString)")
+    let tables = path.isEmpty ? root : root.appendingPathComponent(path)
+    try FileManager.default.createDirectory(at: tables, withIntermediateDirectories: true)
+    for (name, text) in files {
+        try Data(text.utf8).write(to: tables.appendingPathComponent(name))
+    }
+    return (root, tables)
+}
+
+@Test func cstReadsEveryEntryLayoutRealFilesUse() {
+    let file = cst("""
+    1 ^Same line^
+    \t2 ^Indented with a tab^
+      3 ^Indented with spaces^
+    4
+    ^Value below its key^
+    5 ^First line
+    Second line^
+    word ^A word as a key^
+    6^No space^
+    7 ^^
+
+    """)
+
+    #expect(file.entries["1"] == "Same line")
+    #expect(file.entries["2"] == "Indented with a tab")
+    #expect(file.entries["3"] == "Indented with spaces")
+    #expect(file.entries["4"] == "Value below its key")
+    #expect(file.entries["5"] == "First line\nSecond line")
+    #expect(file.entries["word"] == "A word as a key")
+    #expect(file.entries["6"] == "No space")
+    #expect(file.entries["7"] == "")
+    #expect(file.problems.isEmpty)
+}
+
+@Test func cstIgnoresComments() {
+    let file = cst("""
+    // A comment with 1 ^Not this^
+    # Another with 2 ^Not this^
+    /* A block with
+    3 ^Not this^
+    still going */
+    /* One line */
+    4 ^First
+    // Not part of the value
+    Last^
+    5 ^Has // and # inside^
+    """)
+
+    #expect(file.entries.keys.sorted() == ["4", "5"])
+    #expect(file.entries["4"] == "First\nLast")
+    #expect(file.entries["5"] == "Has // and # inside")
+}
+
+@Test func cstNormalizesLineEndings() {
+    let file = cst("1 ^One\r\nTwo^\r\n2 ^Three\rFour^\r3 ^Five\u{2028}Six^")
+
+    #expect(file.entries["1"] == "One\nTwo")
+    #expect(file.entries["2"] == "Three\nFour")
+    #expect(file.entries["3"] == "Five\nSix")
+}
+
+@Test func cstReadsTheEncodingsRealFilesUse() {
+    let withMark = CSTFile(data: Data([0xEF, 0xBB, 0xBF]) + Data("1 ^Hint^".utf8))
+    #expect(withMark.entries["1"] == "Hint")
+
+    let utf8 = cst("1 ^Caf\u{E9}^")
+    #expect(utf8.entries["1"] == "Caf\u{E9}")
+
+    // 0xE9 and 0x92 are not valid UTF-8 here. In Windows-1252 they are an e-acute and a curly quote.
+    let legacy = CSTFile(data: Data("1 ^Caf".utf8) + Data([0xE9, 0x92]) + Data("^".utf8))
+    #expect(legacy.entries["1"] == "Caf\u{E9}\u{2019}")
+}
+
+@Test func cstKnowsEntriesWithoutKeysByTheirPosition() {
+    let file = cst("""
+    ^Zero^
+    \t^One^
+    ^Two
+    still two^
+    ^Three^
+    """)
+
+    #expect(file.entries["0"] == "Zero")
+    #expect(file.entries["1"] == "One")
+    #expect(file.entries["2"] == "Two\nstill two")
+    #expect(file.entries["3"] == "Three")
+    #expect(file.problems.isEmpty)
+}
+
+@Test func cstPositionCountsEveryEntry() {
+    let file = cst("10 ^Keyed^\n^Second^\nword ^Keyed^\n^Fourth^")
+
+    #expect(file.entries["1"] == "Second")
+    #expect(file.entries["3"] == "Fourth")
+}
+
+@Test func cstTreatsTextBetweenEntriesAsNotes() {
+    let file = cst("""
+    #145#OptionStrs.cst
+    The next ones are tool tips, so read on
+    tooltips
+
+    ^First^
+    1st column
+    ^Second^
+    2 - refund
+    ^Third^
+    """)
+
+    #expect(file.entries["0"] == "First")
+    #expect(file.entries["1"] == "Second")
+    #expect(file.entries["2"] == "Third")
+    #expect(file.problems.isEmpty)
+}
+
+@Test func cstKeepsAKeyWithSpaces() {
+    let file = cst("ok button ^OK^\n24 012 ^Failed^")
+
+    #expect(file.entries["ok button"] == "OK")
+    #expect(file.entries["24 012"] == "Failed")
+}
+
+@Test func cstReadsMoreThanOneEntryOnALine() {
+    let file = cst("7 ^One^ 8 ^Two^ ^Third^")
+
+    #expect(file.entries["7"] == "One")
+    #expect(file.entries["8"] == "Two")
+    #expect(file.entries["2"] == "Third")
+}
+
+@Test func cstReportsAnUnclosedValueAndKeepsTheEntriesAfterIt() {
+    let file = cst("""
+    1 ^Fine^
+    2 ^Never closed
+    3 ^Still found^
+    ^Position three would collide^
+    5 ^Never closed either
+    of the file
+    """)
+
+    #expect(file.entries["1"] == "Fine")
+    #expect(file.entries["2"] == nil)
+    #expect(file.entries["3"] == "Still found")
+    #expect(file.entries["5"] == nil)
+    // The skipped value still takes a position, so the keyless entry collides with key 3.
+    #expect(file.problems.map(\.line) == [2, 4, 5])
+}
+
+@Test func cstKeepsTheFirstOfARepeatedKeyAndReportsTheOther() {
+    let file = cst("1 ^First^\n1 ^Second^")
+
+    #expect(file.entries["1"] == "First")
+    #expect(file.problems.map(\.line) == [2])
+}
+
+@Test func cstClosingCaretOnItsOwnLineEndsAValue() {
+    let file = cst("1 ^First line\nlast ^\n2 ^Next^\n3 ^One\n^\n4 ^After^")
+
+    #expect(file.entries["1"] == "First line\nlast ")
+    #expect(file.entries["2"] == "Next")
+    #expect(file.entries["3"] == "One\n")
+    #expect(file.entries["4"] == "After")
+    #expect(file.problems.isEmpty)
+}
+
+@Test(arguments: [
+    ("Hello %s!", ["Maya"], "Hello Maya!"),
+    ("%s has %d of %i and %u", ["A", "1", "2", "3"], "A has 1 of 2 and 3"),
+    ("%3d|%03d|%.3d", ["7", "7", "7"], "  7|007|007"),
+    ("%.2d:%.2d", ["5", "30"], "05:30"),
+    ("%3s", ["a"], "a"),
+    ("100%%", [], "100%"),
+    ("%ld properties", ["3"], "3 properties"),
+    ("%d.%02d", ["5", "7"], "5.07"),
+    ("<%> says", ["no"], "<%> says"),
+    ("%s and %s", ["only"], "only and %s"),
+    ("%d", [], "%d"),
+    ("%.3d", [], "%.3d"),
+    ("extra", ["ignored"], "extra"),
+    ("10% off, %l, %. and %", ["no"], "10% off, %l, %. and %")
+])
+func cstFormatsPlaceholders(text: String, arguments: [String], expected: String) {
+    #expect(CSTCatalog.format(text, with: arguments) == expected)
+}
+
+@Test func catalogLoadsTablesAndLooksUpText() throws {
+    let (root, tables) = try temporaryTextDirectory([
+        "_174_livepanelstrings.cst": "1 ^Hello %s^\n2 ^Plain^",
+        "_7_UPPER.CST": "1 ^Upper^",
+        "notes.txt": "1 ^Ignored^",
+        "_x_badid.cst": "1 ^Ignored^",
+        "gamecompdrawacard.cst": "1 ^Ignored^"
+    ])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let catalog = try CSTCatalog(directory: tables)
+
+    #expect(catalog.tableIDs == [7, 174])
+    #expect(catalog.table(174)?.entries["2"] == "Plain")
+    #expect(catalog.table(1) == nil)
+    #expect(catalog.text(table: 174, key: "1", arguments: ["Maya"]) == "Hello Maya")
+    #expect(catalog.text(table: 174, key: "9") == nil)
+    #expect(catalog.text(table: 9, key: "1") == nil)
+    #expect(catalog.text(table: 7, key: "1") == "Upper")
+}
+
+@Test func catalogResolvesDocumentStringResources() throws {
+    let (root, tables) = try temporaryTextDirectory(["_174_a.cst": "1 ^One^"])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let catalog = try CSTCatalog(directory: tables)
+    let loaded = try uis("""
+    <Begin><SetSharedProperties stringDir="UIText" stringTable=174>
+    <DefineString "Found" stringIndex=1>
+    <DefineString "Absent" stringIndex=2>
+    <End>
+    <DefineString "NoTable" stringIndex=1>
+    <AddText "A" position=(0,0) size=(1,1) text="Found">
+    <AddText "B" position=(0,0) size=(1,1) text="Absent">
+    """)
+    let view = UIScriptView(script: loaded, resolveString: catalog.text(for:))
+
+    #expect(view.text(named: "A") == "One")
+    #expect(view.text(named: "B") == "UIText:174#2")
+    #expect(view.missingStrings == ["Absent", "NoTable"])
+    #expect(UIScriptView(script: loaded).missingStrings.count == 3)
+}
+
+@Test func catalogFollowsReferencesBetweenTables() throws {
+    let (root, tables) = try temporaryTextDirectory([
+        "_1_a.cst": """
+        1 ^\u{2}<cst><cst_id>2</cst_id><string_id>5</string_id><string arg="1">%s</string></cst>^
+        2 ^\u{2}<cst><cst_id>2</cst_id><string_id>9</string_id></cst>^
+        3 ^\u{2}<cst><cst_id>9</cst_id><string_id>5</string_id></cst>^
+        4 ^\u{2}<cst><cst_id>1</cst_id><string_id>4</string_id></cst>^
+        5 ^\u{2}<cst>broken^
+        """,
+        "_2_b.cst": "5 ^Kicked out by %s^"
+    ])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let catalog = try CSTCatalog(directory: tables)
+
+    #expect(catalog.text(table: 1, key: "1", arguments: ["Maya"]) == "Kicked out by Maya")
+    #expect(catalog.text(table: 1, key: "2") == nil)
+    #expect(catalog.text(table: 1, key: "3") == nil)
+    // A reference to a reference stops rather than risking a loop.
+    #expect(catalog.text(table: 1, key: "4") == nil)
+    #expect(catalog.text(table: 1, key: "5") == "\u{2}<cst>broken")
+}
+
+@Test(arguments: ["uitext/english.dir", "uitext.dir"])
+func catalogFindsEitherInstallLayout(path: String) throws {
+    let (root, _) = try temporaryTextDirectory(["_1_a.cst": "1 ^Found^"], under: path)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    #expect(try CSTCatalog(gameData: root).text(table: 1, key: "1") == "Found")
+}
+
+@Test func catalogFailsClearlyWhenThereIsNoText() throws {
+    let (root, _) = try temporaryTextDirectory(["_1_a.cst": "1 ^Found^"], under: "uitext/english.dir")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let missing = root.appendingPathComponent("missing")
+
+    #expect(throws: CSTError.noTextDirectory(gameData: root.path, language: "french")) {
+        try CSTCatalog(gameData: root, language: "french")
+    }
+    #expect(throws: CSTError.unreadable(path: missing.path)) {
+        try CSTCatalog(directory: missing)
+    }
+}
+
+@Test func theDemoHasTextForEveryStringItsInterfacesUse() throws {
+    let catalog = try CSTCatalog(directory: demoResource("uitext"))
+    let documents = [
+        try UIScript(contentsOf: demoResource("livepanel1024.xml")),
+        try UIScript(contentsOf: demoResource("statspanel.xml")),
+        try UIScript(contentsOf: demoResource("optionspanel.xml")),
+        try UIScript(uisContentsOf: demoResource("lemonadestand.uis")),
+        try UIScript(uisContentsOf: demoResource("debugbar.uis"))
+    ]
+
+    for id in catalog.tableIDs {
+        #expect(catalog.table(id)?.problems.isEmpty == true)
+    }
+    for document in documents {
+        #expect(UIScriptView(script: document, resolveString: catalog.text(for:)).missingStrings.isEmpty)
+    }
+}
+
+// The real files are not in the repository, so this runs only where an install is configured.
+@Test(arguments: ["TSO_BETA_DIR", "TSO_CLASSIC_DIR", "TSO_GAME_DIR"])
+func catalogReadsEveryLocalVersion(variable: String) throws {
+    guard let install = ProcessInfo.processInfo.environment[variable] else {
+        return
+    }
+    let gameData = URL(fileURLWithPath: install).appendingPathComponent("gamedata")
+    guard FileManager.default.fileExists(atPath: gameData.path) else {
+        return
+    }
+    let catalog = try CSTCatalog(gameData: gameData)
+    var entryCount = 0
+    var problems: [String] = []
+    var referenceCount = 0
+    var brokenReferences: [String] = []
+    for id in catalog.tableIDs {
+        let table = try #require(catalog.table(id))
+        entryCount += table.entries.count
+        problems += table.problems.map { "\(id):\($0.line) \($0.message)" }
+        for (key, value) in table.entries where value.hasPrefix("\u{2}") {
+            referenceCount += 1
+            if catalog.text(table: id, key: key) == nil {
+                brokenReferences.append("\(id):\(key)")
+            }
+        }
+    }
+    let scripts = try FileManager.default
+        .contentsOfDirectory(at: gameData.appendingPathComponent("uiscripts"), includingPropertiesForKeys: nil)
+        .filter { $0.pathExtension.lowercased() == "uis" }
+    var stringCount = 0
+    var missing: [String] = []
+    for file in scripts {
+        let script = try UIScript(uisContentsOf: file)
+        for (name, resource) in script.resources.strings {
+            stringCount += 1
+            if catalog.text(for: resource) == nil {
+                missing.append("\(file.lastPathComponent):\(name) \(resource.table)#\(resource.index)")
+            }
+        }
+    }
+    print("\(variable): \(catalog.tableIDs.count) tables, \(entryCount) entries, \(problems.count) problems, \(referenceCount) references (\(brokenReferences.count) broken), \(stringCount) .uis strings (\(missing.count) missing)")
+    for problem in problems.prefix(12) {
+        print("  problem \(problem)")
+    }
+    for name in missing.sorted().prefix(12) {
+        print("  missing \(name)")
+    }
+    #expect(brokenReferences.isEmpty)
+    #expect(catalog.tableIDs.count > 100)
 }

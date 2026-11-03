@@ -12,7 +12,7 @@
 
 	# Strings ---------------------------------------------------------------------------
 
-	<Begin><SetSharedProperties stringDir="DebugBar" stringTable=1>
+	<Begin><SetSharedProperties stringDir="DemoText" stringTable=5>
 
 		<DefineString "SlowSpeedTip"    stringIndex=1>
 		<DefineString "MediumSpeedTip"  stringIndex=2>

@@ -22,7 +22,8 @@ let package = Package(
                 .copy("Resources/lemonadestand.uis"),
                 .copy("Resources/livepanel1024.xml"),
                 .copy("Resources/optionspanel.xml"),
-                .copy("Resources/statspanel.xml")
+                .copy("Resources/statspanel.xml"),
+                .copy("Resources/uitext")
             ]
         ),
         .testTarget(name: "HudiniTests", dependencies: ["Hudini", .product(name: "Raylib", package: "raylib-swift")]),

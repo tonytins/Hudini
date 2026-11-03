@@ -21,7 +21,7 @@ form layout.
 - Per-interface color themes
 - [UIScript](doc/UISCRIPT.md), an XML format describing resources, styles, visuals, and controls
 - `UIScriptView`, which builds, updates, and draws a document's controls
-- A reader for Maxis' `.uis` interface files
+- Readers for Maxis' `.uis` interface files and `.cst` text tables
 
 ## Requirements
 

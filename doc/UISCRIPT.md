@@ -203,7 +203,7 @@ throws. There is no partial result.
 ```swift
 let view = UIScriptView(
     script: script,
-    resolveString: { strings[$0.index] ?? "" },
+    resolveString: catalog.text(for:), // Or any closure. See "Reading CST text".
     loadImage: { loadTexture(for: $0) }
 )
 guard let history = view.list(named: "history") else { /* report it */ }
@@ -217,7 +217,8 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
 
 - Create the view after `InitWindow` when passing `loadImage`, and keep it.
 - Own the textures, and unload them before `CloseWindow`.
-- Check `view.missingImages` to find images that could not be supplied.
+- Check `view.missingImages` and `view.missingStrings` to find what could not be
+  supplied. A missing string shows its table and index instead.
 - Show and hide controls with `setHidden(_:named:)`, disable buttons with
   `setDisabled(_:named:)`, and mark toggles or choices with `setSelected(_:named:)`.
 - Call `setWindowSize(_:)` when the space around anchored controls changes.
@@ -301,6 +302,58 @@ lists:
 Scroll bindings do not exist in `.uis`, so a slider or scroll button read from one
 is not connected to a list. Only `alignment=3`, which centers, is understood. See
 the [roadmap's open questions](ROADMAP.md#open-questions) for what remains unknown.
+
+## Reading CST text
+
+The Sims Online keeps its interface text in `.cst` tables, which `.uis` files refer
+to by table and index. `CSTCatalog` loads a directory of them once, so lookups never
+touch the disk:
+
+```swift
+let catalog = try CSTCatalog(gameData: installURL.appendingPathComponent("gamedata"))
+let view = UIScriptView(script: script, resolveString: catalog.text(for:))
+let greeting = catalog.text(table: 174, key: "1", arguments: ["Maya"])
+```
+
+`CSTCatalog(gameData:language:)` finds either install layout. New & Improved uses
+`uitext/<language>.dir`, and earlier versions have one language in `uitext.dir`. For
+any other location, `CSTCatalog(directory:)` reads files named `_<id>_<name>.cst`. It
+uses only the number at the end of a resource's table, so `UIText:174` and `174`
+mean the same table.
+
+### The format
+
+```text
+// A comment, as is a line starting with # or a /* */ block.
+1 ^A value after its key^
+    2 ^An indented key^
+3
+^A key above its value^
+4 ^A value that runs
+across lines^
+ok button ^A key with spaces^
+These words are a note, because no caret follows them on this line.
+^A value with no key^
+```
+
+- **Values with no key** are known by their position among all the table's entries,
+  counting from 0. More than 1,000 entries in each TSO version work this way. The
+  value above is at position 6, and `text(table:key:)` finds it with the key `"6"`.
+- **Notes:** text between entries is for translators. A number alone on the line
+  above a value is its key, and anything else there does not count.
+- **Encoding:** UTF-8 with or without a byte order mark, then Windows-1252.
+- **Problems:** reading a table does not fail. A value with no closing caret is
+  skipped, and a repeated key keeps its first value. `CSTFile.problems` lists both.
+  An unclosed value still takes up a position.
+- **References:** some New & Improved entries start with a control character and
+  point to an entry in another table, such as
+  `<cst><cst_id>276</cst_id><string_id>1</string_id></cst>`. `text(table:key:arguments:)`
+  returns the target's text and follows only one reference.
+- **Placeholders:** `CSTCatalog.format(_:with:)` fills `%s`, `%d`, `%i`, `%u`, and
+  `%ld` in order. `%3d` pads with spaces, `%03d` and `%.3d` pad with zeros, and `%%`
+  is one percent sign. A placeholder with no argument left stays as written, and
+  any other `%` is left alone. References pass their arguments in order, ignoring
+  the `arg` numbers they carry.
 
 ## Not yet supported
 

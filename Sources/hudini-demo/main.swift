@@ -207,31 +207,7 @@ func placeholderSliceSize(forPath path: String) -> Int32 {
     return path.contains("Page") ? 24 : 23
 }
 
-// The host's own localized text and game state.
-
-let demoStrings: [String: [Int: String]] = [
-    "DemoText:1": [
-        1: "Previous page", 2: "Next page", 3: "Needs", 4: "Help", 5: "Close",
-        6: "Time left", 8: "Move to a window", 9: "Move to the panel", 10: "Time of day"
-    ],
-    "DemoText:2": [
-        1: "Property scores", 2: "Garden", 3: "Kitchen", 4: "Living room", 5: "Bedroom",
-        6: "Score out of 100"
-    ],
-    "DemoText:3": [1: "Options", 2: "Music", 3: "Sound", 4: "Drag to set the volume"],
-    "DemoText:4": [
-        1: "Price", 2: "Stock", 3: "Sign", 4: "Serve", 5: "Restock",
-        6: "Drag to set the price of a cup", 7: "Cups left", 8: "Sell one cup", 9: "Fill the jug",
-        10: "Press Enter to put this on the sign"
-    ],
-    "DebugBar:1": [
-        1: "Slow", 2: "Medium", 3: "Fast", 4: "Show errors", 5: "Help"
-    ]
-]
-
-func demoString(_ resource: UIScript.StringResource) -> String {
-    demoStrings[resource.table]?[resource.index] ?? "\(resource.table)#\(resource.index)"
-}
+// The host's game state.
 
 let needNames = ["Hunger", "Comfort", "Hygiene", "Bladder", "Energy", "Fun", "Social", "Room"]
 let needLevels: [Float] = [0.8, 0.55, 0.9, 0.35, 0.65, 0.5, 0.75, 0.6]
@@ -312,6 +288,22 @@ guard ["live", "stats", "options", "stand", "standwindow"].contains(scene) else 
     fail("Unknown scene '\(scene)'.")
 }
 
+// The host's localized text, in the same kind of tables The Sims Online uses.
+let demoText: CSTCatalog
+do {
+    guard let directory = Bundle.module.url(forResource: "uitext", withExtension: nil) else {
+        throw CocoaError(.fileNoSuchFile)
+    }
+    demoText = try CSTCatalog(directory: directory)
+    for id in demoText.tableIDs {
+        for problem in demoText.table(id)?.problems ?? [] {
+            log("Text table \(id) line \(problem.line): \(problem.message)")
+        }
+    }
+} catch {
+    fail("Unable to load the demo's text: \(error.localizedDescription)")
+}
+
 let chatScript = loadUIScript(named: "chatdialog")
 let panelScript = loadUIScript(named: "livepanel1024")
 let statsScript = loadUIScript(named: "statspanel")
@@ -328,16 +320,20 @@ SetTargetFPS(60)
 var placeholderTextures: [Texture2D] = []
 @MainActor
 func makeView(_ script: UIScript) -> UIScriptView {
-    UIScriptView(
+    let view = UIScriptView(
         script: script,
         theme: theme,
-        resolveString: demoString,
+        resolveString: demoText.text(for:),
         loadImage: { resource in
             let texture = makePlaceholderTexture(for: resource)
             placeholderTextures.append(texture)
             return texture
         }
     )
+    for name in view.missingStrings {
+        log("No text for string '\(name)'")
+    }
+    return view
 }
 
 let chat = makeView(chatScript)

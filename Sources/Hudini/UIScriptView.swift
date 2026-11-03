@@ -47,6 +47,12 @@ public final class UIScriptView {
     /// they also leave out their size, they use a small fallback size.
     public let missingImages: [String]
 
+    /// The names of string resources the host could not supply, in sorted order.
+    ///
+    /// Controls using these show their table and index instead, so the gap is easy to notice.
+    /// A tooltip using one does not show.
+    public let missingStrings: [String]
+
     /// Something a control reports for the host to act on.
     public enum Event: Equatable, Sendable {
         /// An enabled button without a scroll binding was pressed.
@@ -60,8 +66,9 @@ public final class UIScriptView {
     /// Creates the controls for `script`.
     ///
     /// `resolveString` supplies the text for localized-string references once,
-    /// during creation. By default a reference shows its table and index, so an
-    /// unresolved string is easy to notice.
+    /// during creation. `CSTCatalog.text(for:)` fits here. When it returns `nil`,
+    /// the reference shows its table and index and appears in `missingStrings`,
+    /// which is what happens to every reference by default.
     ///
     /// `loadImage` supplies each image resource once, during creation, so a host
     /// passing it must create the view after `InitWindow`. The host owns the
@@ -70,12 +77,22 @@ public final class UIScriptView {
     public init(
         script: UIScript,
         theme: InterfaceTheme = .standard,
-        resolveString: (UIScript.StringResource) -> String = { "\($0.table)#\($0.index)" },
+        resolveString: (UIScript.StringResource) -> String? = { _ in nil },
         loadImage: (UIScript.ImageResource) -> Texture2D? = { _ in nil }
     ) {
         self.script = script
         self.theme = theme
         windowSize = Vector2(x: script.window.size.width, y: script.window.size.height)
+
+        var strings: [String: String] = [:]
+        var missingStrings: [String] = []
+        for (name, resource) in script.resources.strings {
+            if let text = resolveString(resource) {
+                strings[name] = text
+            } else {
+                missingStrings.append(name)
+            }
+        }
 
         func resolved(_ text: UIScript.Text?) -> String? {
             switch text {
@@ -84,7 +101,7 @@ public final class UIScriptView {
             case let .literal(value):
                 value
             case let .string(name):
-                script.resources.strings[name].map(resolveString)
+                strings[name] ?? script.resources.strings[name].map { "\($0.table)#\($0.index)" }
             }
         }
 
@@ -157,8 +174,8 @@ public final class UIScriptView {
         self.textures = textures
         self.sizes = sizes
         tooltips = script.controls.reduce(into: [:]) { result, control in
-            if let name = control.tooltip, let resource = script.resources.strings[name] {
-                result[control.name] = resolveString(resource)
+            if let name = control.tooltip, let text = strings[name] {
+                result[control.name] = text
             }
         }
         values = script.controls.reduce(into: [:]) { result, control in
@@ -171,6 +188,7 @@ public final class UIScriptView {
                 + script.controls.filter(\.isInitiallyHidden).map(\.name)
         )
         self.missingImages = missingImages.sorted()
+        self.missingStrings = missingStrings.sorted()
     }
 
     /// Returns the screen bounds of a control or visual in a view whose corner is
