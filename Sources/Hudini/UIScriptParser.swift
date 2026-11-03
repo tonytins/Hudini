@@ -184,7 +184,8 @@ enum UIScriptParser {
             tooltip: reader.string("tooltip"),
             maximumLength: try reader.integer("maximumLength"),
             scrolls: try makeScrollBinding(owner: name, reader),
-            isReadOnly: try reader.boolean("readOnly") ?? false
+            isReadOnly: try reader.boolean("readOnly") ?? false,
+            alignment: try reader.alignment("alignment") ?? .left
         )
     }
 
@@ -377,6 +378,16 @@ private final class AttributeReader {
             throw invalid(attribute, value)
         }
         return direction
+    }
+
+    func alignment(_ attribute: String) throws -> UIScript.TextAlignment? {
+        guard let value = string(attribute) else {
+            return nil
+        }
+        guard let alignment = UIScript.TextAlignment(rawValue: value) else {
+            throw invalid(attribute, value)
+        }
+        return alignment
     }
 
     func text(literal: String, reference: String) throws -> UIScript.Text? {

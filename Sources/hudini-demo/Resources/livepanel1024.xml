@@ -1,24 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   A live mode panel based on the positions in TSO's live panel UIScript.
-  The demo host owns the needs, people, and images. Buttons and visuals without a
-  size take it from their image.
+  The demo host owns the needs, people, and images, and generates placeholder art
+  for each image path here. Buttons and visuals without a size take it from their
+  image.
 -->
 <UIScript version="1">
   <!-- The reference declares no window size. This is the smallest that holds the controls. -->
   <Window width="1024" height="160"/>
 
-  <Image name="moodPositive" path="UCP/LivePanel/lpanel_moodPositive.bmp" assetID="0x0000048F00000001"/>
-  <Image name="moodNegative" path="UCP/LivePanel/lpanel_moodNegative.bmp" assetID="0x0000048C00000001"/>
-  <Image name="moodPanel" path="./uigraphics/ucp/livepanel/lpanel_moodpanelbtn.bmp" assetID="0x0000048E00000001" stateCount="4"/>
-  <Image name="previousPage" path="UCP/LivePanel/lpanel_previousPageBtn.bmp" assetID="0x0000049200000001" stateCount="4"/>
-  <Image name="nextPage" path="UCP/LivePanel/lpanel_nextPageBtn.bmp" assetID="0x0000049000000001" stateCount="4"/>
-  <Image name="peopleListBackground" path="./uigraphics/ucp/livepanel/livepanel_headsbackground_1024.bmp" assetID="0x0000088000000001"/>
-  <Image name="divider" path="UCP/LivePanel/lpanel_divider.bmp" assetID="0x0000048800000001"/>
-  <Image name="eodHelp" path="./uigraphics/ucp/livepanel/lpanel_eodhelpbtn.bmp" assetID="0x000004E100000001" stateCount="4"/>
-  <Image name="eodClose" path="./uigraphics/ucp/livepanel/lpanel_eodclosexbtn.bmp" assetID="0x000004EE00000001" stateCount="4"/>
-  <Image name="eodExpand" path="./uigraphics/ucp/livepanel/lpanel_eodexpandbtn.bmp" assetID="0x00000CB000000001" stateCount="4"/>
-  <Image name="eodContract" path="./uigraphics/ucp/livepanel/lpanel_eodcontractbtn.bmp" assetID="0x00000CAE00000001" stateCount="4"/>
+  <Image name="moodPositive" path="demo/moodPositive"/>
+  <Image name="moodNegative" path="demo/moodNegative"/>
+  <Image name="moodPanel" path="demo/moodPanel" stateCount="4"/>
+  <Image name="previousPage" path="demo/previousPage" stateCount="4"/>
+  <Image name="nextPage" path="demo/nextPage" stateCount="4"/>
+  <Image name="peopleListBackground" path="demo/peopleListBackground"/>
+  <Image name="divider" path="demo/divider"/>
+  <Image name="eodHelp" path="demo/eodHelp" stateCount="4"/>
+  <Image name="eodClose" path="demo/eodClose" stateCount="4"/>
+  <Image name="eodExpand" path="demo/eodExpand" stateCount="4"/>
+  <Image name="eodContract" path="demo/eodContract" stateCount="4"/>
 
   <String name="previousPageTooltip" table="UIText:174" index="1"/>
   <String name="nextPageTooltip" table="UIText:174" index="2"/>

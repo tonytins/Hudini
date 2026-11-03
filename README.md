@@ -19,6 +19,7 @@ form layout.
 - Per-interface color themes
 - [UIScript](doc/UISCRIPT.md), an XML format describing resources, styles, visuals, and controls
 - `UIScriptView`, which builds, updates, and draws a document's controls
+- A reader for Maxis' `.uis` interface files
 
 ## Requirements
 
@@ -110,11 +111,14 @@ raylib closes the window on Escape by default. `SetExitKey(.null)` turns that of
 so Escape can cancel title edits and dismiss panels instead of quitting the game.
 
 See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable example: a
-property chat window over a live mode panel, both loaded from UIScript documents
-and drawn by `UIScriptView`. The demo host owns the conversation, needs, people,
-and images, and it generates placeholder art because Hudini ships no game
-assets. The view does not draw tooltips yet, and Hudini does not read TSO `.uis`
-files yet.
+property chat window over a live mode panel, both loaded from UIScript XML, with
+an auto-hiding debug bar read from an original `.uis` file. `UIScriptView` draws
+all three. The demo host owns the conversation, needs, people, and images, and it
+generates placeholder art because Hudini ships no game assets. The view does not
+draw tooltips yet.
+
+See [the documentation](doc/README.md) for the format, roadmap, and where Hudini
+came from.
 
 ## Supported Versions
 

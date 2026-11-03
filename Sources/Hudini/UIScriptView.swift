@@ -25,6 +25,8 @@ public final class UIScriptView {
     private let sizes: [String: Vector2]
     private var hiddenNames: Set<String> = []
     private var disabledNames: Set<String> = []
+    private var selectedNames: Set<String> = []
+    private var windowSize: Vector2
 
     /// The names of image resources the host could not supply, in sorted order.
     ///
@@ -58,6 +60,7 @@ public final class UIScriptView {
     ) {
         self.script = script
         self.theme = theme
+        windowSize = Vector2(x: script.window.size.width, y: script.window.size.height)
 
         func resolved(_ text: UIScript.Text?) -> String? {
             switch text {
@@ -159,7 +162,46 @@ public final class UIScriptView {
         at origin: Vector2
     ) -> Rectangle {
         let size = sizes[name] ?? .zero
-        return Rectangle(x: origin.x + frame.x, y: origin.y + frame.y, width: size.x, height: size.y)
+        let (x, width) = Self.placement(
+            position: frame.x,
+            size: size.x,
+            leading: frame.edgeOffsets?.left,
+            trailing: frame.edgeOffsets?.right,
+            available: windowSize.x
+        )
+        let (y, height) = Self.placement(
+            position: frame.y,
+            size: size.y,
+            leading: frame.edgeOffsets?.top,
+            trailing: frame.edgeOffsets?.bottom,
+            available: windowSize.y
+        )
+        return Rectangle(x: origin.x + x, y: origin.y + y, width: width, height: height)
+    }
+
+    private static func placement(
+        position: Float,
+        size: Float,
+        leading: Float?,
+        trailing: Float?,
+        available: Float
+    ) -> (position: Float, size: Float) {
+        switch (leading, trailing) {
+        case let (leading?, trailing?):
+            (leading, max(0, available - leading - trailing))
+        case let (nil, trailing?):
+            (available - trailing - size, size)
+        case let (leading?, nil):
+            (leading, size)
+        case (nil, nil):
+            (position, size)
+        }
+    }
+
+    /// Sets the size edge offsets measure from, such as a resized screen. It starts as the
+    /// document's window size.
+    public func setWindowSize(_ size: Vector2) {
+        windowSize = size
     }
 
     /// Returns the list with this name, or `nil` when no list has it.
@@ -241,6 +283,21 @@ public final class UIScriptView {
     /// Returns whether a button is disabled.
     public func isDisabled(named name: String) -> Bool {
         disabledNames.contains(name)
+    }
+
+    /// Selects or deselects a button, for a toggle or a choice among buttons. A selected button
+    /// shows its pressed image and selected text color, and still reports presses.
+    public func setSelected(_ isSelected: Bool, named name: String) {
+        if isSelected {
+            selectedNames.insert(name)
+        } else {
+            selectedNames.remove(name)
+        }
+    }
+
+    /// Returns whether a button is selected.
+    public func isSelected(named name: String) -> Bool {
+        selectedNames.contains(name)
     }
 
     /// Handles this frame's input for a view whose corner is at `origin`.
@@ -340,10 +397,16 @@ public final class UIScriptView {
         }
         let style = script.style(for: control)
         let fontSize = style?.fontSize ?? Self.defaultFontSize
-        let x = Int(clamping: bounds.x) + inset
+        let left = Int(clamping: bounds.x) + inset
+        let room = Int(clamping: bounds.width) - (inset * 2)
         var y = Int(clamping: bounds.y) + inset
-        for line in label.split(separator: "\n", omittingEmptySubsequences: false) {
-            DrawText(String(line), x, y, fontSize, style?.textColor ?? theme.text)
+        for line in label.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+            let x = switch control.alignment {
+            case .left: left
+            case .center: left + ((room - MeasureText(line, fontSize)) / 2)
+            case .right: left + room - MeasureText(line, fontSize)
+            }
+            DrawText(line, x, y, fontSize, style?.textColor ?? theme.text)
             y += fontSize + Self.textLineGap
         }
     }
@@ -351,6 +414,9 @@ public final class UIScriptView {
     private func buttonState(of control: UIScript.Control, in bounds: Rectangle) -> UIScript.ButtonState {
         if disabledNames.contains(control.name) {
             return .disabled
+        }
+        if selectedNames.contains(control.name) {
+            return .pressed
         }
         guard CheckCollisionPointRec(GetMousePosition(), bounds) else {
             return .normal

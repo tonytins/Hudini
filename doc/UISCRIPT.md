@@ -5,8 +5,9 @@ resources, styles, decorative images, and controls. `UIScript` reads it and
 `UIScriptView` builds, updates, and draws it.
 
 UIScript describes presentation. The host game owns live data, actions, images,
-and localized text. The format is inspired by The Sims Online's `.uis` files,
-but it is not compatible with them, and `.uis` files are not valid XML.
+and localized text. The format is inspired by The Sims Online's `.uis` files.
+Those are not valid XML, so Hudini has a [separate reader](#reading-uis-files) for
+them that produces the same model.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -69,11 +70,11 @@ use. An asset ID stays exactly as written.
 | `name` | Yes | The name other elements use. |
 | `path` | One of these | A host-defined path. |
 | `assetID` | One of these | A host-defined identifier. |
-| `stateCount` | No | `1` (the default) or `4`. |
+| `stateCount` | No | `1` (the default), `4`, or `6`. |
 
 A four-state image holds four equal-width slices, left to right: normal, pressed,
 hovered, and disabled. An image with one state shows it whatever the button's
-state.
+state. Some Maxis images hold six slices, and Hudini uses the first four.
 
 `<String>` refers to localized text the host supplies through `resolveString`.
 
@@ -103,7 +104,12 @@ Visuals and controls share these attributes:
 | --- | --- | --- |
 | `x`, `y` | Yes | The position within the window, which may be negative. |
 | `width`, `height` | See below | The size, which must not be negative. |
-| `edgeOffsetLeft`, `edgeOffsetRight`, `edgeOffsetTop`, `edgeOffsetBottom` | No | Distances to the window edges for resizing. Not yet used by `UIScriptView`. |
+| `edgeOffsetLeft`, `edgeOffsetRight`, `edgeOffsetTop`, `edgeOffsetBottom` | No | Distances to the window edges. |
+
+An edge offset replaces the position on its axis. `edgeOffsetRight` alone anchors
+a control to the right edge, and `edgeOffsetLeft` with `edgeOffsetRight` stretches
+it between both. Top and bottom work the same way. Offsets measure from the
+document's window size until the host calls `setWindowSize(_:)`.
 
 A button or visual with an image may leave out `width`, `height`, or both to take
 them from one slice of the image. Any other control needs both. If the host cannot
@@ -127,8 +133,8 @@ optional:
 
 | Element | What it is | Extra attributes |
 | --- | --- | --- |
-| `<Text>` | Text at its position | `text` or `string` |
-| `<FormattedText>` | Text on a background, with an inset | `text` or `string` |
+| `<Text>` | Text at its position | `text` or `string`, `alignment` |
+| `<FormattedText>` | Text on a background, with an inset | `text` or `string`, `alignment` |
 | `<Button>` | A clickable button | `text` or `string`, `image`, `scrolls`, `direction` |
 | `<TextField>` | A one-line text entry | `text` or `string`, `placeholder` or `placeholderString`, `maximumLength`, `readOnly` |
 | `<List>` | A scrollable list the host fills | `text` or `string`, shown as its first item |
@@ -138,6 +144,7 @@ optional:
 - **`text` and `string`:** `text` is literal, and `string` names a `<String>`. A
   control takes one or the other, and `placeholder` and `placeholderString` work
   the same way.
+- **`alignment`:** `left`, `center`, or `right`, which defaults to `left`.
 - **`maximumLength`:** the most characters a text field accepts, which defaults
   to 256.
 - **`readOnly`:** `true` or `false`, which defaults to `false`. A read-only text
@@ -203,8 +210,11 @@ view.draw(at: origin) { name, bounds in /* draw into regions */ }
 - Create the view after `InitWindow` when passing `loadImage`, and keep it.
 - Own the textures, and unload them before `CloseWindow`.
 - Check `view.missingImages` to find images that could not be supplied.
-- Show and hide controls with `setHidden(_:named:)`, and disable buttons with
-  `setDisabled(_:named:)`.
+- Show and hide controls with `setHidden(_:named:)`, disable buttons with
+  `setDisabled(_:named:)`, and mark toggles or choices with `setSelected(_:named:)`.
+- Call `setWindowSize(_:)` when the space around anchored controls changes.
+- Slide or move a whole view by changing the `origin` passed to `update(at:)` and
+  `draw(at:)`.
 - Change text at runtime with `setText(_:named:)`, which is cheap enough to call
   every frame.
 - Use `containsPoint(_:origin:)` to keep a click on the interface from also
@@ -219,10 +229,43 @@ On Linux, `XMLParser` comes from `FoundationXML`, which links the system's
 `libxml2.so.2` at runtime. Games shipping on Linux need that library installed or
 bundled.
 
+## Reading `.uis` files
+
+`UIScript(uisData:)` and `UIScript(uisContentsOf:)` read Maxis' `.uis` format into
+the same model, so `UIScriptView` draws the result like any other document. See
+[`debugbar.uis`](../Sources/hudini-demo/Resources/debugbar.uis) for an original
+example.
+
+| `.uis` | Becomes |
+| --- | --- |
+| `DefineImage` | `<Image>`. Images used by `AddButton` have four states unless `ImageStates` says otherwise. |
+| `DefineString` | `<String>`, whose table is `stringDir:stringTable`. |
+| `AddText`, `AddFormatedText`, `AddButton` | `<Text>`, `<FormattedText>`, `<Button>` |
+| `AddTextEdit`, `AddListBox`, `AddSlider` | `<TextField>`, `<List>`, `<Slider>` |
+| `SetControlProperties "DialogSize"` | `<Window>`. Without one, the window fits its contents. |
+| `SetControlProperties` with an `image` and `position` | `<Visual>` |
+| `SetControlProperties` with a `position` and `size` | `<Region>` |
+| `Begin`, `End`, `SetSharedProperties` | Copied onto each control in the scope. |
+
+A control's colors and font become a `<Style>` named after it. Names ignore case,
+as they do in real files, and `id` becomes `legacyID`.
+
+A `.uis` file relies on game code for much of its meaning, so the reader is more
+forgiving than the XML parser. Only broken syntax throws, such as an unclosed tag
+or an unmatched `<End>`. Everything else is reported, and hosts should check both
+lists:
+
+- `conversionNotes` lists tags and values with no faithful equivalent, such as
+  `AddProgressBar`, a reference to an undefined image, or a control with no size.
+- `ignoredAttributes` lists attributes the model has no place for, such as
+  `tracking` or `opaque`.
+
+Scroll bindings do not exist in `.uis`, so a slider or scroll button read from one
+is not connected to a list. Only `alignment=3`, which centers, is understood. See
+the [roadmap's open questions](ROADMAP.md#open-questions) for what remains unknown.
+
 ## Not yet supported
 
-- Reading `.uis` files, which is planned after the current roadmap
 - Drawing tooltips and slider images
 - Dragging a slider's thumb
-- Text alignment
-- Resizing through edge offsets
+- Enforcing `minWidth` and `minHeight`, which the host currently owns

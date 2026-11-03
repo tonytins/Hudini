@@ -40,6 +40,12 @@ public struct UIScript: Sendable {
     /// misspelled attribute also lands here, so hosts may want to log them.
     public let ignoredAttributes: [IgnoredAttribute]
 
+    /// What a `.uis` file held that the model could not represent faithfully.
+    ///
+    /// This is always empty for XML documents, which fail instead. Game code
+    /// interprets much of a `.uis` file, so a real file normally has notes.
+    public let conversionNotes: [ConversionNote]
+
     /// Parses and validates a UIScript XML document, which must be UTF-8.
     public init(data: Data) throws {
         let document = try UIScriptParser.parse(data)
@@ -52,6 +58,21 @@ public struct UIScript: Sendable {
         try self.init(data: Data(contentsOf: url))
     }
 
+    /// Reads a Maxis `.uis` file.
+    ///
+    /// Only broken syntax throws. See `conversionNotes` and `ignoredAttributes`
+    /// for what the model could not represent.
+    public init(uisData data: Data) throws {
+        let document = try UISReader.read(data)
+        try document.validate()
+        self = document
+    }
+
+    /// Reads a Maxis `.uis` file from a file URL.
+    public init(uisContentsOf url: URL) throws {
+        try self.init(uisData: Data(contentsOf: url))
+    }
+
     init(
         version: Int,
         requiredFeatures: [String],
@@ -60,7 +81,8 @@ public struct UIScript: Sendable {
         styles: [String: Style],
         visuals: [Visual],
         controls: [Control],
-        ignoredAttributes: [IgnoredAttribute]
+        ignoredAttributes: [IgnoredAttribute],
+        conversionNotes: [ConversionNote] = []
     ) {
         self.version = version
         self.requiredFeatures = requiredFeatures
@@ -70,6 +92,7 @@ public struct UIScript: Sendable {
         self.visuals = visuals
         self.controls = controls
         self.ignoredAttributes = ignoredAttributes
+        self.conversionNotes = conversionNotes
     }
 
     /// Returns the style a control refers to, or `nil` when it has none.
@@ -106,7 +129,7 @@ public struct UIScript: Sendable {
             guard image.path != nil || image.assetID != nil else {
                 throw UIScriptError.invalidImageResource(image: name)
             }
-            guard image.stateCount == 1 || image.stateCount == 4 else {
+            guard image.stateCount == 1 || image.stateCount == 4 || image.stateCount == 6 else {
                 throw UIScriptError.invalidStateCount(image: name)
             }
         }
@@ -242,6 +265,33 @@ public struct UIScript: Sendable {
         public let line: Int
     }
 
+    /// Something in a `.uis` file the model could not represent faithfully.
+    public struct ConversionNote: Sendable, Equatable {
+        /// The tag the note is about.
+        public let element: String
+
+        /// The name the tag gives, if any.
+        public let name: String?
+
+        /// The line of the tag in the file.
+        public let line: Int
+
+        /// What happened and why.
+        public let message: String
+    }
+
+    /// How text sits horizontally within its control.
+    public enum TextAlignment: String, Sendable {
+        /// Against the left edge.
+        case left
+
+        /// Centered.
+        case center
+
+        /// Against the right edge.
+        case right
+    }
+
     /// Window-level size settings.
     public struct Window: Sendable {
         /// The initial window size in pixels.
@@ -296,10 +346,11 @@ public struct UIScript: Sendable {
         /// A host-defined asset identifier, kept exactly as the document writes it.
         public let assetID: String?
 
-        /// How many equal-width slices the image holds, either one or four.
+        /// How many equal-width slices the image holds: one, four, or six.
         ///
-        /// A four-state image holds one slice per `ButtonState`. An image with one
-        /// slice shows it in every state. The value defaults to one.
+        /// The first four slices hold one `ButtonState` each. An image with one
+        /// slice shows it in every state. Some Maxis images hold six slices, and
+        /// the last two are not used. The value defaults to one.
         public let stateCount: Int
 
         /// Returns the part of the image to draw for `state`.
@@ -309,7 +360,7 @@ public struct UIScript: Sendable {
             textureHeight: Float
         ) -> Rectangle {
             let sliceWidth = textureWidth / Float(stateCount)
-            let slice = stateCount == 4 ? state.rawValue : 0
+            let slice = stateCount >= 4 ? state.rawValue : 0
             return Rectangle(x: Float(slice) * sliceWidth, y: 0, width: sliceWidth, height: textureHeight)
         }
     }
@@ -388,6 +439,11 @@ public struct UIScript: Sendable {
     }
 
     /// Distances from a frame to the corresponding window edges.
+    ///
+    /// An offset replaces the frame's position on its axis. A right offset alone
+    /// anchors the frame to the right edge, and left and right together stretch it
+    /// between them. Top and bottom work the same way. `UIScriptView` applies these
+    /// using the size from `setWindowSize(_:)`.
     public struct EdgeOffsets: Sendable {
         /// The distance from the left edge.
         public let left: Float?
@@ -505,6 +561,9 @@ public struct UIScript: Sendable {
 
         /// Whether a text field only displays text.
         public let isReadOnly: Bool
+
+        /// How text sits within a text or formatted text control.
+        public let alignment: TextAlignment
     }
 }
 
@@ -518,6 +577,9 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
 
     /// The document is not well-formed XML.
     case malformed(line: Int, column: Int)
+
+    /// A `.uis` file has broken syntax.
+    case malformedUIS(line: Int, reason: String)
 
     /// The root element is not `UIScript`.
     case invalidRoot(String)
@@ -567,7 +629,7 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// An image resource has neither a path nor an asset ID.
     case invalidImageResource(image: String)
 
-    /// An image resource has a state count other than one or four.
+    /// An image resource has a state count other than one, four, or six.
     case invalidStateCount(image: String)
 
     /// An image is attached to a control other than a button.
@@ -602,6 +664,8 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript documents must not declare a DOCTYPE."
         case let .malformed(line, column):
             "UIScript document is not well-formed XML near line \(line), column \(column)."
+        case let .malformedUIS(line, reason):
+            ".uis line \(line): \(reason)"
         case let .invalidRoot(name):
             "UIScript root element must be 'UIScript', not '\(name)'."
         case let .unsupportedVersion(version):
@@ -635,7 +699,7 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case let .invalidImageResource(image):
             "UIScript image '\(image)' needs a 'path' or an 'assetID'."
         case let .invalidStateCount(image):
-            "UIScript state count for image '\(image)' must be 1 or 4."
+            "UIScript state count for image '\(image)' must be 1, 4, or 6."
         case let .invalidImage(owner):
             "UIScript image for '\(owner)' requires a button control."
         case let .missingSize(owner):

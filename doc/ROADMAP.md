@@ -102,11 +102,48 @@ Full TSO runtime compatibility, every control in the full TSO UIScript
 collection, and a general-purpose layout engine are explicitly beyond this
 stopping point unless real users or host-game needs justify them.
 
-Reading `.uis` files is also beyond this stopping point, but it is a planned
-need rather than a maybe. NSO, the game Hudini grew out of, will load them, so
-the model keeps what a reader must carry over, such as `legacyID`, `assetID`,
-and edge offsets. UIScript XML remains the friendlier format for writing new
-interfaces.
+## Tiger — Reading `.uis` files
+
+NSO, the game Hudini grew out of, will load TSO's `.uis` files, so Hudini reads
+them into the same model. UIScript XML remains the friendlier format for writing
+new interfaces.
+
+The demo proves this without any TSO material. Its debug bar is an original file
+in Maxis' format, based on the prototype interface behind NSO's debug bar, and it
+needs no game install or assets. The roles are deliberately crossed: the
+TSO-derived chat window and live panel are in Hudini's format, and the original
+debug bar is in Maxis' format.
+
+- [x] Write the debug bar as an original `.uis` file.
+- [x] Read `.uis` syntax, scopes, shared properties, and case-insensitive names
+  into the existing model.
+- [x] Report what the model cannot represent instead of guessing or failing, and
+  fail only on broken syntax.
+- [x] Keep both `path` and `assetID` on images, and take missing sizes from images.
+- [x] Add what the bar needs: edge-offset anchoring, text alignment, and selected
+  buttons.
+- [x] Show the bar in the demo, hidden until the pointer reaches the top of the
+  screen or a new error arrives, and open a notice panel from its buttons.
+- [x] Check the reader against a local copy of TSO's 88 `.uis` files where one
+  exists, without committing them.
+
+### Open questions
+
+- **What do `alignment` values mean?** FreeSO confirms only `3`, which centers.
+  Values `0`, `1`, `2`, `4`, and `5` appear in real files, so the reader reports
+  them and leaves that text left-aligned. FreeSO also centers text with no
+  `alignment`, which the reader does not yet follow.
+- **What do the last two slices of a six-state image hold?** Six real files use
+  `ImageStates=6`. Hudini draws the four known states from them.
+- **What should `SetControlProperties` settings become?** The reader converts
+  those that place an image or a rectangle. 172 others in the real files, such as
+  color sets and layout offsets, are for game code, and a host may want to read
+  them.
+- **Should tooltips, slider images, and slider dragging come next?** The reader
+  keeps tooltip names, and most real buttons have one, but none of these are drawn
+  or interactive yet. The Sims-inspired HUD is likely to need them first.
+- **Should `AddProgressBar` become a control?** The real files use it 19 times,
+  and a needs display might want it.
 
 ## Later cat-named Mac OS X releases
 
@@ -115,6 +152,5 @@ roadmap; they are not planned milestones:
 
 | Version | Release name |
 | --- | --- |
-| Mac OS X 10.4 | Tiger |
 | Mac OS X 10.5 | Leopard |
 | Mac OS X 10.6 | Snow Leopard |

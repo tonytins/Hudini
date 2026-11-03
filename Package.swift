@@ -18,6 +18,7 @@ let package = Package(
             dependencies: ["Hudini", .product(name: "Raylib", package: "raylib-swift")],
             resources: [
                 .copy("Resources/chatdialog.xml"),
+                .copy("Resources/debugbar.uis"),
                 .copy("Resources/livepanel1024.xml")
             ]
         ),

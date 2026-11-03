@@ -602,7 +602,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
     #expect(panel.visuals.count == 4)
     #expect(panel.control(named: "peopleList")?.type == .region)
     #expect(panel.resources.images["nextPage"]?.stateCount == 4)
-    #expect(panel.resources.images["nextPage"]?.assetID == "0x0000049000000001")
+    #expect(panel.resources.images.values.allSatisfy { $0.assetID == nil && $0.path?.hasPrefix("demo/") == true })
     #expect(panel.control(named: "nextPage")?.frame.width == nil)
 }
 
@@ -885,4 +885,249 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
     #expect(!view.containsPoint(Vector2(x: 55, y: 55), origin: origin))
     view.setHidden(true, named: "backdrop")
     #expect(!view.containsPoint(Vector2(x: 155, y: 155), origin: origin))
+}
+
+// MARK: .uis files
+
+private func uis(_ text: String) throws -> UIScript {
+    try UIScript(uisData: Data(text.utf8))
+}
+
+@Test func uisReadsTheDebugBarWithNothingLeftOver() throws {
+    let bar = try UIScript(uisContentsOf: demoResource("debugbar.uis"))
+
+    #expect(bar.conversionNotes.isEmpty)
+    #expect(bar.ignoredAttributes.isEmpty)
+    #expect(bar.window.size.width == 1024)
+    #expect(bar.window.size.height == 28)
+    #expect(bar.visuals.map(\.name) == ["BarBackground"])
+    #expect(bar.control(named: "HelpButton")?.frame.edgeOffsets?.right == 8)
+    #expect(bar.control(named: "SpeedSlow")?.legacyID == 2)
+    #expect(bar.control(named: "SpeedSlow")?.tooltip == "SlowSpeedTip")
+    #expect(bar.resources.strings["HelpTip"]?.table == "DebugBar:1")
+    #expect(bar.resources.images["SpeedArrowImg"]?.stateCount == 4)
+    #expect(bar.resources.images["BarBackgroundImg"]?.stateCount == 1)
+}
+
+@Test func uisHandlesItsSyntaxQuirks() throws {
+    let loaded = try uis("""
+    #A comment with a <Tag> and a "quote"
+    <BEGIN>
+      <setsharedproperties COLOR=(1,2,3)>
+      <AddText "Spread" # a comment inside a tag
+         id = 7
+         position = ( 10 , 20 )
+         size=(30,40)
+      >
+      <AddText "Own" position=(0,0) size=(1,1) color=(9,9,9)>
+    <end>
+    <AddText "Unshared" position=(0,0) size=(1,1)>
+    """)
+
+    let spread = try #require(loaded.control(named: "Spread"))
+    #expect(spread.legacyID == 7)
+    #expect(spread.frame.x == 10)
+    #expect(spread.frame.height == 40)
+    #expect(loaded.styles["SpreadStyle"]?.textColor == Color(r: 1, g: 2, b: 3, a: 255))
+    #expect(loaded.styles["OwnStyle"]?.textColor == Color(r: 9, g: 9, b: 9, a: 255))
+    #expect(loaded.control(named: "Unshared")?.style == nil)
+}
+
+@Test func uisResolvesReferencesIgnoringCase() throws {
+    let loaded = try uis("""
+    <DefineImage "ArtImg" assetID="0x10">
+    <DefineString "StatusTip" stringIndex=1>
+    <AddButton "A" image="artimg" position=(0,0) toolTip="STATUSTIP">
+    """)
+
+    #expect(loaded.control(named: "A")?.image == "ArtImg")
+    #expect(loaded.control(named: "A")?.tooltip == "StatusTip")
+    #expect(loaded.resources.images["ArtImg"]?.assetID == "0x10")
+    #expect(loaded.conversionNotes.isEmpty)
+}
+
+@Test func uisTreatsUnknownTextAsLiteralAndKnownTextAsAReference() throws {
+    let loaded = try uis("""
+    <DefineString "Title" stringIndex=2>
+    <AddText "A" position=(0,0) size=(1,1) text="Title">
+    <AddText "B" position=(0,0) size=(1,1) text="Hello there">
+    """)
+
+    #expect(loaded.control(named: "A")?.text == .string("Title"))
+    #expect(loaded.control(named: "B")?.text == .literal("Hello there"))
+}
+
+@Test func uisMapsControlsAndTheirSettings() throws {
+    let loaded = try uis("""
+    <SetControlProperties "DialogSize" size=(500,255) minSize=(350,196)>
+    <AddTextEdit "Entry" position=(1,2) size=(3,4) capacity=120 font=8 backColor=(0,0,0)>
+    <AddTextEdit "Timer" position=(1,2) size=(3,4) mode="kReadOnly">
+    <AddListBox "Items" position=(1,2) size=(3,4)>
+    <AddSlider "Scroller" position=(1,2) size=(3,4)>
+    <AddFormatedText "Rich" position=(1,2) size=(3,4)>
+    <AddText "Middle" position=(1,2) size=(3,4) alignment=3>
+    """)
+
+    #expect(loaded.window.size.width == 500)
+    #expect(loaded.window.minSize?.height == 196)
+    #expect(loaded.control(named: "Entry")?.type == .textField)
+    #expect(loaded.control(named: "Entry")?.maximumLength == 120)
+    #expect(loaded.styles["EntryStyle"]?.fontSize == 8)
+    #expect(loaded.control(named: "Timer")?.isReadOnly == true)
+    #expect(loaded.control(named: "Items")?.type == .list)
+    #expect(loaded.control(named: "Scroller")?.type == .slider)
+    #expect(loaded.control(named: "Rich")?.type == .formattedText)
+    #expect(loaded.control(named: "Middle")?.alignment == .center)
+}
+
+@Test func uisTurnsPlacedSettingsIntoVisualsAndRegionsAndReportsTheRest() throws {
+    let loaded = try uis("""
+    <DefineImage "ArtImg" path="art.bmp">
+    <SetControlProperties "Backdrop" image="ArtImg" position=(1,2)>
+    <SetControlProperties "PeopleSetup" position=(5,6) size=(7,8) pageSize=16>
+    <SetControlProperties "Colors" normal=(1,1,1)>
+    <AddProgressBar "Loading" position=(0,0)>
+    """)
+
+    #expect(loaded.visual(named: "Backdrop")?.image == "ArtImg")
+    #expect(loaded.control(named: "PeopleSetup")?.type == .region)
+    #expect(loaded.ignoredAttributes.map(\.attribute) == ["pagesize"])
+    #expect(loaded.conversionNotes.map(\.name) == ["Colors", "Loading"])
+    #expect(loaded.conversionNotes.map(\.line) == [4, 5])
+}
+
+@Test func uisReportsWhatItCannotRepresentWithoutFailing() throws {
+    let loaded = try uis("""
+    <AddButton "NoImage" image="Missing" position=(0,0) tooltip="MissingTip">
+    <AddText "NoSize" position=(0,0) alignment=2>
+    <AddText "NoSize" position=(0,0) size=(1,1)>
+    <AddText position=(0,0) size=(1,1)>
+    """)
+
+    #expect(loaded.controls.map(\.name) == ["NoImage", "NoSize", "line4"])
+    #expect(loaded.control(named: "NoImage")?.frame.width == 0)
+    #expect(loaded.control(named: "NoSize")?.alignment == .left)
+    #expect(loaded.conversionNotes.count == 6)
+}
+
+@Test func uisKeepsSixStateImages() throws {
+    let loaded = try uis("""
+    <DefineImage "Strip" path="a.bmp">
+    <AddButton "A" image="Strip" position=(0,0) ImageStates=6>
+    """)
+    let image = try #require(loaded.resources.images["Strip"])
+
+    #expect(image.stateCount == 6)
+    #expect(image.sourceRectangle(for: .disabled, textureWidth: 60, textureHeight: 10)
+        == Rectangle(x: 30, y: 0, width: 10, height: 10))
+}
+
+@Test func uisSizesItsWindowToFitWhenItDeclaresNoSize() throws {
+    let loaded = try uis("<AddText \"A\" position=(10,20) size=(30,40)>")
+
+    #expect(loaded.window.size.width == 40)
+    #expect(loaded.window.size.height == 60)
+}
+
+@Test(arguments: [
+    "<AddText \"A\" position=(0,0)",
+    "<AddText \"A",
+    "<AddText \"A\" position=(0,0 >",
+    "<Begin>",
+    "<End>",
+    "< >",
+    "<AddText \"A\" <AddText \"B\">"
+])
+func uisRejectsBrokenSyntax(text: String) {
+    #expect(throws: UIScriptError.self) {
+        try uis(text)
+    }
+}
+
+// The real files are not in the repository, so this runs only where they exist locally.
+private let localUIScripts: URL = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .appendingPathComponent("../../stash.local/uiscripts")
+    .standardizedFileURL
+
+@Test(.enabled(if: FileManager.default.fileExists(atPath: localUIScripts.path)))
+func uisReadsEveryLocalFile() throws {
+    let files = try FileManager.default.contentsOfDirectory(at: localUIScripts, includingPropertiesForKeys: nil)
+        .filter { $0.pathExtension == "uis" }
+        .sorted { $0.path < $1.path }
+    var noteCounts: [String: Int] = [:]
+    var attributeCounts: [String: Int] = [:]
+    var controlCount = 0
+    var visualCount = 0
+    for file in files {
+        do {
+            let script = try UIScript(uisContentsOf: file)
+            controlCount += script.controls.count
+            visualCount += script.visuals.count
+            for note in script.conversionNotes {
+                let message = note.message.replacingOccurrences(of: "'[^']*'", with: "'...'", options: .regularExpression)
+                noteCounts[message, default: 0] += 1
+            }
+            for ignored in script.ignoredAttributes {
+                attributeCounts[ignored.attribute, default: 0] += 1
+            }
+        } catch {
+            Issue.record("\(file.lastPathComponent): \(error.localizedDescription)")
+        }
+    }
+    print("Read \(files.count) .uis files: \(controlCount) controls, \(visualCount) visuals")
+    for (message, count) in noteCounts.sorted(by: { $0.value > $1.value }) {
+        print("  \(count)x \(message)")
+    }
+    let attributes = attributeCounts.sorted { $0.value > $1.value }.prefix(25).map { "\($0.key) \($0.value)" }
+    print("  Ignored attributes: \(attributes.joined(separator: ", "))")
+}
+
+// MARK: Tiger view features
+
+@Test func edgeOffsetsAnchorAndStretchAgainstTheWindowSize() throws {
+    let view = UIScriptView(script: try script("""
+    <Region name='anchored' x='0' y='0' width='20' height='10' edgeOffsetRight='5' edgeOffsetBottom='7'/>
+    <Region name='stretched' x='0' y='0' width='20' height='10' edgeOffsetLeft='3' edgeOffsetRight='5'/>
+    <Region name='overshoot' x='0' y='0' width='20' height='10' edgeOffsetLeft='300' edgeOffsetRight='5'/>
+    <Region name='plain' x='1' y='2' width='20' height='10'/>
+    """))
+
+    #expect(view.bounds(named: "anchored", at: .zero) == Rectangle(x: 75, y: 63, width: 20, height: 10))
+    #expect(view.bounds(named: "stretched", at: .zero) == Rectangle(x: 3, y: 0, width: 92, height: 10))
+
+    view.setWindowSize(Vector2(x: 200, y: 180))
+    let origin = Vector2(x: 10, y: 20)
+    #expect(view.bounds(named: "anchored", at: origin) == Rectangle(x: 185, y: 183, width: 20, height: 10))
+    #expect(view.bounds(named: "stretched", at: origin) == Rectangle(x: 13, y: 20, width: 192, height: 10))
+    #expect(view.bounds(named: "overshoot", at: .zero)?.width == 0)
+    #expect(view.bounds(named: "plain", at: .zero) == Rectangle(x: 1, y: 2, width: 20, height: 10))
+}
+
+@Test func anchoringUsesASizeTakenFromTheImage() throws {
+    let loaded = try script("<Image name='art' path='a.bmp'/><Button name='b' x='0' y='0' image='art' edgeOffsetRight='8'/>")
+    let view = UIScriptView(script: loaded, loadImage: { _ in stubTexture(width: 20, height: 20) })
+
+    #expect(view.bounds(named: "b", at: .zero) == Rectangle(x: 72, y: 0, width: 20, height: 20))
+}
+
+@Test func selectedButtonsStayOnAndStillReportPresses() throws {
+    let view = UIScriptView(script: try script("<Button name='a' \(tenByTen)/>"))
+
+    #expect(!view.isSelected(named: "a"))
+    view.setSelected(true, named: "a")
+    #expect(view.isSelected(named: "a"))
+    #expect(view.pressButton(at: Vector2(x: 5, y: 5), origin: .zero) == .pressed(control: "a"))
+    view.setSelected(false, named: "a")
+    #expect(!view.isSelected(named: "a"))
+}
+
+@Test func uiScriptReadsTextAlignment() throws {
+    let loaded = try script("<Text name='a' \(tenByTen) alignment='right'/><Text name='b' \(tenByTen)/>")
+
+    #expect(loaded.control(named: "a")?.alignment == .right)
+    #expect(loaded.control(named: "b")?.alignment == .left)
+    #expect(throws: UIScriptError.invalidAttribute(element: "Text", attribute: "alignment", value: "middle", line: 1)) {
+        try script("<Text name='a' \(tenByTen) alignment='middle'/>")
+    }
 }

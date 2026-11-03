@@ -1,4 +1,5 @@
-// An example host: a property chat window over a live mode panel, both described by UIScript.
+// An example host: a property chat window over a live mode panel, both described by UIScript XML,
+// with an auto-hiding debug bar read from a Maxis-format .uis file.
 //
 // Usage: hudini-demo [--screenshot <file.png>]
 
@@ -13,18 +14,42 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
+func log(_ message: String) {
+    FileHandle.standardError.write(Data("\(message)\n".utf8))
+}
+
+func logProblems(in script: UIScript, file: String) {
+    for ignored in script.ignoredAttributes {
+        log("\(file) line \(ignored.line): \(ignored.element) ignores '\(ignored.attribute)'")
+    }
+    for note in script.conversionNotes {
+        log("\(file) line \(note.line): \(note.message)")
+    }
+}
+
 func loadUIScript(named name: String) -> UIScript {
     do {
         guard let url = Bundle.module.url(forResource: name, withExtension: "xml") else {
             throw CocoaError(.fileNoSuchFile)
         }
         let script = try UIScript(contentsOf: url)
-        for ignored in script.ignoredAttributes {
-            FileHandle.standardError.write(Data("\(name).xml line \(ignored.line): \(ignored.element) ignores '\(ignored.attribute)'\n".utf8))
-        }
+        logProblems(in: script, file: "\(name).xml")
         return script
     } catch {
         fail("Unable to load \(name).xml: \(error.localizedDescription)")
+    }
+}
+
+func loadUIS(named name: String) -> UIScript {
+    do {
+        guard let url = Bundle.module.url(forResource: name, withExtension: "uis") else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let script = try UIScript(uisContentsOf: url)
+        logProblems(in: script, file: "\(name).uis")
+        return script
+    } catch {
+        fail("Unable to load \(name).uis: \(error.localizedDescription)")
     }
 }
 
@@ -46,55 +71,73 @@ func drawPropertyLot(groundBottom height: Int32) {
     DrawCircle(530, height - 108, 8, Color(r: 236, g: 197, b: 160, a: 255))
     DrawRectangle(525, height - 100, 10, 29, Color(r: 70, g: 100, b: 176, a: 255))
     DrawText("Maya is visiting", 543, height - 123, 14, Color(r: 28, g: 38, b: 48, a: 255))
-    DrawText("LIVE MODE  |  EXAMPLE HOST", 20, 20, 16, Color(r: 255, g: 255, b: 255, a: 255))
+    DrawText("LIVE MODE  |  EXAMPLE HOST", 20, 36, 16, Color(r: 255, g: 255, b: 255, a: 255))
 }
 
-/// Generates original placeholder art, because Hudini ships no game assets.
+/// Generates original placeholder art for a resource, because Hudini ships no game assets.
 ///
-/// Controls without a size take it from these images, so their sizes shape the panel.
-/// A four-state image holds its slices left to right: normal, pressed, hovered, disabled.
+/// Controls without a size take it from these images, so their sizes shape the interface.
+/// A multi-state image holds its slices left to right: normal, pressed, hovered, disabled.
 func makePlaceholderTexture(for resource: UIScript.ImageResource) -> Texture2D {
     let path = resource.path ?? ""
-    guard resource.stateCount == 4 else {
-        let (width, height) = placeholderSize(forPath: path)
-        var image = GenImageColor(width, height, placeholderColor(forPath: path))
-        defer { UnloadImage(image) }
-        ImageDrawRectangle(&image, 0, 0, width, 2, Color(r: 255, g: 255, b: 255, a: 60))
-        return LoadTextureFromImage(image)
+    if resource.stateCount >= 4 {
+        return makeButtonPlaceholder(path: path, stateCount: Int32(resource.stateCount))
     }
+    let (width, height) = placeholderSize(forPath: path)
+    var image = GenImageColor(width, height, placeholderColor(forPath: path))
+    defer { UnloadImage(image) }
+    if height > 2 {
+        ImageDrawRectangle(&image, 0, 0, width, 2, Color(r: 255, g: 255, b: 255, a: 60))
+    }
+    return LoadTextureFromImage(image)
+}
+
+func makeButtonPlaceholder(path: String, stateCount: Int32) -> Texture2D {
     let sliceSize = placeholderSliceSize(forPath: path)
-    let markSize = sliceSize / 3
-    let stateColors = [
+    var image = GenImageColor(sliceSize * stateCount, sliceSize, placeholderColor(forPath: "bar"))
+    defer { UnloadImage(image) }
+    for (slice, color) in placeholderStateColors(forPath: path).enumerated() {
+        let x = Int32(slice) * sliceSize
+        if path.contains("debugSpeedArrow") {
+            // A right-pointing triangle, drawn a column at a time.
+            for column in 0..<sliceSize {
+                let inset = (column * sliceSize) / (2 * sliceSize)
+                ImageDrawRectangle(&image, x + column, inset, 1, sliceSize - (inset * 2), color)
+            }
+        } else if path.contains("debugHelp") {
+            ImageDrawCircle(&image, x + (sliceSize / 2), sliceSize / 2, sliceSize / 2, color)
+        } else {
+            ImageDrawRectangle(&image, x, 0, sliceSize, sliceSize, color)
+            let mark = sliceSize / 3
+            ImageDrawRectangle(&image, x + mark, mark, mark, mark, Color(r: 255, g: 249, b: 157, a: 255))
+        }
+    }
+    return LoadTextureFromImage(image)
+}
+
+func placeholderStateColors(forPath path: String) -> [Color] {
+    if path.contains("debugSpeedArrow") {
+        return [
+            Color(r: 217, g: 217, b: 217, a: 255),
+            Color(r: 62, g: 110, b: 190, a: 255),
+            Color(r: 255, g: 255, b: 255, a: 255),
+            Color(r: 120, g: 120, b: 120, a: 255)
+        ]
+    }
+    if path.contains("debugHelp") {
+        return [
+            Color(r: 74, g: 138, b: 66, a: 255),
+            Color(r: 50, g: 100, b: 44, a: 255),
+            Color(r: 100, g: 170, b: 90, a: 255),
+            Color(r: 90, g: 90, b: 90, a: 255)
+        ]
+    }
+    return [
         Color(r: 74, g: 104, b: 142, a: 255),
         Color(r: 40, g: 62, b: 92, a: 255),
         Color(r: 112, g: 150, b: 196, a: 255),
         Color(r: 70, g: 72, b: 78, a: 255)
     ]
-    var image = GenImageColor(sliceSize * 4, sliceSize, .black)
-    defer { UnloadImage(image) }
-    for (slice, color) in stateColors.enumerated() {
-        let x = Int32(slice) * sliceSize
-        ImageDrawRectangle(&image, x, 0, sliceSize, sliceSize, color)
-        ImageDrawRectangle(&image, x + markSize, markSize, markSize, markSize, Color(r: 255, g: 249, b: 157, a: 255))
-    }
-    return LoadTextureFromImage(image)
-}
-
-func placeholderSize(forPath path: String) -> (width: Int32, height: Int32) {
-    if path.contains("mood") {
-        return (30, 30)
-    }
-    if path.contains("divider") {
-        return (2, 100)
-    }
-    return (490, 60)
-}
-
-func placeholderSliceSize(forPath path: String) -> Int32 {
-    if path.contains("moodpanel") {
-        return 48
-    }
-    return path.contains("PageBtn") ? 24 : 23
 }
 
 func placeholderColor(forPath path: String) -> Color {
@@ -107,7 +150,36 @@ func placeholderColor(forPath path: String) -> Color {
     if path.contains("divider") {
         return Color(r: 96, g: 118, b: 148, a: 255)
     }
+    if path.contains("debugBackground") || path == "bar" {
+        return Color(r: 59, g: 59, b: 59, a: 255)
+    }
     return Color(r: 45, g: 62, b: 84, a: 255)
+}
+
+func placeholderSize(forPath path: String) -> (width: Int32, height: Int32) {
+    if path.contains("mood") {
+        return (30, 30)
+    }
+    if path.contains("divider") {
+        return (2, 100)
+    }
+    if path.contains("debugBackground") {
+        return (2, 2)
+    }
+    return (490, 60)
+}
+
+func placeholderSliceSize(forPath path: String) -> Int32 {
+    if path.contains("moodPanel") {
+        return 48
+    }
+    if path.contains("debugSpeedArrow") {
+        return 14
+    }
+    if path.contains("debugHelp") {
+        return 20
+    }
+    return path.contains("Page") ? 24 : 23
 }
 
 // The host's own localized text and game state.
@@ -175,6 +247,7 @@ while let argument = arguments.popFirst() {
 
 let chatScript = loadUIScript(named: "chatdialog")
 let panelScript = loadUIScript(named: "livepanel1024")
+let barScript = loadUIS(named: "debugbar")
 
 SetTraceLogLevel(.warning)
 SetConfigFlags(screenshot == nil ? [.windowResizable, .vsyncHint] : [.windowHidden])
@@ -194,6 +267,16 @@ let panel = UIScriptView(
         return texture
     }
 )
+let bar = UIScriptView(
+    script: barScript,
+    theme: theme,
+    loadImage: { resource in
+        let texture = makePlaceholderTexture(for: resource)
+        placeholderTextures.append(texture)
+        return texture
+    }
+)
+let notice = NoticePanel(theme: theme)
 
 guard let history = chat.list(named: "chatHistory"),
       chat.textField(named: "chatEntry") != nil else {
@@ -204,6 +287,11 @@ guard let statusMessage = panel.list(named: "statusBarMessageWindow"),
       panelScript.control(named: "previousPage") != nil,
       panelScript.control(named: "nextPage") != nil else {
     fail("livepanel1024.xml is missing a required live-panel control")
+}
+let barSpeedButtons = ["SpeedSlow", "SpeedMedium", "SpeedFast"]
+let requiredBarControls = barSpeedButtons + ["LotName", "GameClock", "FloorName", "ObjectCount", "ErrorCount", "HelpButton"]
+guard requiredBarControls.allSatisfy({ barScript.control(named: $0) != nil }) else {
+    fail("debugbar.uis is missing a required control")
 }
 
 // The panel's work-session controls overlap its status bar, so only one set shows at a time.
@@ -240,67 +328,152 @@ let residentReplies = [
 history.items = chatMessages
 var residentReplyIndex = 0
 
+// The debug bar's state. One real second is one game minute at the slowest speed.
+let speedRates: [Double] = [1, 2, 4]
+var speedIndex = 0
+var gameMinutes: Double = 8 * 60
+var simulatedErrors: [String] = []
+var nextSimulatedError: Double = 60
+
+// How far the bar has slid into view, from 0 to 1, and when a new error stops holding it open.
+let barHeight = barScript.window.size.height
+let barHotStripHeight: Float = 6
+let barSlideSpeed: Float = 6
+let errorRevealSeconds: Double = 3
+var barReveal: Float = 1
+var barHeldOpenUntil: Double = 0
+
+@MainActor
+func showSpeed(_ index: Int) {
+    speedIndex = index
+    for (button, name) in barSpeedButtons.enumerated() {
+        bar.setSelected(button <= index, named: name)
+    }
+}
+
+@MainActor
+func showErrorCount() {
+    let count = simulatedErrors.count
+    bar.setHidden(count == 0, named: "ErrorCount")
+    bar.setText("\(count) \(count == 1 ? "Error" : "Errors")", named: "ErrorCount")
+}
+
+@MainActor
+func reportSimulatedError(_ message: String) {
+    simulatedErrors.append(message)
+    showErrorCount()
+    barHeldOpenUntil = GetTime() + errorRevealSeconds
+}
+
+showSpeed(0)
+bar.setText("1st Floor", named: "FloorName")
+bar.setText("\(residents.count) Objects", named: "ObjectCount")
+reportSimulatedError("A simulated error, so the demo can show the bar opening by itself.")
+
 let window = WindowFrame(title: "Maple Street - Property Chat", theme: theme)
 var frameCount = 0
 var running = true
 var screenshotSaved = true
 
 while running && !WindowShouldClose() {
+    let frameTime = GetFrameTime()
+    let screenSize = Vector2(x: Float(GetScreenWidth()), y: Float(GetScreenHeight()))
+    let pointer = GetMousePosition()
+
     let panelHeight = panelScript.window.size.height
-    let panelTop = Float(GetScreenHeight()) - panelHeight
+    let panelTop = screenSize.y - panelHeight
     let chatSize = Vector2(x: chatScript.window.size.width, y: chatScript.window.size.height)
     let bounds = window.place(
         size: chatSize,
-        at: Vector2(x: (Float(GetScreenWidth()) - chatSize.x) / 2, y: (panelTop - chatSize.y) / 2)
+        at: Vector2(x: (screenSize.x - chatSize.x) / 2, y: (panelTop - chatSize.y) / 2)
     )
-    _ = window.followPointer(in: bounds)
-    if window.update(in: bounds) == .close {
-        running = false
-    }
-
     let chatOrigin = Vector2(x: bounds.x, y: bounds.y)
-    for case let .submitted(control: "chatEntry", text: message) in chat.update(at: chatOrigin) {
-        chatMessages.append("You: \(message)")
-        chatMessages.append("Maya: \(residentReplies[residentReplyIndex])")
-        history.items = chatMessages
-        residentReplyIndex = (residentReplyIndex + 1) % residentReplies.count
-    }
-
-    // The chat window draws over the panel, so it gets the pointer first.
-    let pointer = GetMousePosition()
-    let isOverChat = CheckCollisionPointRec(pointer, bounds)
     let panelOrigin = Vector2(x: 0, y: panelTop)
-    if !isOverChat {
-        for event in panel.update(at: panelOrigin) {
-            switch event {
-            case .pressed(control: "previousPage"):
-                showPeoplePage(peoplePage - 1)
-            case .pressed(control: "nextPage"):
-                showPeoplePage(peoplePage + 1)
-            default:
-                break
+
+    // The bar slides in from above while the pointer is at the top of the screen or over it.
+    let isPointerNearBar = pointer.y < (barReveal > 0 ? barHeight : barHotStripHeight)
+    let shouldReveal = isPointerNearBar || GetTime() < barHeldOpenUntil
+    barReveal = min(max(barReveal + ((shouldReveal ? 1 : -1) * barSlideSpeed * frameTime), 0), 1)
+    let barOrigin = Vector2(x: 0, y: -barHeight * (1 - barReveal))
+    bar.setWindowSize(Vector2(x: screenSize.x, y: barHeight))
+    let isOverBar = barReveal > 0 && bar.containsPoint(pointer, origin: barOrigin)
+
+    if notice.isOpen {
+        _ = notice.update()
+    } else {
+        // The bar draws over the chat window, and the chat window over the panel, so each gets
+        // the pointer before what is beneath it.
+        if !isOverBar || window.isDragging {
+            _ = window.followPointer(in: bounds)
+            if window.update(in: bounds) == .close {
+                running = false
+            }
+        }
+        for case let .submitted(control: "chatEntry", text: message) in chat.update(at: chatOrigin) {
+            chatMessages.append("You: \(message)")
+            chatMessages.append("Maya: \(residentReplies[residentReplyIndex])")
+            history.items = chatMessages
+            residentReplyIndex = (residentReplyIndex + 1) % residentReplies.count
+        }
+
+        if !CheckCollisionPointRec(pointer, bounds), !isOverBar {
+            for event in panel.update(at: panelOrigin) {
+                switch event {
+                case .pressed(control: "previousPage"):
+                    showPeoplePage(peoplePage - 1)
+                case .pressed(control: "nextPage"):
+                    showPeoplePage(peoplePage + 1)
+                default:
+                    break
+                }
+            }
+        }
+
+        if barReveal == 1 {
+            for event in bar.update(at: barOrigin) {
+                switch event {
+                case .pressed(control: "ErrorCount"):
+                    notice.show(title: "Errors", message: simulatedErrors.joined(separator: " "))
+                    simulatedErrors.removeAll()
+                    showErrorCount()
+                case .pressed(control: "HelpButton"):
+                    notice.show(title: "Help", message: "Move the pointer to the top of the screen to show this bar. The arrows set the speed of the clock.")
+                case let .pressed(control: name):
+                    if let speed = barSpeedButtons.firstIndex(of: name) {
+                        showSpeed(speed)
+                    }
+                default:
+                    break
+                }
             }
         }
     }
-    let isOverInterface = isOverChat || panel.containsPoint(pointer, origin: panelOrigin)
 
-    // One real second is one game minute, starting from 08:00.
-    let gameMinutes = (8 * 60) + Int(GetTime())
-    panel.setText(
-        String(format: "%02d:%02d", (gameMinutes / 60) % 24, gameMinutes % 60),
-        named: "statusBarTimerEntry"
-    )
+    let isOverInterface = isOverBar
+        || CheckCollisionPointRec(pointer, bounds)
+        || panel.containsPoint(pointer, origin: panelOrigin)
+
+    gameMinutes += Double(frameTime) * speedRates[speedIndex]
+    let totalMinutes = Int(gameMinutes)
+    let clock = String(format: "%02d:%02d", (totalMinutes / 60) % 24, totalMinutes % 60)
+    panel.setText(clock, named: "statusBarTimerEntry")
+    bar.setText(clock, named: "GameClock")
+
+    if GetTime() > nextSimulatedError {
+        nextSimulatedError += 60
+        reportSimulatedError("Another simulated error.")
+    }
 
     BeginDrawing()
     drawPropertyLot(groundBottom: Int32(panelTop))
     DrawText(
         isOverInterface ? "Pointer: interface" : "Pointer: lot",
         20,
-        44,
+        58,
         14,
         Color(r: 255, g: 255, b: 255, a: 255)
     )
-    DrawRectangle(0, Int32(panelTop), GetScreenWidth(), Int32(panelHeight), theme.titleBar)
+    DrawRectangle(0, Int32(panelTop), Int32(screenSize.x), Int32(panelHeight), theme.titleBar)
     panel.draw(at: panelOrigin) { name, regionBounds in
         switch name {
         case "motives":
@@ -313,6 +486,10 @@ while running && !WindowShouldClose() {
     }
     window.draw(in: bounds)
     chat.draw(at: chatOrigin)
+    if barReveal > 0 {
+        bar.draw(at: barOrigin)
+    }
+    notice.draw()
     EndDrawing()
 
     frameCount += 1

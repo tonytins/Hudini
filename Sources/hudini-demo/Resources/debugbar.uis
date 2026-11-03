@@ -1,0 +1,67 @@
+# A debug bar for the Hudini demo, based on Tony Bark's own prototype interface for NewSO.
+# This is an original file in Maxis' .uis format. It is not taken from The Sims Online.
+# Its images are placeholder art the demo generates.
+
+<Begin>
+
+	# Images ----------------------------------------------------------------------------
+
+	<DefineImage "BarBackgroundImg"  path="demo/debugBackground">
+	<DefineImage "SpeedArrowImg"     path="demo/debugSpeedArrow">
+	<DefineImage "HelpButtonImg"     path="demo/debugHelp">
+
+	# Strings ---------------------------------------------------------------------------
+
+	<Begin><SetSharedProperties stringDir="DebugBar" stringTable=1>
+
+		<DefineString "SlowSpeedTip"    stringIndex=1>
+		<DefineString "MediumSpeedTip"  stringIndex=2>
+		<DefineString "FastSpeedTip"    stringIndex=3>
+		<DefineString "ErrorsTip"       stringIndex=4>
+		<DefineString "HelpTip"         stringIndex=5>
+
+	<End>
+
+	# Bar -------------------------------------------------------------------------------
+
+	<SetControlProperties "DialogSize" size=(1024,28)>
+
+	# Both offsets stretch the background across the screen.
+	<SetControlProperties "BarBackground" image="BarBackgroundImg" position=(0,0) size=(1024,28) edgeOffsetL=0 edgeOffsetR=0>
+
+	# Left side -------------------------------------------------------------------------
+
+	<Begin><SetSharedProperties font=16 color=(255,255,255)>
+
+		<AddText "LotName"    id=1 position=(16,6)  size=(170,16) text="Maple Street">
+		<AddText "GameClock"  id=5 position=(270,6) size=(150,16)>
+
+	<End>
+
+	<AddButton "SpeedSlow"    id=2 image="SpeedArrowImg" position=(200,7) tooltip="SlowSpeedTip">
+	<AddButton "SpeedMedium"  id=3 image="SpeedArrowImg" position=(216,7) tooltip="MediumSpeedTip">
+	<AddButton "SpeedFast"    id=4 image="SpeedArrowImg" position=(232,7) tooltip="FastSpeedTip">
+
+	# Right side, anchored to the screen's right edge -----------------------------------
+
+	<Begin><SetSharedProperties font=16 color=(255,255,255)>
+
+		<AddText "FloorName"    id=6 position=(684,6) size=(100,16) edgeOffsetR=240>
+		<AddText "ObjectCount"  id=8 position=(880,6) size=(100,16) edgeOffsetR=44>
+
+	<End>
+
+	<AddButton "ErrorCount" id=7
+		position   = (792,3)
+		size       = (80,22)
+		font       = 16
+		color      = (255,0,0)
+		backColor  = (59,59,59)
+		frameColor = (59,59,59)
+		tooltip    = "ErrorsTip"
+		edgeOffsetR = 152
+	>
+
+	<AddButton "HelpButton" id=9 image="HelpButtonImg" position=(996,4) tooltip="HelpTip" edgeOffsetR=8 text="?" font=16 color=(0,0,0)>
+
+<End>
