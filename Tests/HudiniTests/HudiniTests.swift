@@ -492,13 +492,135 @@ func uiScriptRejectsInvalidMaximumLengths(control: String) {
 
     #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
 
-    view.setHidden(true, forControlNamed: "upper")
-    #expect(view.isHidden(controlNamed: "upper"))
+    view.setHidden(true, named: "upper")
+    #expect(view.isHidden(named: "upper"))
     #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "lower"))
 
-    view.setHidden(false, forControlNamed: "upper")
+    view.setHidden(false, named: "upper")
     #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
     #expect(view.pressButton(at: Vector2(x: 50, y: 50), origin: .zero) == nil)
+}
+
+@Test func disabledButtonsAbsorbPressesWithoutReporting() throws {
+    let view = UIScriptView(script: try script(controls: #"""
+    [
+      { "name": "lower", "type": "button", "frame": \#(frameJSON()) },
+      { "name": "upper", "type": "button", "frame": \#(frameJSON()) }
+    ]
+    """#))
+    let point = Vector2(x: 5, y: 5)
+
+    view.setDisabled(true, named: "upper")
+    #expect(view.isDisabled(named: "upper"))
+    #expect(view.pressButton(at: point, origin: .zero) == nil)
+
+    view.setDisabled(false, named: "upper")
+    #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
+}
+
+private func imageDocument(stateCount: Int?, imageOwnerType: String = "button") -> Data {
+    let count = stateCount.map { #", "stateCount": \#($0)"# } ?? ""
+    return Data(#"""
+    {
+      "window": { "size": { "width": 100, "height": 80 } },
+      "resources": { "images": { "art": { "path": "ui/art.bmp"\#(count) } } },
+      "controls": [
+        { "name": "owner", "type": "\#(imageOwnerType)", "frame": \#(frameJSON()), "image": "art" }
+      ]
+    }
+    """#.utf8)
+}
+
+@Test(arguments: zip(
+    [UIScript.ButtonState.normal, .pressed, .hovered, .disabled],
+    [Float(0), 25, 50, 75]
+))
+func fourStateImagesSliceInStateOrder(state: UIScript.ButtonState, expectedX: Float) throws {
+    let image = try #require(try UIScript(data: imageDocument(stateCount: 4)).resources.images["art"])
+
+    let source = image.sourceRectangle(for: state, textureWidth: 100, textureHeight: 25)
+    #expect(source == Rectangle(x: expectedX, y: 0, width: 25, height: 25))
+}
+
+@Test(arguments: [UIScript.ButtonState.normal, .pressed, .hovered, .disabled])
+func singleStateImagesShowWholeInEveryState(state: UIScript.ButtonState) throws {
+    let image = try #require(try UIScript(data: imageDocument(stateCount: nil)).resources.images["art"])
+
+    #expect(image.stateCount == 1)
+    let source = image.sourceRectangle(for: state, textureWidth: 40, textureHeight: 20)
+    #expect(source == Rectangle(x: 0, y: 0, width: 40, height: 20))
+}
+
+@Test(arguments: [0, 2, 3, 5, -4])
+func uiScriptRejectsUnsupportedStateCounts(stateCount: Int) {
+    #expect(throws: UIScriptError.invalidStateCount(image: "art")) {
+        try UIScript(data: imageDocument(stateCount: stateCount))
+    }
+}
+
+@Test(arguments: ["text", "list", "textField", "slider", "region"])
+func uiScriptRejectsImagesOnOtherControls(type: String) {
+    #expect(throws: UIScriptError.invalidImage(owner: "owner")) {
+        try UIScript(data: imageDocument(stateCount: nil, imageOwnerType: type))
+    }
+}
+
+@Test func uiScriptRejectsAVisualAndControlSharingAName() {
+    let document = Data(#"""
+    {
+      "window": { "size": { "width": 100, "height": 80 } },
+      "resources": { "images": { "art": { "path": "ui/art.bmp" } } },
+      "visuals": [{ "name": "twin", "image": "art", "frame": \#(frameJSON()) }],
+      "controls": [{ "name": "twin", "type": "text", "frame": \#(frameJSON()) }]
+    }
+    """#.utf8)
+    #expect(throws: UIScriptError.duplicateName("twin")) {
+        try UIScript(data: document)
+    }
+}
+
+@Test func viewReportsImagesTheHostCouldNotSupply() throws {
+    let view = UIScriptView(script: try UIScript(data: imageDocument(stateCount: 4)))
+
+    #expect(view.missingImages == ["art"])
+}
+
+@Test func viewAsksTheHostForEachImageOnce() throws {
+    var requestedPaths: [String] = []
+    let view = UIScriptView(script: try UIScript(data: imageDocument(stateCount: 4))) { _ in
+        ""
+    } loadImage: { resource in
+        requestedPaths.append(resource.path)
+        return Texture2D()
+    }
+
+    #expect(requestedPaths == ["ui/art.bmp"])
+    #expect(view.missingImages.isEmpty)
+}
+
+// Both roadmap examples must work through the same model and view, with different compositions.
+@Test func chatAndLivePanelShareOneModelWithoutSharingALayout() throws {
+    let chat = try UIScript(contentsOf: demoResource("chatdialog.json"))
+    let panel = try UIScript(contentsOf: demoResource("livepanel1024.json"))
+    let chatView = UIScriptView(script: chat)
+    let panelView = UIScriptView(script: panel)
+
+    #expect(chat.controls.contains { $0.scrolls != nil })
+    #expect(!panel.controls.contains { $0.scrolls != nil })
+    #expect(panel.controls.contains { $0.type == .region })
+    #expect(!chat.controls.contains { $0.type == .region })
+    #expect(chatView.missingImages.isEmpty)
+    #expect(panelView.missingImages.count == panel.resources.images.count)
+    #expect(panelView.textField(named: "statusBarTimerEntry") != nil)
+}
+
+@Test func livePanelFramesStayInsideItsWindow() throws {
+    let panel = try UIScript(contentsOf: demoResource("livepanel1024.json"))
+
+    for frame in panel.controls.map(\.frame) + panel.visuals.map(\.frame) {
+        #expect(frame.x + frame.width <= panel.window.size.width)
+        #expect(frame.y + frame.height <= panel.window.size.height)
+    }
 }
 
 @Test func viewResolvesStringReferencesThroughTheHost() throws {
@@ -524,8 +646,10 @@ func uiScriptRejectsInvalidMaximumLengths(control: String) {
     let script = try UIScript(contentsOf: demoResource("livepanel1024.json"))
 
     #expect(script.window.size.width == 1024)
-    #expect(script.controls.count == 12)
-    #expect(script.controls.contains { $0.name == "peopleList" && $0.type == .list })
+    #expect(script.controls.count == 14)
+    #expect(script.visuals.count == 4)
+    #expect(script.control(named: "peopleList")?.type == .region)
+    #expect(script.resources.images["nextPage"]?.stateCount == 4)
 }
 
 @Test func formLayoutStacksLabeledControlsAndReservesFooterSpace() {

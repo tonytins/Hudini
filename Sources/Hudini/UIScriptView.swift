@@ -1,13 +1,14 @@
 import Raylib
 
-/// Builds, updates, and draws the controls a `UIScript` document describes.
+/// Builds, updates, and draws the controls and visuals a `UIScript` document describes.
 ///
 /// The view owns the controls and their interaction state. The host owns game
-/// data and actions: it fills lists through `list(named:)`, shows and hides
-/// controls by name, and handles the events `update(at:)` returns.
+/// data, actions, and images: it fills lists through `list(named:)`, draws into
+/// regions, shows and hides things by name, and handles the events `update(at:)`
+/// returns.
 ///
-/// Create it once and keep it. Images, visuals, and tooltips are not drawn yet,
-/// and the host draws any window frame behind the controls.
+/// Create it once and keep it. Tooltips are not drawn yet, and the host draws
+/// any window frame or background behind the view.
 public final class UIScriptView {
     private static let defaultFontSize = 14
     private static let defaultMaximumLength = 256
@@ -19,11 +20,18 @@ public final class UIScriptView {
     private let labels: [String: String]
     private let lists: [String: TextList]
     private let textFields: [String: TextField]
-    private var hiddenControls: Set<String> = []
+    private let textures: [String: Texture2D]
+    private var hiddenNames: Set<String> = []
+    private var disabledNames: Set<String> = []
+
+    /// The names of image resources the host could not supply, in sorted order.
+    ///
+    /// Controls and visuals using these images draw a red outline instead.
+    public let missingImages: [String]
 
     /// Something a control reports for the host to act on.
     public enum Event: Equatable, Sendable {
-        /// A button without a scroll binding was pressed.
+        /// An enabled button without a scroll binding was pressed.
         case pressed(control: String)
         /// A text field submitted its text.
         case submitted(control: String, text: String)
@@ -34,10 +42,15 @@ public final class UIScriptView {
     /// `resolveString` supplies the text for localized-string references once,
     /// during creation. By default a reference shows its table and index, so an
     /// unresolved string is easy to notice.
+    ///
+    /// `loadImage` supplies each image resource once, during creation, so a host
+    /// passing it must create the view after `InitWindow`. The host owns the
+    /// textures and unloads them before `CloseWindow`.
     public init(
         script: UIScript,
         theme: InterfaceTheme = .standard,
-        resolveString: (UIScript.StringResource) -> String = { "\($0.table)#\($0.index)" }
+        resolveString: (UIScript.StringResource) -> String = { "\($0.table)#\($0.index)" },
+        loadImage: (UIScript.ImageResource) -> Texture2D? = { _ in nil }
     ) {
         self.script = script
         self.theme = theme
@@ -82,13 +95,26 @@ public final class UIScriptView {
                     backgroundColor: style?.backgroundColor,
                     borderColor: style?.borderColor
                 )
-            case .slider:
+            case .slider, .region:
                 break
             }
         }
+
+        var textures: [String: Texture2D] = [:]
+        var missingImages: [String] = []
+        for (name, resource) in script.resources.images {
+            if let texture = loadImage(resource) {
+                textures[name] = texture
+            } else {
+                missingImages.append(name)
+            }
+        }
+
         self.labels = labels
         self.lists = lists
         self.textFields = textFields
+        self.textures = textures
+        self.missingImages = missingImages.sorted()
     }
 
     /// Returns the list with this name, or `nil` when no list has it.
@@ -104,29 +130,44 @@ public final class UIScriptView {
         textFields[name]
     }
 
-    /// Shows or hides a control. A hidden control takes no input and draws nothing.
-    public func setHidden(_ isHidden: Bool, forControlNamed name: String) {
+    /// Shows or hides a control or visual. A hidden one takes no input and draws nothing.
+    public func setHidden(_ isHidden: Bool, named name: String) {
         if isHidden {
-            hiddenControls.insert(name)
+            hiddenNames.insert(name)
             textFields[name]?.clearFocus()
         } else {
-            hiddenControls.remove(name)
+            hiddenNames.remove(name)
         }
     }
 
-    /// Returns whether a control is hidden.
-    public func isHidden(controlNamed name: String) -> Bool {
-        hiddenControls.contains(name)
+    /// Returns whether a control or visual is hidden.
+    public func isHidden(named name: String) -> Bool {
+        hiddenNames.contains(name)
     }
 
-    /// Handles this frame's input for a window whose corner is at `origin`.
+    /// Enables or disables a button. A disabled button shows its disabled image
+    /// and absorbs presses without reporting them.
+    public func setDisabled(_ isDisabled: Bool, named name: String) {
+        if isDisabled {
+            disabledNames.insert(name)
+        } else {
+            disabledNames.remove(name)
+        }
+    }
+
+    /// Returns whether a button is disabled.
+    public func isDisabled(named name: String) -> Bool {
+        disabledNames.contains(name)
+    }
+
+    /// Handles this frame's input for a view whose corner is at `origin`.
     public func update(at origin: Vector2) -> [Event] {
         var events: [Event] = []
         if IsMouseButtonPressed(MouseButton.left),
            let event = pressButton(at: GetMousePosition(), origin: origin) {
             events.append(event)
         }
-        for control in script.controls where !hiddenControls.contains(control.name) {
+        for control in script.controls where !hiddenNames.contains(control.name) {
             let bounds = control.frame.rectangle(at: origin)
             lists[control.name]?.update(in: bounds)
             if case let .submitted(text)? = textFields[control.name]?.update(in: bounds) {
@@ -139,12 +180,15 @@ public final class UIScriptView {
     /// Applies a press to the topmost visible button under `point`.
     ///
     /// A button bound to a list scrolls it one line and reports nothing. Any
-    /// other button reports `.pressed`.
+    /// other enabled button reports `.pressed`.
     public func pressButton(at point: Vector2, origin: Vector2) -> Event? {
         for control in script.controls.reversed()
-        where control.type == .button && !hiddenControls.contains(control.name) {
+        where control.type == .button && !hiddenNames.contains(control.name) {
             guard CheckCollisionPointRec(point, control.frame.rectangle(at: origin)) else {
                 continue
+            }
+            guard !disabledNames.contains(control.name) else {
+                return nil
             }
             guard let binding = control.scrolls else {
                 return .pressed(control: control.name)
@@ -155,16 +199,25 @@ public final class UIScriptView {
         return nil
     }
 
-    /// Draws the visible controls in document order, later controls on top.
-    public func draw(at origin: Vector2) {
-        for control in script.controls where !hiddenControls.contains(control.name) {
+    /// Draws the visible visuals, then the visible controls in document order, later ones on top.
+    ///
+    /// `drawRegion` receives the name and screen bounds of each visible region,
+    /// in its place in that order.
+    public func draw(
+        at origin: Vector2,
+        drawRegion: (_ name: String, _ bounds: Rectangle) -> Void = { _, _ in }
+    ) {
+        for visual in script.visuals where !hiddenNames.contains(visual.name) {
+            drawImage(named: visual.image, state: .normal, in: visual.frame.rectangle(at: origin))
+        }
+        for control in script.controls where !hiddenNames.contains(control.name) {
             let bounds = control.frame.rectangle(at: origin)
             switch control.type {
             case .text:
-                drawText(of: control, in: bounds)
+                drawText(of: control, in: bounds, inset: 0)
             case .formattedText:
                 DrawRectangleRec(bounds, script.style(for: control)?.backgroundColor ?? theme.panel)
-                drawText(of: control, in: bounds)
+                drawText(of: control, in: bounds, inset: Self.textInset)
             case .button:
                 drawButton(control, in: bounds)
             case .textField:
@@ -175,28 +228,59 @@ public final class UIScriptView {
                 lists[control.name]?.draw(in: bounds)
             case .slider:
                 drawSlider(control, in: bounds, origin: origin)
+            case .region:
+                drawRegion(control.name, bounds)
             }
         }
     }
 
-    private func drawText(of control: UIScript.Control, in bounds: Rectangle) {
+    private func drawImage(named name: String, state: UIScript.ButtonState, in bounds: Rectangle) {
+        guard let texture = textures[name], let resource = script.resources.images[name] else {
+            DrawRectangleLinesEx(bounds, 1, theme.error)
+            return
+        }
+        DrawTexturePro(
+            texture,
+            resource.sourceRectangle(for: state, textureWidth: Float(texture.width), textureHeight: Float(texture.height)),
+            bounds,
+            .zero,
+            0,
+            .white
+        )
+    }
+
+    private func drawText(of control: UIScript.Control, in bounds: Rectangle, inset: Int) {
         guard let label = labels[control.name] else {
             return
         }
         let style = script.style(for: control)
         let fontSize = style?.fontSize ?? Self.defaultFontSize
-        let x = Int(clamping: bounds.x) + Self.textInset
-        var y = Int(clamping: bounds.y) + Self.textInset
+        let x = Int(clamping: bounds.x) + inset
+        var y = Int(clamping: bounds.y) + inset
         for line in label.split(separator: "\n", omittingEmptySubsequences: false) {
             DrawText(String(line), x, y, fontSize, style?.textColor ?? theme.text)
             y += fontSize + Self.textLineGap
         }
     }
 
+    private func buttonState(of control: UIScript.Control, in bounds: Rectangle) -> UIScript.ButtonState {
+        if disabledNames.contains(control.name) {
+            return .disabled
+        }
+        guard CheckCollisionPointRec(GetMousePosition(), bounds) else {
+            return .normal
+        }
+        return IsMouseButtonDown(MouseButton.left) ? .pressed : .hovered
+    }
+
     private func drawButton(_ control: UIScript.Control, in bounds: Rectangle) {
         let style = script.style(for: control)
-        DrawRectangleRec(bounds, style?.backgroundColor ?? theme.panel)
-        DrawRectangleLinesEx(bounds, 1, style?.borderColor ?? theme.border)
+        if let image = control.image {
+            drawImage(named: image, state: buttonState(of: control, in: bounds), in: bounds)
+        } else {
+            DrawRectangleRec(bounds, style?.backgroundColor ?? theme.panel)
+            DrawRectangleLinesEx(bounds, 1, style?.borderColor ?? theme.border)
+        }
         guard let label = labels[control.name] else {
             return
         }

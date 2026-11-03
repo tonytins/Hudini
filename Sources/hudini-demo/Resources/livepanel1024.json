@@ -1,41 +1,42 @@
 {
   "window": {
-    "size": { "width": 1024, "height": 120 }
+    "size": { "width": 1024, "height": 160 }
   },
   "resources": {
     "images": {
-      "moodPositive": {
-        "path": "UCP/LivePanel/lpanel_moodPositive.bmp"
-      },
-      "moodNegative": {
-        "path": "UCP/LivePanel/lpanel_moodNegative.bmp"
+      "moodPositive": { "path": "UCP/LivePanel/lpanel_moodPositive.bmp" },
+      "moodNegative": { "path": "UCP/LivePanel/lpanel_moodNegative.bmp" },
+      "moodPanel": {
+        "path": "./uigraphics/ucp/livepanel/lpanel_moodpanelbtn.bmp",
+        "stateCount": 4
       },
       "previousPage": {
-        "path": "UCP/LivePanel/lpanel_previousPageBtn.bmp"
+        "path": "UCP/LivePanel/lpanel_previousPageBtn.bmp",
+        "stateCount": 4
       },
       "nextPage": {
-        "path": "UCP/LivePanel/lpanel_nextPageBtn.bmp"
+        "path": "UCP/LivePanel/lpanel_nextPageBtn.bmp",
+        "stateCount": 4
       },
       "peopleListBackground": {
         "path": "./uigraphics/ucp/livepanel/livepanel_headsbackground_1024.bmp"
       },
-      "peopleListEODBackground": {
-        "path": "UCP/LivePanel/lpanel_peopleListBackground.bmp"
-      },
-      "divider": {
-        "path": "UCP/LivePanel/lpanel_divider.bmp"
-      },
+      "divider": { "path": "UCP/LivePanel/lpanel_divider.bmp" },
       "eodHelp": {
-        "path": "./uigraphics/ucp/livepanel/lpanel_eodhelpbtn.bmp"
+        "path": "./uigraphics/ucp/livepanel/lpanel_eodhelpbtn.bmp",
+        "stateCount": 4
       },
       "eodClose": {
-        "path": "./uigraphics/ucp/livepanel/lpanel_eodclosexbtn.bmp"
+        "path": "./uigraphics/ucp/livepanel/lpanel_eodclosexbtn.bmp",
+        "stateCount": 4
       },
       "eodExpand": {
-        "path": "./uigraphics/ucp/livepanel/lpanel_eodexpandbtn.bmp"
+        "path": "./uigraphics/ucp/livepanel/lpanel_eodexpandbtn.bmp",
+        "stateCount": 4
       },
       "eodContract": {
-        "path": "./uigraphics/ucp/livepanel/lpanel_eodcontractbtn.bmp"
+        "path": "./uigraphics/ucp/livepanel/lpanel_eodcontractbtn.bmp",
+        "stateCount": 4
       }
     },
     "strings": {
@@ -45,7 +46,6 @@
       "eodHelpTooltip": { "table": "UIText:174", "index": 4 },
       "eodCloseTooltip": { "table": "UIText:174", "index": 5 },
       "eodTimerTip": { "table": "UIText:174", "index": 6 },
-      "eodMessageTip": { "table": "UIText:174", "index": 7 },
       "eodExpandTooltip": { "table": "UIText:174", "index": 8 },
       "eodContractTooltip": { "table": "UIText:174", "index": 9 },
       "statusBarTimerTooltip": { "table": "UIText:174", "index": 10 }
@@ -56,31 +56,45 @@
       "textColor": "#FFF99D",
       "fontSize": 12
     },
-    "peopleList": {
-      "textColor": "#FFF99D",
-      "selectedTextColor": "#FFFF00",
-      "highlightedTextColor": "#FFFFFF",
-      "backgroundColor": "#37485A",
-      "fontSize": 12
-    },
-    "eodButton": {
-      "textColor": "#37516F",
-      "selectedTextColor": "#2385BB",
-      "highlightedTextColor": "#436388",
-      "disabledTextColor": "#5077A3"
-    },
     "timerEntry": {
       "textColor": "#FFF99D",
       "backgroundColor": "#000000",
       "borderColor": "#F7D025",
-      "fontSize": 14
+      "fontSize": 10
     },
     "messageWindow": {
       "textColor": "#FFF99D",
       "backgroundColor": "#17212A",
-      "fontSize": 14
+      "fontSize": 12
+    },
+    "statusBarMessage": {
+      "textColor": "#FFF99D",
+      "backgroundColor": "#17212A",
+      "fontSize": 10
     }
   },
+  "visuals": [
+    {
+      "name": "moodPositiveImage",
+      "image": "moodPositive",
+      "frame": { "x": 69, "y": 11, "width": 30, "height": 30 }
+    },
+    {
+      "name": "moodNegativeImage",
+      "image": "moodNegative",
+      "frame": { "x": 31, "y": 11, "width": 30, "height": 30 }
+    },
+    {
+      "name": "dividerImage",
+      "image": "divider",
+      "frame": { "x": 140, "y": 49, "width": 2, "height": 100 }
+    },
+    {
+      "name": "peopleListBackgroundImage",
+      "image": "peopleListBackground",
+      "frame": { "x": 375, "y": 38, "width": 490, "height": 60 }
+    }
+  ],
   "controls": [
     {
       "name": "needsLabel",
@@ -89,6 +103,17 @@
       "frame": { "x": 163, "y": 42, "width": 160, "height": 16 },
       "style": "panelText",
       "text": { "string": "needs" }
+    },
+    {
+      "name": "moodPanel",
+      "type": "button",
+      "frame": { "x": 31, "y": 63, "width": 48, "height": 48 },
+      "image": "moodPanel"
+    },
+    {
+      "name": "motives",
+      "type": "region",
+      "frame": { "x": 165, "y": 59, "width": 205, "height": 100 }
     },
     {
       "name": "previousPage",
@@ -108,17 +133,14 @@
     },
     {
       "name": "peopleList",
-      "type": "list",
-      "frame": { "x": 409, "y": 51, "width": 441, "height": 34 },
-      "style": "peopleList",
-      "image": "peopleListBackground"
+      "type": "region",
+      "frame": { "x": 409, "y": 51, "width": 441, "height": 34 }
     },
     {
       "name": "eodHelp",
       "type": "button",
       "legacyID": 14,
       "frame": { "x": 596, "y": 87, "width": 23, "height": 23 },
-      "style": "eodButton",
       "image": "eodHelp",
       "tooltip": "eodHelpTooltip"
     },
@@ -127,7 +149,6 @@
       "type": "button",
       "legacyID": 15,
       "frame": { "x": 589, "y": 0, "width": 23, "height": 23 },
-      "style": "eodButton",
       "image": "eodClose",
       "tooltip": "eodCloseTooltip"
     },
@@ -135,8 +156,7 @@
       "name": "eodExpand",
       "type": "button",
       "legacyID": 17,
-      "frame": { "x": 150, "y": 0, "width": 23, "height": 23 },
-      "style": "eodButton",
+      "frame": { "x": 150, "y": -1, "width": 23, "height": 23 },
       "image": "eodExpand",
       "tooltip": "eodExpandTooltip"
     },
@@ -144,8 +164,7 @@
       "name": "eodContract",
       "type": "button",
       "legacyID": 18,
-      "frame": { "x": 150, "y": 0, "width": 23, "height": 23 },
-      "style": "eodButton",
+      "frame": { "x": 150, "y": -1, "width": 23, "height": 23 },
       "image": "eodContract",
       "tooltip": "eodContractTooltip"
     },
@@ -156,7 +175,7 @@
       "frame": { "x": 526, "y": 13, "width": 50, "height": 15 },
       "style": "timerEntry",
       "tooltip": "eodTimerTip",
-      "text": { "literal": "08:00" }
+      "maximumLength": 8
     },
     {
       "name": "statusBarTimerEntry",
@@ -165,23 +184,21 @@
       "frame": { "x": 752, "y": 12, "width": 50, "height": 15 },
       "style": "timerEntry",
       "tooltip": "statusBarTimerTooltip",
-      "text": { "literal": "08:00" }
+      "maximumLength": 8
     },
     {
       "name": "messageWindow",
       "type": "list",
       "legacyID": 102,
       "frame": { "x": 190, "y": 7, "width": 317, "height": 20 },
-      "style": "messageWindow",
-      "text": { "literal": "Work session started." }
+      "style": "messageWindow"
     },
     {
       "name": "statusBarMessageWindow",
       "type": "list",
       "legacyID": 103,
       "frame": { "x": 410, "y": 9, "width": 315, "height": 18 },
-      "style": "messageWindow",
-      "text": { "literal": "Ready" }
+      "style": "statusBarMessage"
     }
   ]
 }

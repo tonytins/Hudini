@@ -78,8 +78,10 @@ public struct UIScript: Decodable, Sendable {
                 throw UIScriptError.invalidFontSize(style: name)
             }
         }
-        try validateUniqueNames(visuals.map(\.name))
-        try validateUniqueNames(controls.map(\.name))
+        for (name, image) in resources.images where image.stateCount != 1 && image.stateCount != 4 {
+            throw UIScriptError.invalidStateCount(image: name)
+        }
+        try validateUniqueNames(visuals.map(\.name) + controls.map(\.name))
 
         for visual in visuals {
             try validateReference(
@@ -110,6 +112,9 @@ public struct UIScript: Decodable, Sendable {
                 )
             }
             if let image = control.image {
+                guard control.type == .button else {
+                    throw UIScriptError.invalidImage(owner: control.name)
+                }
                 try validateReference(
                     image,
                     in: resources.images,
@@ -260,19 +265,55 @@ public struct UIScript: Decodable, Sendable {
         }
     }
 
+    /// The state a button image shows.
+    ///
+    /// The raw value is the state's slice in a four-state image, counted from the left.
+    public enum ButtonState: Int, Sendable {
+        /// The button is idle.
+        case normal = 0
+
+        /// The pointer is holding the button down.
+        case pressed = 1
+
+        /// The pointer is over the button.
+        case hovered = 2
+
+        /// The button is disabled.
+        case disabled = 3
+    }
+
     /// A reference to an image asset resolved by the host game.
     public struct ImageResource: Decodable, Sendable {
         /// A host-defined asset path or identifier.
         public let path: String
 
+        /// How many equal-width slices the image holds, either one or four.
+        ///
+        /// A four-state image holds one slice per `ButtonState`. An image with one
+        /// slice shows it in every state. The value defaults to one.
+        public let stateCount: Int
+
+        /// Returns the part of the image to draw for `state`.
+        public func sourceRectangle(
+            for state: ButtonState,
+            textureWidth: Float,
+            textureHeight: Float
+        ) -> Rectangle {
+            let sliceWidth = textureWidth / Float(stateCount)
+            let slice = stateCount == 4 ? state.rawValue : 0
+            return Rectangle(x: Float(slice) * sliceWidth, y: 0, width: sliceWidth, height: textureHeight)
+        }
+
         private enum CodingKeys: String, CodingKey {
             case path
+            case stateCount
         }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            try validateKnownKeys(in: decoder, allowing: ["path"])
+            try validateKnownKeys(in: decoder, allowing: ["path", "stateCount"])
             path = try container.decode(String.self, forKey: .path)
+            stateCount = try container.decodeIfPresent(Int.self, forKey: .stateCount) ?? 1
         }
     }
 
@@ -504,6 +545,9 @@ public struct UIScript: Decodable, Sendable {
 
         /// A range or scroll control.
         case slider
+
+        /// A named area Hudini positions and the host draws into.
+        case region
     }
 
     /// Text content expressed literally or by a localized-string reference.
@@ -685,8 +729,14 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A style has a nonpositive font size.
     case invalidFontSize(style: String)
 
-    /// Two controls or two visuals share a name.
+    /// Two controls or visuals share a name.
     case duplicateName(String)
+
+    /// An image resource has a state count other than one or four.
+    case invalidStateCount(image: String)
+
+    /// An image is attached to a control other than a button.
+    case invalidImage(owner: String)
 
     /// A visual or control has a negative frame size.
     case invalidFrame(owner: String)
@@ -713,6 +763,10 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript font size for style '\(style)' must be positive."
         case let .duplicateName(name):
             "UIScript name '\(name)' is used more than once."
+        case let .invalidStateCount(image):
+            "UIScript state count for image '\(image)' must be 1 or 4."
+        case let .invalidImage(owner):
+            "UIScript image for '\(owner)' requires a button control."
         case let .invalidFrame(owner):
             "UIScript frame for '\(owner)' cannot have a negative size."
         case let .unknownReference(owner, property, reference):

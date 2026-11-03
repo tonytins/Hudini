@@ -157,7 +157,7 @@ public final class TextField: FormLayoutControl {
         let room = max(0, Int(clamping: bounds.width) - (TextField.padding * 2))
         let overflow = max(0, MeasureText(text, fontSize) + TextField.caretRoom - room)
         let x = left - overflow
-        let y = Int(clamping: bounds.y) + TextField.padding
+        let y = Int(clamping: bounds.y) + ((Int(clamping: bounds.height) - fontSize) / 2)
         BeginScissorMode(
             left,
             Int(clamping: bounds.y) + 1,

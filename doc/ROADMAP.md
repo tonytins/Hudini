@@ -58,15 +58,15 @@ game behavior in the host.
 Use the larger live-panel reference to test whether the same JSON model and
 renderer can describe a substantially different game interface.
 
-- [ ] Review the unwired `livepanel1024.json` draft against
-  the corresponding TSO live-panel UIScript.
-- [ ] Add only the reusable control or presentation features needed to render
-  the panel's concrete layout, such as list presentation and image-backed
-  controls.
-- [ ] Provide representative host-owned data for the live panel in the demo.
-- [ ] Render the live panel from JSON without special-casing its composition
+- [x] Review the `livepanel1024.json` draft against the corresponding TSO
+  live-panel UIScript.
+- [x] Add only the reusable control or presentation features needed to render
+  the panel's concrete layout: visuals, image-backed buttons with four states,
+  disabled buttons, and regions the host draws into.
+- [x] Provide representative host-owned data for the live panel in the demo.
+- [x] Render the live panel from JSON without special-casing its composition
   inside the renderer.
-- [ ] Compare the chat and live-panel examples to ensure they share the model
+- [x] Compare the chat and live-panel examples to ensure they share the model
   without forcing a single layout or interaction pattern.
 
 ## Panther — Consolidate the UIScript foundation

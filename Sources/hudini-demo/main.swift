@@ -1,4 +1,4 @@
-// A JSON-driven property-chat example host.
+// A JSON-driven example host: a property chat window over a live mode panel.
 //
 // Usage: hudini-demo [--screenshot <file.png>]
 
@@ -12,16 +12,24 @@ let theme = InterfaceTheme(
     titleBar: Color(r: 43, g: 35, b: 61, a: 255)
 )
 
-func loadUIScript() throws -> UIScript {
-    guard let url = Bundle.module.url(forResource: "chatdialog", withExtension: "json") else {
-        throw CocoaError(.fileNoSuchFile)
-    }
-    return try UIScript(contentsOf: url)
+func fail(_ message: String) -> Never {
+    FileHandle.standardError.write(Data("\(message)\n".utf8))
+    exit(1)
 }
 
-func drawPropertyLot() {
+func loadUIScript(named name: String) -> UIScript {
+    do {
+        guard let url = Bundle.module.url(forResource: name, withExtension: "json") else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        return try UIScript(contentsOf: url)
+    } catch {
+        fail("Unable to load \(name).json: \(error.localizedDescription)")
+    }
+}
+
+func drawPropertyLot(groundBottom height: Int32) {
     let width = GetScreenWidth()
-    let height = GetScreenHeight()
     ClearBackground(Color(r: 116, g: 173, b: 212, a: 255))
     DrawRectangle(0, height / 2, width, height / 2, Color(r: 91, g: 148, b: 85, a: 255))
     DrawRectangle(0, height - 90, width, 90, Color(r: 177, g: 157, b: 120, a: 255))
@@ -38,7 +46,101 @@ func drawPropertyLot() {
     DrawCircle(530, height - 108, 8, Color(r: 236, g: 197, b: 160, a: 255))
     DrawRectangle(525, height - 100, 10, 29, Color(r: 70, g: 100, b: 176, a: 255))
     DrawText("Maya is visiting", 543, height - 123, 14, Color(r: 28, g: 38, b: 48, a: 255))
-    DrawText("PROPERTY CHAT  |  EXAMPLE HOST", 20, 20, 16, Color(r: 255, g: 255, b: 255, a: 255))
+    DrawText("LIVE MODE  |  EXAMPLE HOST", 20, 20, 16, Color(r: 255, g: 255, b: 255, a: 255))
+}
+
+/// Generates original placeholder art, because Hudini ships no game assets.
+///
+/// A four-state image holds its slices left to right: normal, pressed, hovered, disabled.
+func makePlaceholderTexture(for resource: UIScript.ImageResource) -> Texture2D {
+    guard resource.stateCount == 4 else {
+        var image = GenImageColor(8, 8, placeholderColor(forPath: resource.path))
+        defer { UnloadImage(image) }
+        ImageDrawRectangle(&image, 0, 0, 8, 1, Color(r: 255, g: 255, b: 255, a: 60))
+        return LoadTextureFromImage(image)
+    }
+    let sliceSize: Int32 = 24
+    let stateColors = [
+        Color(r: 74, g: 104, b: 142, a: 255),
+        Color(r: 40, g: 62, b: 92, a: 255),
+        Color(r: 112, g: 150, b: 196, a: 255),
+        Color(r: 70, g: 72, b: 78, a: 255)
+    ]
+    var image = GenImageColor(sliceSize * 4, sliceSize, .black)
+    defer { UnloadImage(image) }
+    for (slice, color) in stateColors.enumerated() {
+        let x = Int32(slice) * sliceSize
+        ImageDrawRectangle(&image, x, 0, sliceSize, sliceSize, color)
+        ImageDrawRectangle(&image, x + 8, 8, 8, 8, Color(r: 255, g: 249, b: 157, a: 255))
+    }
+    return LoadTextureFromImage(image)
+}
+
+func placeholderColor(forPath path: String) -> Color {
+    if path.contains("moodPositive") {
+        return Color(r: 76, g: 175, b: 96, a: 255)
+    }
+    if path.contains("moodNegative") {
+        return Color(r: 201, g: 82, b: 74, a: 255)
+    }
+    if path.contains("divider") {
+        return Color(r: 96, g: 118, b: 148, a: 255)
+    }
+    return Color(r: 45, g: 62, b: 84, a: 255)
+}
+
+// The host's own localized text and game state.
+
+let panelStrings = [3: "Needs"]
+let needNames = ["Hunger", "Comfort", "Hygiene", "Bladder", "Energy", "Fun", "Social", "Room"]
+let needLevels: [Float] = [0.8, 0.55, 0.9, 0.35, 0.65, 0.5, 0.75, 0.6]
+let residents = [
+    "Maya", "Jordan", "Sam", "Riley", "Alex", "Casey", "Drew", "Taylor", "Morgan", "Quinn",
+    "Avery", "Parker", "Reese", "Rowan", "Skyler", "Emery", "Finley", "Harper", "Jules", "Kai"
+]
+let peoplePerPage = 16
+let peopleMarginX: Float = 12
+let peopleMarginY: Float = 11
+let lastPeoplePage = (residents.count - 1) / peoplePerPage
+var peoplePage = 0
+
+@MainActor
+func drawNeeds(in bounds: Rectangle) {
+    let columnWidth = bounds.width / 2
+    let rowHeight = bounds.height / 4
+    for (index, name) in needNames.enumerated() {
+        let x = bounds.x + (Float(index % 2) * columnWidth)
+        let y = bounds.y + (Float(index / 2) * rowHeight)
+        DrawText(name, Int(x), Int(y), 10, Color(r: 255, g: 249, b: 157, a: 255))
+        let bar = Rectangle(x: x, y: y + 11, width: columnWidth - 10, height: 7)
+        DrawRectangleRec(bar, Color(r: 23, g: 33, b: 42, a: 255))
+        var level = bar
+        level.width *= needLevels[index]
+        DrawRectangleRec(level, needLevels[index] < 0.4 ? theme.error : Color(r: 76, g: 175, b: 96, a: 255))
+    }
+}
+
+@MainActor
+func drawPeople(in bounds: Rectangle) {
+    let first = peoplePage * peoplePerPage
+    let onPage = residents[first..<min(first + peoplePerPage, residents.count)]
+    let spacing = (bounds.width - peopleMarginX) / Float(peoplePerPage)
+    for (offset, resident) in onPage.enumerated() {
+        let hue = Float((first + offset) * 47 % 360)
+        DrawCircle(
+            Int(bounds.x + peopleMarginX + (Float(offset) * spacing)),
+            Int(bounds.y + peopleMarginY),
+            10,
+            ColorFromHSV(hue, 0.45, 0.85)
+        )
+        DrawText(
+            String(resident.prefix(1)),
+            Int(bounds.x + peopleMarginX + (Float(offset) * spacing)) - 3,
+            Int(bounds.y + peopleMarginY) - 5,
+            10,
+            Color(r: 23, g: 33, b: 42, a: 255)
+        )
+    }
 }
 
 var screenshot: String?
@@ -51,22 +153,55 @@ while let argument = arguments.popFirst() {
     screenshot = path
 }
 
-let script: UIScript
-do {
-    script = try loadUIScript()
-} catch {
-    FileHandle.standardError.write(Data("Unable to load chatdialog.json: \(error.localizedDescription)\n".utf8))
-    exit(1)
+let chatScript = loadUIScript(named: "chatdialog")
+let panelScript = loadUIScript(named: "livepanel1024")
+
+SetTraceLogLevel(.warning)
+SetConfigFlags(screenshot == nil ? [.windowResizable, .vsyncHint] : [.windowHidden])
+InitWindow(1024, 768, "Hudini Live Mode")
+SetExitKey(.null)
+SetTargetFPS(60)
+
+var placeholderTextures: [Texture2D] = []
+let chat = UIScriptView(script: chatScript, theme: theme)
+let panel = UIScriptView(
+    script: panelScript,
+    theme: theme,
+    resolveString: { panelStrings[$0.index] ?? "" },
+    loadImage: { resource in
+        let texture = makePlaceholderTexture(for: resource)
+        placeholderTextures.append(texture)
+        return texture
+    }
+)
+
+guard let history = chat.list(named: "chatHistory"),
+      chat.textField(named: "chatEntry") != nil else {
+    fail("chatdialog.json is missing a required property-chat control")
+}
+guard let statusMessage = panel.list(named: "statusBarMessageWindow"),
+      let statusTimer = panel.textField(named: "statusBarTimerEntry"),
+      panelScript.control(named: "previousPage") != nil,
+      panelScript.control(named: "nextPage") != nil else {
+    fail("livepanel1024.json is missing a required live-panel control")
 }
 
-let view = UIScriptView(script: script, theme: theme)
-guard let history = view.list(named: "chatHistory"),
-      view.textField(named: "chatEntry") != nil else {
-    FileHandle.standardError.write(Data("chatdialog.json is missing a required property-chat control\n".utf8))
-    exit(1)
+// The panel's work-session controls overlap its status bar, so only one set shows at a time.
+for name in ["eodHelp", "eodClose", "eodExpand", "eodContract", "timerEntry", "messageWindow"] {
+    panel.setHidden(true, named: name)
 }
+statusMessage.items = ["Maya is visiting"]
+statusTimer.text = "08:00"
 
-let initialMessages = [
+@MainActor
+func showPeoplePage(_ page: Int) {
+    peoplePage = min(max(page, 0), lastPeoplePage)
+    panel.setDisabled(peoplePage == 0, named: "previousPage")
+    panel.setDisabled(peoplePage == lastPeoplePage, named: "nextPage")
+}
+showPeoplePage(0)
+
+var chatMessages = [
     "Maya: Welcome to the neighborhood!",
     "Jordan: Your garden looks great.",
     "System: Maya is visiting the property.",
@@ -83,56 +218,77 @@ let residentReplies = [
     "I'll come by again soon!",
     "It's nice having friendly neighbors."
 ]
-var chatMessages = initialMessages
 history.items = chatMessages
 var residentReplyIndex = 0
-
-SetTraceLogLevel(.warning)
-SetConfigFlags(screenshot == nil ? [.windowResizable, .vsyncHint] : [.windowHidden])
-InitWindow(960, 600, "Hudini Chat Dialog")
-SetExitKey(.null)
-SetTargetFPS(60)
 
 let window = WindowFrame(title: "Maple Street - Property Chat", theme: theme)
 var frameCount = 0
 var running = true
+var screenshotSaved = true
 
 while running && !WindowShouldClose() {
-    let size = Vector2(x: script.window.size.width, y: script.window.size.height)
-    let origin = Vector2(
-        x: (Float(GetScreenWidth()) - size.x) / 2,
-        y: (Float(GetScreenHeight()) - size.y) / 2
+    let panelHeight = panelScript.window.size.height
+    let panelTop = Float(GetScreenHeight()) - panelHeight
+    let chatSize = Vector2(x: chatScript.window.size.width, y: chatScript.window.size.height)
+    let bounds = window.place(
+        size: chatSize,
+        at: Vector2(x: (Float(GetScreenWidth()) - chatSize.x) / 2, y: (panelTop - chatSize.y) / 2)
     )
-    let bounds = window.place(size: size, at: origin)
     _ = window.followPointer(in: bounds)
     if case .close = window.update(in: bounds) {
         running = false
     }
-    let controlOrigin = Vector2(x: bounds.x, y: bounds.y)
-    for event in view.update(at: controlOrigin) {
-        guard case let .submitted(control: "chatEntry", text: message) = event else {
-            continue
-        }
+
+    let chatOrigin = Vector2(x: bounds.x, y: bounds.y)
+    for case let .submitted(control: "chatEntry", text: message) in chat.update(at: chatOrigin) {
         chatMessages.append("You: \(message)")
         chatMessages.append("Maya: \(residentReplies[residentReplyIndex])")
         history.items = chatMessages
         residentReplyIndex = (residentReplyIndex + 1) % residentReplies.count
     }
 
+    let panelOrigin = Vector2(x: 0, y: panelTop)
+    for event in panel.update(at: panelOrigin) {
+        switch event {
+        case .pressed(control: "previousPage"):
+            showPeoplePage(peoplePage - 1)
+        case .pressed(control: "nextPage"):
+            showPeoplePage(peoplePage + 1)
+        default:
+            break
+        }
+    }
+
     BeginDrawing()
-    drawPropertyLot()
+    drawPropertyLot(groundBottom: Int32(panelTop))
+    DrawRectangle(0, Int32(panelTop), GetScreenWidth(), Int32(panelHeight), theme.titleBar)
+    panel.draw(at: panelOrigin) { name, regionBounds in
+        switch name {
+        case "motives":
+            drawNeeds(in: regionBounds)
+        case "peopleList":
+            drawPeople(in: regionBounds)
+        default:
+            break
+        }
+    }
     window.draw(in: bounds)
-    view.draw(at: controlOrigin)
+    chat.draw(at: chatOrigin)
     EndDrawing()
 
     frameCount += 1
     if let screenshot, frameCount == 3 {
         let image = LoadImageFromScreen()
-        let saved = ExportImage(image, screenshot)
+        screenshotSaved = ExportImage(image, screenshot)
         UnloadImage(image)
-        CloseWindow()
-        exit(saved ? 0 : 1)
+        running = false
     }
 }
 
+for texture in placeholderTextures {
+    UnloadTexture(texture)
+}
 CloseWindow()
+if !screenshotSaved {
+    exit(1)
+}

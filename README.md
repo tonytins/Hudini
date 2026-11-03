@@ -109,13 +109,11 @@ raylib closes the window on Escape by default. `SetExitKey(.null)` turns that of
 so Escape can cancel title edits and dismiss panels instead of quitting the game.
 
 See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable, JSON-driven
-property-chat example. `UIScriptView` owns the controls in its document; the
-demo host owns the conversation and simulates resident replies. The view does
-not draw images yet, and Hudini does not read TSO `.uis` files yet.
-
-The demo also includes an unwired [`livepanel1024.json`](Sources/hudini-demo/Resources/livepanel1024.json)
-draft based on the TSO live mode panel. It is a broader format example, not
-currently loaded or rendered by the demo.
+example: a property chat window over a live mode panel, both loaded from JSON
+and drawn by `UIScriptView`. The demo host owns the conversation, needs, people,
+and images, and it generates placeholder art because Hudini ships no game
+assets. The view does not draw tooltips yet, and Hudini does not read TSO `.uis`
+files yet.
 
 ## Supported Versions
 
