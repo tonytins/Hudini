@@ -137,7 +137,7 @@ optional:
 | `<Text>` | Text at its position | `text` or `string`, `alignment` |
 | `<FormattedText>` | Text on a background, with an inset | `text` or `string`, `alignment` |
 | `<Button>` | A clickable button | `text` or `string`, `image`, `scrolls`, `direction` |
-| `<TextField>` | A one-line text entry | `text` or `string`, `placeholder` or `placeholderString`, `maximumLength`, `readOnly` |
+| `<TextField>` | A one-line text entry | `text` or `string`, `placeholder` or `placeholderString`, `maximumLength`, `readOnly`, `secure` |
 | `<List>` | A scrollable list the host fills | `text` or `string`, shown as its first item |
 | `<Slider>` | A draggable thumb on a track | `scrolls`, `minValue`, `maxValue`, `orientation` |
 | `<ProgressBar>` | A bar filled in proportion to a value | `minValue`, `maxValue` |
@@ -151,6 +151,10 @@ optional:
   to 256.
 - **`readOnly`:** `true` or `false`, which defaults to `false`. A read-only text
   field never takes focus or typing, and the host can still set its text.
+- **`secure`:** `true` or `false`, which defaults to `false`. A secure text field
+  draws `*` in place of each character, as a password field does. The host still
+  reads the real text from it. A reader that ignored this attribute would show the
+  text, so a document using it should say `requires="secureText"`.
 - **`scrolls`:** names the `<List>` a slider or button scrolls. A slider with
   `scrolls` always runs top to bottom and has no value of its own.
 - **`minValue` and `maxValue`:** the values a slider or progress bar covers, which
@@ -189,7 +193,7 @@ for ignored in script.ignoredAttributes {
 }
 ```
 
-The current reader supports version 1 and has no `requires` features yet.
+The current reader supports version 1 and the `requires` feature `secureText`.
 
 ## Errors
 

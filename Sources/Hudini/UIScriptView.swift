@@ -133,7 +133,8 @@ public final class UIScriptView {
                     textColor: style?.textColor,
                     backgroundColor: style?.backgroundColor,
                     borderColor: style?.borderColor,
-                    isReadOnly: control.isReadOnly
+                    isReadOnly: control.isReadOnly,
+                    isSecure: control.isSecure
                 )
             case .slider, .progressBar, .region:
                 break

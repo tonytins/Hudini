@@ -11,7 +11,7 @@ public struct UIScript: Sendable {
     public static let supportedVersion = 1
 
     /// The named features this reader understands in a document's `requires` list.
-    public static let supportedFeatures: Set<String> = []
+    public static let supportedFeatures: Set<String> = ["secureText"]
 
     /// The document's format version.
     public let version: Int
@@ -168,6 +168,9 @@ public struct UIScript: Sendable {
             }
             if control.isReadOnly, control.type != .textField {
                 throw UIScriptError.invalidReadOnly(owner: control.name)
+            }
+            if control.isSecure, control.type != .textField {
+                throw UIScriptError.invalidSecure(owner: control.name)
             }
             if let binding = control.scrolls {
                 try validate(binding, of: control)
@@ -658,6 +661,9 @@ public struct UIScript: Sendable {
         /// Whether a text field only displays text.
         public let isReadOnly: Bool
 
+        /// Whether a text field hides its text behind a mask character.
+        public let isSecure: Bool
+
         /// How text sits within a text or formatted text control.
         public let alignment: TextAlignment
 
@@ -760,6 +766,9 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A control other than a text field is marked read-only.
     case invalidReadOnly(owner: String)
 
+    /// `secure` appears on a control other than a text field.
+    case invalidSecure(owner: String)
+
     /// A scroll binding targets a control other than a list, or does not suit its control.
     case invalidScrollBinding(owner: String)
 
@@ -827,6 +836,8 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript maximum length for '\(owner)' must be positive and requires a text field control."
         case let .invalidReadOnly(owner):
             "UIScript readOnly for '\(owner)' requires a text field control."
+        case let .invalidSecure(owner):
+            "UIScript secure for '\(owner)' requires a text field control."
         case let .invalidScrollBinding(owner):
             "UIScript scrolls for '\(owner)' must target a list, from a slider without a direction or a button with one."
         case let .invalidValueRange(owner):

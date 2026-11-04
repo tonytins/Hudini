@@ -12,6 +12,8 @@ public final class TextField: FormLayoutControl {
 
     private static let caretRoom: Int = 4
 
+    private static let mask: Character = "*"
+
     private var _text: String = ""
 
     private let maxLength: Int
@@ -34,6 +36,10 @@ public final class TextField: FormLayoutControl {
     /// the host can still set its `text`.
     public let isReadOnly: Bool
 
+    /// Whether this field draws a mask character in place of each character, as a password field
+    /// does. Only drawing changes: `text` and submissions still hold what was typed.
+    public let isSecure: Bool
+
     /// Whether this field currently receives keyboard input.
     public private(set) var isFocused = false
 
@@ -51,7 +57,8 @@ public final class TextField: FormLayoutControl {
         textColor: Color? = nil,
         backgroundColor: Color? = nil,
         borderColor: Color? = nil,
-        isReadOnly: Bool = false
+        isReadOnly: Bool = false,
+        isSecure: Bool = false
     ) {
         precondition(maximumLength > 0, "maximumLength must be positive")
         precondition(fontSize > 0, "fontSize must be positive")
@@ -64,6 +71,7 @@ public final class TextField: FormLayoutControl {
         self.backgroundColor = backgroundColor ?? theme.inputBackground
         self.borderColor = borderColor ?? theme.border
         self.isReadOnly = isReadOnly
+        self.isSecure = isSecure
         self.text = text
     }
 
@@ -84,6 +92,11 @@ public final class TextField: FormLayoutControl {
                 add(c)
             }
         }
+    }
+
+    /// The text as the field draws it.
+    var shownText: String {
+        isSecure ? String(repeating: TextField.mask, count: _text.count) : _text
     }
 
     /// The height this field is drawn at.
@@ -172,7 +185,7 @@ public final class TextField: FormLayoutControl {
     public func draw(in bounds: Rectangle) {
         DrawRectangleRec(bounds, backgroundColor)
         DrawRectangleLinesEx(bounds, 1.0, isFocused ? theme.accent : borderColor)
-        let text = text
+        let text = shownText
         let left = Int(clamping: bounds.x) + TextField.padding
         let room = max(0, Int(clamping: bounds.width) - (TextField.padding * 2))
         let overflow = max(0, MeasureText(text, fontSize) + TextField.caretRoom - room)

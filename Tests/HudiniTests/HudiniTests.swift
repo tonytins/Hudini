@@ -842,6 +842,40 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
     #expect(!area.isFocused)
 }
 
+@Test func secureFieldsMaskWhatTheyDrawOnly() {
+    let field = TextField(text: "hunter2", maximumLength: 16, isSecure: true)
+
+    #expect(field.text == "hunter2")
+    #expect(field.shownText == "*******")
+    #expect(field.submit() == .submitted("hunter2"))
+    #expect(field.shownText.isEmpty)
+
+    let plain = TextField(text: "hunter2", maximumLength: 16)
+    #expect(plain.shownText == "hunter2")
+}
+
+@Test func uiScriptReadsSecure() throws {
+    let loaded = try script(
+        "<TextField name='a' \(tenByTen) secure='true'/><TextField name='b' \(tenByTen)/>",
+        root: "requires='secureText'"
+    )
+
+    #expect(loaded.requiredFeatures == ["secureText"])
+    #expect(loaded.ignoredAttributes.isEmpty)
+    #expect(loaded.control(named: "a")?.isSecure == true)
+    #expect(loaded.control(named: "b")?.isSecure == false)
+    #expect(UIScriptView(script: loaded).textField(named: "a")?.isSecure == true)
+}
+
+@Test func uiScriptRejectsInvalidSecure() {
+    #expect(throws: UIScriptError.invalidSecure(owner: "a")) {
+        try script("<Button name='a' \(tenByTen) secure='true'/>")
+    }
+    #expect(throws: UIScriptError.invalidAttribute(element: "TextField", attribute: "secure", value: "yes", line: 1)) {
+        try script("<TextField name='a' \(tenByTen) secure='yes'/>")
+    }
+}
+
 @Test func uiScriptReadsReadOnly() throws {
     let loaded = try script("<TextField name='a' \(tenByTen) readOnly='true'/><TextField name='b' \(tenByTen)/>")
 

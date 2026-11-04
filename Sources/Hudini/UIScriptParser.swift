@@ -188,6 +188,7 @@ enum UIScriptParser {
             maximumLength: try reader.integer("maximumLength"),
             scrolls: try makeScrollBinding(owner: name, reader),
             isReadOnly: try reader.boolean("readOnly") ?? false,
+            isSecure: try reader.boolean("secure") ?? false,
             alignment: try reader.alignment("alignment") ?? .left,
             valueRange: try makeValueRange(owner: name, reader),
             orientation: try reader.orientation("orientation"),
