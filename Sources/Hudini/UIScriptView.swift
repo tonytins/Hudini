@@ -61,6 +61,8 @@ public final class UIScriptView {
         case submitted(control: String, text: String)
         /// Dragging moved a slider that does not scroll a list to a new value.
         case changed(control: String, value: Float)
+        /// A click on a selectable list changed its selected item.
+        case selected(control: String, index: Int)
     }
 
     /// Creates the controls for `script`.
@@ -121,7 +123,8 @@ public final class UIScriptView {
                     theme: theme,
                     textColor: style?.textColor,
                     backgroundColor: style?.backgroundColor,
-                    borderColor: style?.borderColor
+                    borderColor: style?.borderColor,
+                    isSelectable: control.isSelectable
                 )
             case .textField:
                 textFields[control.name] = TextField(
@@ -402,8 +405,12 @@ public final class UIScriptView {
     public func update(at origin: Vector2) -> [Event] {
         var events: [Event] = []
         let pointer = GetMousePosition()
-        if IsMouseButtonPressed(MouseButton.left) {
+        let isPressed = IsMouseButtonPressed(MouseButton.left)
+        if isPressed {
             if let event = pressButton(at: pointer, origin: origin) {
+                events.append(event)
+            }
+            if let event = selectListItem(at: pointer, origin: origin) {
                 events.append(event)
             }
             _ = beginSliderDrag(at: pointer, origin: origin)
@@ -417,7 +424,10 @@ public final class UIScriptView {
         }
         for control in script.controls where !hiddenNames.contains(control.name) {
             let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
-            lists[control.name]?.update(in: bounds)
+            // A press was handled above, so it reaches only the topmost control.
+            if !isPressed {
+                lists[control.name]?.update(in: bounds)
+            }
             if case let .submitted(text)? = textFields[control.name]?.update(in: bounds) {
                 events.append(.submitted(control: control.name, text: text))
             }
@@ -430,14 +440,29 @@ public final class UIScriptView {
         return events
     }
 
+    private func topmostControl(at point: Vector2, origin: Vector2) -> UIScript.Control? {
+        script.controls.last { control in
+            !hiddenNames.contains(control.name)
+                && CheckCollisionPointRec(point, screenRectangle(for: control.frame, named: control.name, at: origin))
+        }
+    }
+
+    /// Selects the item under `point` when a selectable list is the topmost control there.
+    func selectListItem(at point: Vector2, origin: Vector2) -> Event? {
+        guard let control = topmostControl(at: point, origin: origin), let list = lists[control.name] else {
+            return nil
+        }
+        let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
+        guard case let .selected(index)? = list.select(at: point, in: bounds) else {
+            return nil
+        }
+        return .selected(control: control.name, index: index)
+    }
+
     /// Tracks how long the pointer has rested on the topmost control under it. A negative
     /// `elapsed` starts the wait again, which is how a held button dismisses a tooltip.
     func updateTooltip(pointer: Vector2, origin: Vector2, elapsed: Float) {
-        let topmost = script.controls.last { control in
-            !hiddenNames.contains(control.name)
-                && CheckCollisionPointRec(pointer, screenRectangle(for: control.frame, named: control.name, at: origin))
-        }
-        let name = topmost.flatMap { tooltips[$0.name]?.isEmpty == false ? $0.name : nil }
+        let name = topmostControl(at: pointer, origin: origin).flatMap { tooltips[$0.name]?.isEmpty == false ? $0.name : nil }
         if name != hoveredControl {
             hoveredControl = name
             hoveredSeconds = 0

@@ -690,6 +690,147 @@ private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangl
     #expect(abs(list.scrollThumbFraction - (1.0 / 3.0)) < 0.001)
 }
 
+// Headless, the 100-tall viewport shows five 16-tall lines, starting 6 below the top.
+private func pickList(itemCount: Int) -> (list: TextList, bounds: Rectangle) {
+    let list = TextList(items: (0..<itemCount).map { "Item \($0)" }, isSelectable: true)
+    let bounds = Rectangle(x: 500, y: 500, width: 200, height: 100)
+    list.update(in: bounds)
+    return (list, bounds)
+}
+
+private func row(_ row: Int, of bounds: Rectangle) -> Vector2 {
+    Vector2(x: bounds.x + 10, y: bounds.y + 6 + (Float(row) * 16) + 1)
+}
+
+@Test func pickListsOpenOnTheirFirstItemsAndStayPutWhenItemsChange() {
+    let (list, bounds) = pickList(itemCount: 20)
+    #expect(list.itemIndex(at: row(0, of: bounds), in: bounds) == 0)
+    #expect(list.scrollFraction == 0)
+
+    list.scroll(byLines: -3)
+    #expect(list.itemIndex(at: row(0, of: bounds), in: bounds) == 3)
+
+    list.items += ["Item 20", "Item 21"]
+    #expect(list.itemIndex(at: row(0, of: bounds), in: bounds) == 3)
+    list.items = ["Only", "Two"]
+    #expect(list.itemIndex(at: row(0, of: bounds), in: bounds) == 0)
+}
+
+@Test func logListsStayAtTheirNewestItems() {
+    let (list, bounds) = scrollableList(itemCount: 20)
+    #expect(list.itemIndex(at: row(4, of: bounds), in: bounds) == 19)
+
+    list.items += ["Item 21"]
+    #expect(list.itemIndex(at: row(4, of: bounds), in: bounds) == 20)
+}
+
+@Test func itemIndexFindsOnlyDrawnItems() {
+    let (list, bounds) = pickList(itemCount: 2)
+
+    #expect(list.itemIndex(at: row(1, of: bounds), in: bounds) == 1)
+    // Below the last item, in the top padding, and outside the list.
+    #expect(list.itemIndex(at: row(2, of: bounds), in: bounds) == nil)
+    #expect(list.itemIndex(at: Vector2(x: 510, y: 502), in: bounds) == nil)
+    #expect(list.itemIndex(at: Vector2(x: 10, y: 10), in: bounds) == nil)
+
+    let (crowded, crowdedBounds) = pickList(itemCount: 20)
+    // The sliver under the fifth row holds no whole line, so nothing is drawn there.
+    #expect(crowded.itemIndex(at: row(5, of: crowdedBounds), in: crowdedBounds) == nil)
+}
+
+@Test func everyLineOfAnItemBelongsToIt() {
+    let list = TextList(items: ["one\ntwo", "three"], isSelectable: true)
+    let bounds = Rectangle(x: 500, y: 500, width: 200, height: 100)
+
+    #expect(list.itemIndex(at: row(1, of: bounds), in: bounds) == 0)
+    #expect(list.itemIndex(at: row(2, of: bounds), in: bounds) == 1)
+}
+
+@Test func clicksSelectAndReportOnlyAChange() {
+    let (list, bounds) = pickList(itemCount: 3)
+
+    #expect(list.select(at: row(1, of: bounds), in: bounds) == .selected(1))
+    #expect(list.selectedIndex == 1)
+    #expect(list.select(at: row(1, of: bounds), in: bounds) == nil)
+    // A click on the empty part of the list keeps the selection.
+    #expect(list.select(at: row(4, of: bounds), in: bounds) == nil)
+    #expect(list.selectedIndex == 1)
+}
+
+@Test func selectionStaysWithinTheItems() {
+    let (list, _) = pickList(itemCount: 3)
+
+    list.selectedIndex = 2
+    #expect(list.selectedIndex == 2)
+    list.selectedIndex = 3
+    #expect(list.selectedIndex == nil)
+    list.selectedIndex = -1
+    #expect(list.selectedIndex == nil)
+
+    list.selectedIndex = 2
+    list.items = ["a", "b", "c"]
+    #expect(list.selectedIndex == 2)
+    list.items = ["a"]
+    #expect(list.selectedIndex == nil)
+}
+
+@Test func logListsHaveNoSelection() {
+    let (list, bounds) = scrollableList(itemCount: 3)
+
+    #expect(list.select(at: row(0, of: bounds), in: bounds) == nil)
+    list.selectedIndex = 0
+    #expect(list.selectedIndex == nil)
+}
+
+@Test func uiScriptReadsSelectable() throws {
+    let loaded = try script("<List name='a' \(tenByTen) selectable='true'/><List name='b' \(tenByTen)/>")
+
+    #expect(loaded.ignoredAttributes.isEmpty)
+    let view = UIScriptView(script: loaded)
+    #expect(view.list(named: "a")?.isSelectable == true)
+    #expect(view.list(named: "b")?.isSelectable == false)
+}
+
+@Test func uiScriptRejectsInvalidSelectable() {
+    #expect(throws: UIScriptError.invalidSelectable(owner: "a")) {
+        try script("<TextField name='a' \(tenByTen) selectable='true'/>")
+    }
+}
+
+private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' selectable='true'/>"
+
+@Test func viewReportsSelectionOnTheListUnderThePointer() throws {
+    let view = UIScriptView(script: try script(lotList))
+    let origin = Vector2(x: 500, y: 500)
+    let list = try #require(view.list(named: "lots"))
+    list.items = ["Maple", "Oak"]
+
+    #expect(view.selectListItem(at: Vector2(x: 510, y: 507), origin: origin) == .selected(control: "lots", index: 0))
+    #expect(view.selectListItem(at: Vector2(x: 510, y: 523), origin: origin) == .selected(control: "lots", index: 1))
+    #expect(view.selectListItem(at: Vector2(x: 510, y: 523), origin: origin) == nil)
+    #expect(list.selectedIndex == 1)
+}
+
+@Test func controlsOverAListKeepItsClicks() throws {
+    let view = UIScriptView(script: try script(lotList + "<Button name='over' x='0' y='0' width='100' height='20'/>"))
+    let list = try #require(view.list(named: "lots"))
+    list.items = ["Maple", "Oak"]
+
+    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero) == nil)
+    #expect(list.selectedIndex == nil)
+    // Hiding the button uncovers the list.
+    view.setHidden(true, named: "over")
+    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero) == .selected(control: "lots", index: 0))
+}
+
+@Test func hiddenListsTakeNoClicks() throws {
+    let view = UIScriptView(script: try script(lotList))
+    view.list(named: "lots")?.items = ["Maple"]
+    view.setHidden(true, named: "lots")
+
+    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero) == nil)
+}
+
 @Test func formLayoutStacksLabeledControlsAndReservesFooterSpace() {
     let name = TextField(maximumLength: 20)
     let description = TextField(maximumLength: 80)

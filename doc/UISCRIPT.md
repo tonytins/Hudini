@@ -138,7 +138,7 @@ optional:
 | `<FormattedText>` | Text on a background, with an inset | `text` or `string`, `alignment` |
 | `<Button>` | A clickable button | `text` or `string`, `image`, `scrolls`, `direction` |
 | `<TextField>` | A one-line text entry | `text` or `string`, `placeholder` or `placeholderString`, `maximumLength`, `readOnly`, `secure` |
-| `<List>` | A scrollable list the host fills | `text` or `string`, shown as its first item |
+| `<List>` | A scrollable list the host fills | `text` or `string`, shown as its first item, `selectable` |
 | `<Slider>` | A draggable thumb on a track | `scrolls`, `minValue`, `maxValue`, `orientation` |
 | `<ProgressBar>` | A bar filled in proportion to a value | `minValue`, `maxValue` |
 | `<Region>` | A rectangle the host draws into | None |
@@ -155,6 +155,11 @@ optional:
   draws `*` in place of each character, as a password field does. The host still
   reads the real text from it. A reader that ignored this attribute would show the
   text, so a document using it should say `requires="secureText"`.
+- **`selectable`:** `true` or `false`, which defaults to `false`. A list without it
+  is a log: it opens on its newest items and stays at the end as items arrive. A
+  selectable list is a pick list: it opens on its first items, stays where it is
+  when items change, highlights one item, and reports a click on a different item
+  as `.selected`. A reader that ignored this attribute would still show the items.
 - **`scrolls`:** names the `<List>` a slider or button scrolls. A slider with
   `scrolls` always runs top to bottom and has no value of its own.
 - **`minValue` and `maxValue`:** the values a slider or progress bar covers, which
@@ -214,7 +219,7 @@ guard let history = view.list(named: "history") else { /* report it */ }
 history.items = messages
 
 // Each frame:
-for event in view.update(at: origin) { /* handle .pressed, .submitted, and .changed */ }
+for event in view.update(at: origin) { /* handle .pressed, .submitted, .changed, and .selected */ }
 view.draw(at: origin) { name, bounds in /* draw into regions */ }
 view.drawTooltip(at: origin) // After every view, so nothing covers it.
 ```
@@ -228,6 +233,9 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
 - Call `setWindowSize(_:)` when the space around anchored controls changes.
 - Slide or move a whole view by changing the `origin` passed to `update(at:)` and
   `draw(at:)`.
+- Read or set a selectable list's choice through its `selectedIndex`. The host's
+  own `items` are the source of what the index means, and setting it reports no
+  event.
 - Change text at runtime with `setText(_:named:)`, and the value of a slider or
   progress bar with `setValue(_:named:)`. Both are cheap enough to call every frame.
 - Place something the document leaves to the game with `setBounds(_:named:)`.

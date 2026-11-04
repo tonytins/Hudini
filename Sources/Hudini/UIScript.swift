@@ -172,6 +172,9 @@ public struct UIScript: Sendable {
             if control.isSecure, control.type != .textField {
                 throw UIScriptError.invalidSecure(owner: control.name)
             }
+            if control.isSelectable, control.type != .list {
+                throw UIScriptError.invalidSelectable(owner: control.name)
+            }
             if let binding = control.scrolls {
                 try validate(binding, of: control)
             }
@@ -664,6 +667,9 @@ public struct UIScript: Sendable {
         /// Whether a text field hides its text behind a mask character.
         public let isSecure: Bool
 
+        /// Whether clicking an item in a list selects it.
+        public let isSelectable: Bool
+
         /// How text sits within a text or formatted text control.
         public let alignment: TextAlignment
 
@@ -769,6 +775,9 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// `secure` appears on a control other than a text field.
     case invalidSecure(owner: String)
 
+    /// `selectable` appears on a control other than a list.
+    case invalidSelectable(owner: String)
+
     /// A scroll binding targets a control other than a list, or does not suit its control.
     case invalidScrollBinding(owner: String)
 
@@ -838,6 +847,8 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript readOnly for '\(owner)' requires a text field control."
         case let .invalidSecure(owner):
             "UIScript secure for '\(owner)' requires a text field control."
+        case let .invalidSelectable(owner):
+            "UIScript selectable for '\(owner)' requires a list control."
         case let .invalidScrollBinding(owner):
             "UIScript scrolls for '\(owner)' must target a list, from a slider without a direction or a button with one."
         case let .invalidValueRange(owner):
