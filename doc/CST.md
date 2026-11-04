@@ -112,8 +112,10 @@ so Hudini does too. But nothing in the game's files requires it, and two things 
 the other way: no numbered table starts at 0, while 111 start at 1, and table 136's own
 notes say "Strings 1-3". Only one `.uis` string in each version uses a position,
 `EALabelText` in `credits.uis`, at 5. From 0 that is a copyright line, and from 1 it is
-a line about Maxis, and either suits the name. The credits screen in the original game
-would settle it.
+a line about Maxis, and either suits the name. That screen requires logging in, so with
+the game's servers gone it can't be checked by running the game. A screenshot from when it
+was live would settle it. Tables read in order, as described under
+[What values hold](#what-values-hold), work either way.
 
 ### Text outside values
 
@@ -150,6 +152,34 @@ No real table has these, so the handling is Hudini's design rather than a findin
   problem and keep the rest. Only an unreadable file or directory is an error.
 - **Missing text:** report it as missing rather than returning a marker string, which
   a program cannot tell from real text.
+
+## What values hold
+
+A value is not always text for a player to read, and code decides what it means. A reader
+should hand values back untouched (Observed).
+
+| Table | Values hold |
+| --- | --- |
+| 148 | Text, then a number of milliseconds to show it |
+| 145 | Coordinates such as `(88;6)` alternating with button labels |
+| 161 | Keyboard shortcuts such as `^p^ pause`, described by the text after each value |
+| 242 | The credits, as instructions for their renderer |
+
+### The credits
+
+Table 241 holds the credits screen's ordinary text. Table 242 is a small script for the
+scrolling credits, which documents itself in comments and credits Blazej Stompel for the
+system. Its values have no keys, so they are read in order:
+
+```text
+^<scroll speed>^
+^NewLine|<line height>|<font size>|<font color>^
+^LineEntry|<Center, Left, Right, or a left offset>|<text>|<optional underline color>^
+```
+
+Colors are `r,g,b`. Most of the values with no key are this script: 735 of 1,178 in beta,
+896 of 1,341 in the base game, and 980 of 1,438 in New & Improved. Parsing it belongs to the code that draws the credits, and
+Hudini's reader does not interpret it.
 
 ## Repeated keys
 

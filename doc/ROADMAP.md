@@ -136,8 +136,9 @@ debug bar is in Maxis' format.
 - **What do the last two slices of a six-state image hold?** Six real files use
   `ImageStates=6`. Hudini draws the four known states from them.
 - **Do positions in CST tables count from 0 or 1?** Hudini follows FreeSO and counts
-  from 0, but the files lean the other way. The credits screen in the original game
-  would settle it. See the [specification](CST.md#entries) for this and its other
+  from 0, but the files lean the other way. The credits screen would settle it, but it
+  needs a login and the game's servers are gone, so that takes a screenshot from when it
+  was live. See the [specification](CST.md#entries) for this and its other
   unsettled rules.
 - **How should sliders draw their images?** Most real sliders name an image, and
   two name a separate thumb image. The view draws a plain track and thumb for now.
