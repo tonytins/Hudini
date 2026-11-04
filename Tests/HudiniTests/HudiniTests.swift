@@ -79,6 +79,24 @@ import Testing
     #expect(!frame.isEditingTitle)
 }
 
+@Test func windowWithoutACloseButtonFreesItsRoom() {
+    let bounds = Rectangle(x: 100, y: 100, width: 300, height: 200)
+    let onCloseButton = Vector2(x: 112, y: 115)
+    let frame = WindowFrame(title: "Start Game")
+
+    #expect(frame.isCloseButton(at: onCloseButton, in: bounds))
+    #expect(!frame.beginDragging(at: onCloseButton, within: bounds))
+    let titleWithButton = frame.titleBounds(bounds)
+
+    frame.showsCloseButton = false
+    #expect(!frame.isCloseButton(at: onCloseButton, in: bounds))
+    let titleWithoutButton = frame.titleBounds(bounds)
+    #expect(titleWithoutButton.x < titleWithButton.x)
+    #expect(titleWithoutButton.width > titleWithButton.width)
+    // The spot the button would hold drags the window like the rest of the bar.
+    #expect(frame.beginDragging(at: onCloseButton, within: bounds))
+}
+
 @Test func interfaceThemeSupportsOverridesAndStandardDefaults() {
     let standard = InterfaceTheme.standard
     let customAccent = Color(r: 190, g: 145, b: 255, a: 255)

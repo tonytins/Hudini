@@ -1,7 +1,7 @@
 import Foundation
 import Raylib
 
-/// A draggable window frame with a title bar, close button, and optional toolbar and title editing.
+/// A draggable window frame with a title bar, and an optional close button, toolbar, and title editing.
 public final class WindowFrame {
     /// How tall the title bar is.
     public static let titleHeight: Int = 30
@@ -81,6 +81,10 @@ public final class WindowFrame {
         }
     }
 
+    /// Whether the frame has a close button. Without one, the frame reports no `.close`, and the
+    /// title and the drag area take the button's room.
+    public var showsCloseButton: Bool = true
+
     /// Whether the user can edit the title in place.
     public var allowsTitleEditing: Bool = false
 
@@ -121,7 +125,7 @@ public final class WindowFrame {
     /// an unselected toolbar item, or an editable title.
     public func beginDragging(at point: Vector2, within bounds: Rectangle) -> Bool {
         let toolbarIndex = toolAt(point, bounds)
-        if Self.isCloseButton(at: point, in: bounds)
+        if isCloseButton(at: point, in: bounds)
             || (toolbarIndex >= 0 && selectedToolbarIndex != toolbarIndex)
             || (allowsTitleEditing && CheckCollisionPointRec(point, titleBounds(bounds))) {
             return false
@@ -151,9 +155,9 @@ public final class WindowFrame {
         return isDragging
     }
 
-    /// Returns whether `point` is on the close button.
-    public static func isCloseButton(at point: Vector2, in bounds: Rectangle) -> Bool {
-        CheckCollisionPointRec(point, closeBounds(bounds))
+    /// Returns whether `point` is on the close button. This is always false when the frame has none.
+    public func isCloseButton(at point: Vector2, in bounds: Rectangle) -> Bool {
+        showsCloseButton && CheckCollisionPointRec(point, Self.closeBounds(bounds))
     }
 
     /// Drops an edit of the title, as closing the window does.
@@ -180,7 +184,7 @@ public final class WindowFrame {
         if !pressed {
             return nil
         }
-        if Self.isCloseButton(at: mouse, in: bounds) {
+        if isCloseButton(at: mouse, in: bounds) {
             return .close
         }
         let tool = toolAt(mouse, bounds)
@@ -206,13 +210,8 @@ public final class WindowFrame {
         DrawRectangleRec(bar, theme.titleBar)
         DrawLine(Int(clamping: bounds.x), Int(clamping: bounds.y + Float(WindowFrame.titleHeight)), Int(clamping: bounds.x + bounds.width), Int(clamping: bounds.y + Float(WindowFrame.titleHeight)), theme.border)
         DrawRectangleLinesEx(bounds, 1.0, theme.border)
-        // The close button: a red dot, marked with an x while the pointer is over it, as macOS has it.
-        let close = WindowFrame.closeBounds(bounds)
-        let (centerX, centerY) = (Int(clamping: close.x + Float(WindowFrame.closeHit / 2)), Int(clamping: close.y + Float(WindowFrame.closeHit / 2)))
-        DrawCircle(centerX, centerY, Float(WindowFrame.closeRadius), theme.closeButton)
-        if CheckCollisionPointRec(mouse, close) {
-            DrawLine(centerX - 3, centerY - 3, centerX + 3, centerY + 3, theme.closeMark)
-            DrawLine(centerX - 3, centerY + 3, centerX + 3, centerY - 3, theme.closeMark)
+        if showsCloseButton {
+            drawCloseButton(in: bounds, mouse: mouse)
         }
         for i in 0..<toolbarItems.count {
             let item = toolBounds(bounds, i)
@@ -234,6 +233,17 @@ public final class WindowFrame {
         let width = MeasureText(shown, WindowFrame.titleSize)
         let titleColor = allowsTitleEditing && CheckCollisionPointRec(mouse, title) ? theme.accent : theme.text
         DrawText(shown, Int(clamping: title.x + ((title.width - Float(width)) / 2)), Int(clamping: bounds.y + Float((WindowFrame.titleHeight - WindowFrame.titleSize) / 2)), WindowFrame.titleSize, titleColor)
+    }
+
+    // A red dot, marked with an x while the pointer is over it, as macOS has it.
+    private func drawCloseButton(in bounds: Rectangle, mouse: Vector2) {
+        let close = WindowFrame.closeBounds(bounds)
+        let (centerX, centerY) = (Int(clamping: close.x + Float(WindowFrame.closeHit / 2)), Int(clamping: close.y + Float(WindowFrame.closeHit / 2)))
+        DrawCircle(centerX, centerY, Float(WindowFrame.closeRadius), theme.closeButton)
+        if CheckCollisionPointRec(mouse, close) {
+            DrawLine(centerX - 3, centerY - 3, centerX + 3, centerY + 3, theme.closeMark)
+            DrawLine(centerX - 3, centerY + 3, centerX + 3, centerY - 3, theme.closeMark)
+        }
     }
 
     private func updateEdit(_ bounds: Rectangle, _ mouse: Vector2, _ pressed: Bool) -> WindowFrame.Action? {
@@ -279,10 +289,11 @@ public final class WindowFrame {
         Rectangle(x: bounds.x + Float(margin) - 2, y: bounds.y + Float((titleHeight - closeHit) / 2), width: Float(closeHit), height: Float(closeHit))
     }
 
-    // The title sits between the close button and the toolbar: centred in the window when it fits
-    // there, as macOS has it, and otherwise in all the room between them.
-    private func titleBounds(_ bounds: Rectangle) -> Rectangle {
-        let left = bounds.x + Float(WindowFrame.margin) + Float(WindowFrame.closeHit) + Float(WindowFrame.margin)
+    // The title sits between the close button, if any, and the toolbar: centred in the window when
+    // it fits there, as macOS has it, and otherwise in all the room between them.
+    func titleBounds(_ bounds: Rectangle) -> Rectangle {
+        let closeRoom = showsCloseButton ? Float(WindowFrame.closeHit) + Float(WindowFrame.margin) : 0.0
+        let left = bounds.x + Float(WindowFrame.margin) + closeRoom
         let right = toolbarItems.count > 0 ? toolBounds(bounds, 0).x - Float(WindowFrame.margin) : bounds.x + bounds.width - Float(WindowFrame.margin)
         let between = max(0.0, right - left)
         let side = max(left - bounds.x, bounds.x + bounds.width - right)
