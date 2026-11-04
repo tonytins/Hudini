@@ -21,6 +21,7 @@ let package = Package(
                 .copy("Resources/debugbar.uis"),
                 .copy("Resources/lemonadestand.uis"),
                 .copy("Resources/livepanel1024.xml"),
+                .copy("Resources/movelot.xml"),
                 .copy("Resources/optionspanel.xml"),
                 .copy("Resources/statspanel.xml"),
                 .copy("Resources/uitext")

@@ -1,10 +1,12 @@
 // An example host: a property chat window over a control panel that swaps between modes, with a
 // lemonade stand panel that sits inside the live panel or in its own window, and an auto-hiding
-// debug bar. The chat and mode panels are UIScript XML. The stand and the bar are Maxis' .uis format.
+// debug bar. The options panel opens a window for moving to another lot. The chat, mode panels, and
+// move window are UIScript XML. The stand and the bar are Maxis' .uis format.
 //
 // Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>]
 //
-// Scenes are for checking the interface without input: live, stats, options, stand, standwindow.
+// Scenes are for checking the interface without input: live, stats, options, stand, standwindow,
+// movelot.
 // --pointer holds the pointer in place, and a screenshot then waits long enough to show a tooltip.
 
 import Foundation
@@ -284,7 +286,7 @@ while let argument = arguments.popFirst() {
         fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>]")
     }
 }
-guard ["live", "stats", "options", "stand", "standwindow"].contains(scene) else {
+guard ["live", "stats", "options", "stand", "standwindow", "movelot"].contains(scene) else {
     fail("Unknown scene '\(scene)'.")
 }
 
@@ -308,6 +310,7 @@ let chatScript = loadUIScript(named: "chatdialog")
 let panelScript = loadUIScript(named: "livepanel1024")
 let statsScript = loadUIScript(named: "statspanel")
 let optionsScript = loadUIScript(named: "optionspanel")
+let moveLotScript = loadUIScript(named: "movelot")
 let barScript = loadUIS(named: "debugbar")
 let standScript = loadUIS(named: "lemonadestand")
 
@@ -340,6 +343,7 @@ let chat = makeView(chatScript)
 let panel = makeView(panelScript)
 let stats = makeView(statsScript)
 let options = makeView(optionsScript)
+let moveLot = makeView(moveLotScript)
 let bar = makeView(barScript)
 let stand = makeView(standScript)
 let notice = NoticePanel(theme: theme)
@@ -537,6 +541,52 @@ bar.setText("\(residents.count) Objects", named: "ObjectCount")
 reportSimulatedError("A simulated error, so the demo can show the bar opening by itself.")
 
 let window = WindowFrame(title: "Maple Street - Property Chat", theme: theme)
+// A choice the player has to make or cancel on purpose, so the window has no close button.
+let moveLotWindow = WindowFrame(title: demoText.text(table: 6, key: "1") ?? "Move", theme: theme)
+moveLotWindow.showsCloseButton = false
+guard let lotChoices = moveLot.list(named: "lotChoices"),
+      let lotKey = moveLot.textField(named: "lotKey") else {
+    fail("movelot.xml is missing a required control")
+}
+lotChoices.items = [
+    "Maple Street",
+    "Oak Avenue",
+    "Birch Lane",
+    "Harbor Road",
+    "Sunset Drive",
+    "Willow Court",
+    "Cedar Hill",
+    "Lakeshore Way",
+]
+var isMoveLotOpen = false
+
+@MainActor
+func openMoveLot() {
+    chat.clearFocus()
+    stand.clearFocus()
+    options.clearFocus()
+    lotChoices.selectedIndex = nil
+    lotKey.text = ""
+    moveLot.setDisabled(true, named: "moveConfirm")
+    isMoveLotOpen = true
+}
+
+@MainActor
+func closeMoveLot() {
+    moveLot.clearFocus()
+    isMoveLotOpen = false
+}
+
+// The demo takes any key. A real host would check it.
+@MainActor
+func confirmMoveLot() {
+    guard let selected = lotChoices.selectedIndex else {
+        return
+    }
+    window.title = "\(lotChoices.items[selected]) - Property Chat"
+    closeMoveLot()
+}
+
 let standWindow = WindowFrame(title: "Lemonade Stand", theme: theme)
 standWindow.toolbarItems = ["Dock"]
 
@@ -549,6 +599,12 @@ case "stand":
     placeStand(.inPanel)
 case "standwindow":
     placeStand(.inWindow)
+case "movelot":
+    showMode(.options)
+    openMoveLot()
+    lotChoices.selectedIndex = 2
+    moveLot.setDisabled(false, named: "moveConfirm")
+    lotKey.text = "maple"
 default:
     break
 }
@@ -591,6 +647,16 @@ while running && !WindowShouldClose() {
         ? Vector2(x: standWindowContent.x + (standPadding / 2), y: standWindowContent.y + (standPadding / 2))
         : Vector2(x: panelOrigin.x + standPanelPosition.x, y: panelOrigin.y + standPanelPosition.y)
     let isOverStandWindow = standPlacement == .inWindow && CheckCollisionPointRec(pointer, standWindowBounds)
+    let moveLotSize = Vector2(
+        x: moveLotScript.window.size.width,
+        y: moveLotScript.window.size.height + Float(WindowFrame.titleHeight)
+    )
+    let moveLotBounds = moveLotWindow.place(
+        size: moveLotSize,
+        at: Vector2(x: screenSize.x - moveLotSize.x - 24, y: 60)
+    )
+    let moveLotContent = WindowFrame.content(in: moveLotBounds)
+    let moveLotOrigin = Vector2(x: moveLotContent.x, y: moveLotContent.y)
     let modePanel = switch mode {
     case .live: panel
     case .stats: stats
@@ -607,6 +673,20 @@ while running && !WindowShouldClose() {
 
     if notice.isOpen {
         _ = notice.update()
+    } else if isMoveLotOpen {
+        _ = moveLotWindow.followPointer(in: moveLotBounds)
+        for event in moveLot.update(at: moveLotOrigin) {
+            switch event {
+            case .selected(control: "lotChoices", index: _):
+                moveLot.setDisabled(false, named: "moveConfirm")
+            case .pressed(control: "moveCancel"):
+                closeMoveLot()
+            case .pressed(control: "moveConfirm"), .submitted(control: "lotKey", text: _):
+                confirmMoveLot()
+            default:
+                break
+            }
+        }
     } else {
         // The bar draws over everything but the notice, and the stand's window over the chat
         // window, which draws over the panel. Each gets the pointer before what is beneath it.
@@ -670,6 +750,8 @@ while running && !WindowShouldClose() {
         if !CheckCollisionPointRec(pointer, bounds), !isOverBar, !isOverStandWindow, !isOverToolbar {
             for event in modePanel.update(at: panelOrigin) {
                 switch event {
+                case .pressed(control: "moveLot"):
+                    openMoveLot()
                 case .pressed(control: "previousPage"):
                     showPeoplePage(peoplePage - 1)
                 case .pressed(control: "nextPage"):
@@ -715,7 +797,7 @@ while running && !WindowShouldClose() {
         || modePanel.containsPoint(pointer, origin: panelOrigin)
         || pointer.y >= panelTop
 
-    if !notice.isOpen, !isOverInterface, IsMouseButtonPressed(MouseButton.left),
+    if !notice.isOpen, !isMoveLotOpen, !isOverInterface, IsMouseButtonPressed(MouseButton.left),
        CheckCollisionPointRec(pointer, standLotBounds(groundBottom: Int32(panelTop))), standPlacement == .closed {
         placeStand(.inPanel)
         showMode(.live)
@@ -778,6 +860,11 @@ while running && !WindowShouldClose() {
     }
     if barReveal > 0 {
         bar.draw(at: barOrigin)
+    }
+    if isMoveLotOpen {
+        moveLotWindow.draw(in: moveLotBounds)
+        moveLot.draw(at: moveLotOrigin)
+        moveLot.drawTooltip(at: moveLotOrigin)
     }
     modePanel.drawTooltip(at: panelOrigin)
     chat.drawTooltip(at: chatOrigin)

@@ -782,6 +782,15 @@ private func row(_ row: Int, of bounds: Rectangle) -> Vector2 {
     #expect(list.selectedIndex == nil)
 }
 
+@Test func demoMoveWindowDeclaresWhatItNeeds() throws {
+    let moveLot = try UIScript(contentsOf: demoResource("movelot.xml"))
+
+    #expect(moveLot.ignoredAttributes.isEmpty)
+    #expect(moveLot.requiredFeatures == ["secureText"])
+    #expect(moveLot.control(named: "lotChoices")?.isSelectable == true)
+    #expect(moveLot.control(named: "lotKey")?.isSecure == true)
+}
+
 @Test func uiScriptReadsSelectable() throws {
     let loaded = try script("<List name='a' \(tenByTen) selectable='true'/><List name='b' \(tenByTen)/>")
 

@@ -7,6 +7,7 @@
   <String name="musicText" table="DemoText:3" index="2"/>
   <String name="soundText" table="DemoText:3" index="3"/>
   <String name="volumeTip" table="DemoText:3" index="4"/>
+  <String name="moveLotText" table="DemoText:3" index="5"/>
 
   <Style name="heading" textColor="#FFF99D" fontSize="14"/>
   <Style name="label" textColor="#FFF99D" fontSize="12"/>
@@ -20,4 +21,6 @@
   <Text name="soundLabel" x="180" y="80" width="100" height="14" style="label" string="soundText"/>
   <Slider name="sound" x="290" y="80" width="260" height="14" maxValue="100" tooltip="volumeTip"/>
   <Text name="soundValue" x="562" y="80" width="60" height="14" style="label"/>
+
+  <Button name="moveLot" x="660" y="50" width="120" height="24" string="moveLotText"/>
 </UIScript>
