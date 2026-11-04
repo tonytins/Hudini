@@ -786,7 +786,6 @@ private func row(_ row: Int, of bounds: Rectangle) -> Vector2 {
     let moveLot = try UIScript(contentsOf: demoResource("movelot.xml"))
 
     #expect(moveLot.ignoredAttributes.isEmpty)
-    #expect(moveLot.requiredFeatures == ["secureText"])
     #expect(moveLot.control(named: "lotChoices")?.isSelectable == true)
     #expect(moveLot.control(named: "lotKey")?.isSecure == true)
 }
@@ -1005,12 +1004,8 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
 }
 
 @Test func uiScriptReadsSecure() throws {
-    let loaded = try script(
-        "<TextField name='a' \(tenByTen) secure='true'/><TextField name='b' \(tenByTen)/>",
-        root: "requires='secureText'"
-    )
+    let loaded = try script("<TextField name='a' \(tenByTen) secure='true'/><TextField name='b' \(tenByTen)/>")
 
-    #expect(loaded.requiredFeatures == ["secureText"])
     #expect(loaded.ignoredAttributes.isEmpty)
     #expect(loaded.control(named: "a")?.isSecure == true)
     #expect(loaded.control(named: "b")?.isSecure == false)

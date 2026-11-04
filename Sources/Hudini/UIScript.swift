@@ -11,7 +11,7 @@ public struct UIScript: Sendable {
     public static let supportedVersion = 1
 
     /// The named features this reader understands in a document's `requires` list.
-    public static let supportedFeatures: Set<String> = ["secureText"]
+    public static let supportedFeatures: Set<String> = []
 
     /// The document's format version.
     public let version: Int

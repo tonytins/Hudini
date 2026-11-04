@@ -153,8 +153,7 @@ optional:
   field never takes focus or typing, and the host can still set its text.
 - **`secure`:** `true` or `false`, which defaults to `false`. A secure text field
   draws `*` in place of each character, as a password field does. The host still
-  reads the real text from it. A reader that ignored this attribute would show the
-  text, so a document using it should say `requires="secureText"`.
+  reads the real text from it.
 - **`selectable`:** `true` or `false`, which defaults to `false`. A list without it
   is a log: it opens on its newest items and stays at the end as items arrive. A
   selectable list is a pick list: it opens on its first items, stays where it is
@@ -198,7 +197,7 @@ for ignored in script.ignoredAttributes {
 }
 ```
 
-The current reader supports version 1 and the `requires` feature `secureText`.
+The current reader supports version 1 and has no `requires` features yet.
 
 ## Errors
 

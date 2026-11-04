@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- An original window for moving to another lot, drawn in a WindowFrame with no close button.
      The demo host owns the lots and what the key means. -->
-<UIScript version="1" requires="secureText">
+<UIScript version="1">
   <Window width="300" height="190"/>
 
   <String name="pickText" table="DemoText:6" index="2"/>
