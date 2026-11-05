@@ -30,17 +30,17 @@ public final class TextArea: FormLayoutControl {
     /// The area's most recently assigned bounds.
     public private(set) var bounds = Rectangle()
 
-    /// Creates a box with a character limit and font size.
+    /// Creates a box with a character limit. Without a `fontSize`, it uses the theme's `input` size.
     public init(
         text: String = "",
         maximumLength: Int,
-        fontSize: Int = 20,
+        fontSize: Int? = nil,
         theme: InterfaceTheme = .standard
     ) {
         precondition(maximumLength > 0, "maximumLength must be positive")
-        precondition(fontSize > 0, "fontSize must be positive")
+        precondition(fontSize.map { $0 > 0 } ?? true, "fontSize must be positive")
         self.maxLength = maximumLength
-        self.fontSize = fontSize
+        self.fontSize = fontSize ?? theme.textSizes.input
         self.theme = theme
         self.text = text
     }

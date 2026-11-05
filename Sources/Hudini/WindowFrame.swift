@@ -6,12 +6,6 @@ public final class WindowFrame {
     /// How tall the title bar is.
     public static let titleHeight: Int = 30
 
-    private static let titleSize: Int = 16
-
-    private static let toolbarSize: Int = 14
-
-    private static let problemSize: Int = 10
-
     private static let toolbarPadding: Int = 10
 
     private static let toolbarGap: Int = 4
@@ -53,7 +47,7 @@ public final class WindowFrame {
         titleField = TextField(
             text: title,
             maximumLength: maximumTitleLength,
-            fontSize: WindowFrame.titleSize,
+            fontSize: theme.textSizes.title,
             theme: theme
         )
     }
@@ -219,20 +213,20 @@ public final class WindowFrame {
                 DrawRectangleRec(item, theme.selectedItem)
             }
             let color = selectedToolbarIndex == i ? theme.accent : CheckCollisionPointRec(mouse, item) ? theme.text : theme.secondaryText
-            theme.drawText(toolbarItems[i], x: Int(clamping: item.x) + WindowFrame.toolbarPadding, y: Int(clamping: item.y + ((item.height - Float(WindowFrame.toolbarSize)) / 2)), size: WindowFrame.toolbarSize, color: color)
+            theme.drawText(toolbarItems[i], x: Int(clamping: item.x) + WindowFrame.toolbarPadding, y: Int(clamping: item.y + ((item.height - Float(theme.textSizes.body)) / 2)), size: theme.textSizes.body, color: color)
         }
         let title = titleBounds(bounds)
         if isEditingTitle {
             titleField.draw(in: title)
             if let titleValidationMessage {
-                theme.drawText(titleValidationMessage, x: Int(clamping: title.x), y: Int(clamping: bounds.y + Float(WindowFrame.titleHeight) + 2), size: WindowFrame.problemSize, color: theme.error)
+                theme.drawText(titleValidationMessage, x: Int(clamping: title.x), y: Int(clamping: bounds.y + Float(WindowFrame.titleHeight) + 2), size: theme.textSizes.problem, color: theme.error)
             }
             return
         }
         let shown = shown(title.width)
-        let width = theme.textWidth(of: shown, size: WindowFrame.titleSize)
+        let width = theme.textWidth(of: shown, size: theme.textSizes.title)
         let titleColor = allowsTitleEditing && CheckCollisionPointRec(mouse, title) ? theme.accent : theme.text
-        theme.drawText(shown, x: Int(clamping: title.x + ((title.width - Float(width)) / 2)), y: Int(clamping: bounds.y + Float((WindowFrame.titleHeight - WindowFrame.titleSize) / 2)), size: WindowFrame.titleSize, color: titleColor)
+        theme.drawText(shown, x: Int(clamping: title.x + ((title.width - Float(width)) / 2)), y: Int(clamping: bounds.y + Float((WindowFrame.titleHeight - theme.textSizes.title) / 2)), size: theme.textSizes.title, color: titleColor)
     }
 
     // A red dot, marked with an x while the pointer is over it, as macOS has it.
@@ -275,9 +269,9 @@ public final class WindowFrame {
         }
         (shownFor, shownRoom) = (_title, room)
         shownTitle = _title
-        if Float(theme.textWidth(of: _title, size: WindowFrame.titleSize)) > room {
+        if Float(theme.textWidth(of: _title, size: theme.textSizes.title)) > room {
             var length = _title.count
-            while length > 0 && Float(theme.textWidth(of: String(_title.prefix(length)) + WindowFrame.ellipsis, size: WindowFrame.titleSize)) > room {
+            while length > 0 && Float(theme.textWidth(of: String(_title.prefix(length)) + WindowFrame.ellipsis, size: theme.textSizes.title)) > room {
                 length -= 1
             }
             shownTitle = String(_title.prefix(length)) + WindowFrame.ellipsis
@@ -298,7 +292,7 @@ public final class WindowFrame {
         let between = max(0.0, right - left)
         let side = max(left - bounds.x, bounds.x + bounds.width - right)
         let centred = max(0.0, bounds.width - (side * 2))
-        let wanted = isEditingTitle ? WindowFrame.editWidth : theme.textWidth(of: _title, size: WindowFrame.titleSize)
+        let wanted = isEditingTitle ? WindowFrame.editWidth : theme.textWidth(of: _title, size: theme.textSizes.title)
         let (x, room) = centred >= Float(wanted) ? (bounds.x + ((bounds.width - centred) / 2), centred) : (left, between)
         return Rectangle(x: x, y: bounds.y + 3, width: room, height: Float(WindowFrame.titleHeight - 6))
     }
@@ -316,7 +310,7 @@ public final class WindowFrame {
     private func toolBounds(_ bounds: Rectangle, _ index: Int) -> Rectangle {
         var right = bounds.x + bounds.width - Float(WindowFrame.margin)
         for i in stride(from: toolbarItems.count - 1, through: 0, by: -1) {
-            let width = theme.textWidth(of: toolbarItems[i], size: WindowFrame.toolbarSize) + (WindowFrame.toolbarPadding * 2)
+            let width = theme.textWidth(of: toolbarItems[i], size: theme.textSizes.body) + (WindowFrame.toolbarPadding * 2)
             if i == index {
                 return Rectangle(x: right - Float(width), y: bounds.y + 4, width: Float(width), height: Float(WindowFrame.titleHeight - 8))
             }

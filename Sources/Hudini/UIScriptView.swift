@@ -11,14 +11,12 @@ import Raylib
 /// behind the view, and it can place one view inside another by drawing it at a
 /// region's corner, or in a `WindowFrame`, without the document changing.
 public final class UIScriptView {
-    private static let defaultFontSize = 14
     private static let defaultMaximumLength = 256
     private static let textInset = 6
     private static let textLineGap = 4
     private static let missingImageSize: Float = 24
     private static let sliderThumbLength: Float = 10
     private static let tooltipDelay: Float = 0.5
-    private static let tooltipFontSize = 12
     private static let tooltipPadding: Float = 4
     private static let tooltipGap: Float = 4
 
@@ -119,7 +117,7 @@ public final class UIScriptView {
             case .list:
                 lists[control.name] = TextList(
                     items: text.map { [$0] } ?? [],
-                    fontSize: style?.fontSize ?? Self.defaultFontSize,
+                    fontSize: style?.fontSize ?? theme.textSizes.body,
                     theme: theme,
                     textColor: style?.textColor,
                     backgroundColor: style?.backgroundColor,
@@ -130,7 +128,7 @@ public final class UIScriptView {
                 textFields[control.name] = TextField(
                     text: text ?? "",
                     maximumLength: control.maximumLength ?? Self.defaultMaximumLength,
-                    fontSize: style?.fontSize ?? Self.defaultFontSize,
+                    fontSize: style?.fontSize ?? theme.textSizes.body,
                     theme: theme,
                     placeholder: resolved(control.placeholder),
                     textColor: style?.textColor,
@@ -639,7 +637,8 @@ public final class UIScriptView {
             return
         }
         let bounds = Self.tooltipBounds(
-            textWidth: Float(theme.textWidth(of: text, size: Self.tooltipFontSize)),
+            textWidth: Float(theme.textWidth(of: text, size: theme.textSizes.tooltip)),
+            textHeight: Float(theme.textSizes.tooltip),
             below: screenRectangle(for: control.frame, named: name, at: origin),
             screen: Vector2(x: Float(GetScreenWidth()), y: Float(GetScreenHeight()))
         )
@@ -649,15 +648,15 @@ public final class UIScriptView {
             text,
             x: Int(clamping: bounds.x + Self.tooltipPadding),
             y: Int(clamping: bounds.y + Self.tooltipPadding),
-            size: Self.tooltipFontSize,
+            size: theme.textSizes.tooltip,
             color: theme.text
         )
     }
 
     /// Places a tooltip under its control, above it when there is no room below, and on screen.
-    static func tooltipBounds(textWidth: Float, below control: Rectangle, screen: Vector2) -> Rectangle {
+    static func tooltipBounds(textWidth: Float, textHeight: Float, below control: Rectangle, screen: Vector2) -> Rectangle {
         let width = textWidth + (tooltipPadding * 2)
-        let height = Float(tooltipFontSize) + (tooltipPadding * 2)
+        let height = textHeight + (tooltipPadding * 2)
         let below = control.y + control.height + tooltipGap
         let y = below + height <= screen.y ? below : control.y - tooltipGap - height
         return Rectangle(
@@ -688,7 +687,7 @@ public final class UIScriptView {
             return
         }
         let style = script.style(for: control)
-        let fontSize = style?.fontSize ?? Self.defaultFontSize
+        let fontSize = style?.fontSize ?? theme.textSizes.body
         let left = Int(clamping: bounds.x) + inset
         let room = Int(clamping: bounds.width) - (inset * 2)
         var y = Int(clamping: bounds.y) + inset
@@ -728,7 +727,7 @@ public final class UIScriptView {
         guard let label = labels[control.name] else {
             return
         }
-        let fontSize = style?.fontSize ?? Self.defaultFontSize
+        let fontSize = style?.fontSize ?? theme.textSizes.body
         theme.drawText(
             label,
             x: Int(clamping: bounds.x + ((bounds.width - Float(theme.textWidth(of: label, size: fontSize))) / 2)),

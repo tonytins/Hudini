@@ -3,17 +3,18 @@
 // debug bar. The options panel opens a window for moving to another lot. The chat, mode panels, and
 // move window are UIScript XML. The stand and the bar are Maxis' .uis format.
 //
-// Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>]
+// Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>]
 //
 // Scenes are for checking the interface without input: live, stats, options, stand, standwindow,
 // movelot.
 // --pointer holds the pointer in place, and a screenshot then waits long enough to show a tooltip.
+// --font draws the interface in a font file, such as a .ttf. The demo's own lot art keeps raylib's
+// default font, since the theme only reaches Hudini's controls.
 
 import Foundation
 import Hudini
 import Raylib
 
-let theme = InterfaceTheme.standard
 
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data("\(message)\n".utf8))
@@ -264,6 +265,7 @@ func drawPeople(in bounds: Rectangle) {
 var screenshot: String?
 var scene = "live"
 var heldPointer: Vector2?
+var fontPath: String?
 var arguments = CommandLine.arguments.dropFirst()
 while let argument = arguments.popFirst() {
     switch argument {
@@ -282,8 +284,13 @@ while let argument = arguments.popFirst() {
             fail("--pointer needs an x and a y")
         }
         heldPointer = Vector2(x: x, y: y)
+    case "--font":
+        guard let path = arguments.popFirst() else {
+            fail("--font needs a file")
+        }
+        fontPath = path
     default:
-        fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>]")
+        fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>]")
     }
 }
 guard ["live", "stats", "options", "stand", "standwindow", "movelot"].contains(scene) else {
@@ -317,6 +324,16 @@ let standScript = loadUIS(named: "lemonadestand")
 SetTraceLogLevel(.warning)
 SetConfigFlags(screenshot == nil ? [.windowResizable, .vsyncHint] : [.windowHidden])
 InitWindow(1024, 768, "Hudini Live Mode")
+// The host owns the font: it loads after InitWindow and unloads before CloseWindow.
+let font: Font? = fontPath.map { path in
+    let font = LoadFontEx(path, 32, nil, 0)
+    guard IsFontValid(font) else {
+        fail("Couldn't load the font at '\(path)'.")
+    }
+    SetTextureFilter(font.texture, .bilinear)
+    return font
+}
+let theme = InterfaceTheme(font: font)
 SetExitKey(.null)
 SetTargetFPS(60)
 
@@ -885,6 +902,9 @@ while running && !WindowShouldClose() {
 
 for texture in placeholderTextures {
     UnloadTexture(texture)
+}
+if let font {
+    UnloadFont(font)
 }
 CloseWindow()
 if !screenshotSaved {

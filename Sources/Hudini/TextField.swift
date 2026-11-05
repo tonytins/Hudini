@@ -46,12 +46,13 @@ public final class TextField: FormLayoutControl {
     /// The field's most recently assigned bounds.
     public private(set) var bounds = Rectangle()
 
-    /// Creates a field that accepts at most `maximumLength` characters.
+    /// Creates a field that accepts at most `maximumLength` characters. Without a `fontSize`, it
+    /// uses the theme's `input` size.
     public init(
         text: String = "",
         maximumLength: Int,
         accepting characters: @escaping (Character) -> Bool = { _ in true },
-        fontSize: Int = 20,
+        fontSize: Int? = nil,
         theme: InterfaceTheme = .standard,
         placeholder: String? = nil,
         textColor: Color? = nil,
@@ -61,10 +62,10 @@ public final class TextField: FormLayoutControl {
         isSecure: Bool = false
     ) {
         precondition(maximumLength > 0, "maximumLength must be positive")
-        precondition(fontSize > 0, "fontSize must be positive")
+        precondition(fontSize.map { $0 > 0 } ?? true, "fontSize must be positive")
         maxLength = maximumLength
         accepts = characters
-        self.fontSize = fontSize
+        self.fontSize = fontSize ?? theme.textSizes.input
         self.theme = theme
         self.placeholder = placeholder
         self.textColor = textColor ?? theme.text

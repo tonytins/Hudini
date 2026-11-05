@@ -95,19 +95,20 @@ public final class TextList {
         )
     }
 
-    /// Creates a text list using the host's ordered items.
+    /// Creates a text list using the host's ordered items. Without a `fontSize`, it uses the
+    /// theme's `body` size.
     public init(
         items: [String] = [],
-        fontSize: Int = 14,
+        fontSize: Int? = nil,
         theme: InterfaceTheme = .standard,
         textColor: Color? = nil,
         backgroundColor: Color? = nil,
         borderColor: Color? = nil,
         isSelectable: Bool = false
     ) {
-        precondition(fontSize > 0, "fontSize must be positive")
+        precondition(fontSize.map { $0 > 0 } ?? true, "fontSize must be positive")
         self.items = items
-        self.fontSize = fontSize
+        self.fontSize = fontSize ?? theme.textSizes.body
         self.theme = theme
         self.textColor = textColor ?? theme.text
         self.backgroundColor = backgroundColor ?? theme.panel

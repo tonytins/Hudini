@@ -3,8 +3,6 @@ import Raylib
 
 /// Draws and hit-tests a row of buttons aligned to a bottom-right corner.
 public enum ButtonRow {
-    private static let fontSize: Int = 20
-
     private static let height: Int = 30
 
     private static let labelPadding: Int = 14
@@ -46,7 +44,7 @@ public enum ButtonRow {
             let color = !isEnabled(index, enabled)
                 ? theme.secondaryText
                 : CheckCollisionPointRec(mousePosition, buttonBounds) ? theme.accent : theme.text
-            theme.drawText(labels[index], x: Int(clamping: buttonBounds.x) + labelPadding, y: Int(clamping: buttonBounds.y) + 5, size: fontSize, color: color)
+            theme.drawText(labels[index], x: Int(clamping: buttonBounds.x) + labelPadding, y: Int(clamping: buttonBounds.y) + ((height - theme.textSizes.button) / 2), size: theme.textSizes.button, color: color)
         }
     }
 
@@ -60,7 +58,7 @@ public enum ButtonRow {
     private static func bounds(endingAt corner: Vector2, labels: [String], index: Int, theme: InterfaceTheme) -> Rectangle {
         var right = corner.x
         for i in stride(from: labels.count - 1, through: 0, by: -1) {
-            let width = theme.textWidth(of: labels[i], size: fontSize) + (labelPadding * 2)
+            let width = theme.textWidth(of: labels[i], size: theme.textSizes.button) + (labelPadding * 2)
             if i == index {
                 return Rectangle(x: right - Float(width), y: corner.y - Float(height), width: Float(width), height: Float(height))
             }

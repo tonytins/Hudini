@@ -977,6 +977,65 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
     #expect(field.text == "08:01")
 }
 
+@Test func standardTextSizesKeepHudinisLook() {
+    let sizes = InterfaceTheme.standard.textSizes
+
+    #expect(sizes.title == 16)
+    #expect(sizes.label == 16)
+    #expect(sizes.body == 14)
+    #expect(sizes.button == 20)
+    #expect(sizes.input == 20)
+    #expect(sizes.tooltip == 12)
+    #expect(sizes.problem == 10)
+    #expect(InterfaceTheme.standard.font == nil)
+}
+
+@Test func controlsTakeTheirSizeFromTheThemeUnlessGivenOne() {
+    let theme = InterfaceTheme(textSizes: .init(input: 30))
+
+    #expect(TextField(maximumLength: 8).height == 32)
+    #expect(TextField(maximumLength: 8, theme: theme).height == 42)
+    #expect(TextField(maximumLength: 8, fontSize: 10, theme: theme).height == 22)
+    #expect(TextArea(maximumLength: 8, theme: theme).formHeight == TextArea(maximumLength: 8, fontSize: 30).formHeight)
+}
+
+@Test func uiScriptFieldsUseTheThemesBodySizeUnlessStyled() throws {
+    let theme = InterfaceTheme(textSizes: .init(body: 30))
+    let plain = UIScriptView(script: try script("<TextField name='entry' \(tenByTen)/>"), theme: theme)
+    let styled = UIScriptView(
+        script: try script("<Style name='s' fontSize='18'/><TextField name='entry' style='s' \(tenByTen)/>"),
+        theme: theme
+    )
+
+    #expect(plain.textField(named: "entry")?.height == 42)
+    #expect(styled.textField(named: "entry")?.height == 30)
+}
+
+@Test func formsLeaveRoomForTheThemesLabelSize() {
+    let bounds = Rectangle(x: 0, y: 0, width: 200, height: 200)
+    let standard = FormLayout(fields: [.init(label: "Name", control: TextField(maximumLength: 8))])
+    let larger = FormLayout(
+        fields: [.init(label: "Name", control: TextField(maximumLength: 8))],
+        theme: InterfaceTheme(textSizes: .init(label: 26))
+    )
+
+    standard.layout(in: bounds)
+    larger.layout(in: bounds)
+
+    #expect(larger.fields[0].controlBounds.y == standard.fields[0].controlBounds.y + 10)
+}
+
+@Test func aFontWithoutATextureCountsAsNoFont() {
+    let theme = InterfaceTheme(font: Font())
+
+    #expect(theme.textWidth(of: "Hudini", size: 20) == InterfaceTheme.standard.textWidth(of: "Hudini", size: 20))
+}
+
+@Test func themesStaySendableWithAFont() {
+    func send(_ value: some Sendable) {}
+    send(InterfaceTheme(font: Font()))
+}
+
 @Test func buttonRowHitTestingTakesTheThemeItDrawsWith() {
     let corner = Vector2(x: 300, y: 100)
     let theme = InterfaceTheme(accent: Color(r: 1, g: 2, b: 3, a: 255))
@@ -1659,16 +1718,16 @@ private func tooltipView() throws -> UIScriptView {
     let screen = Vector2(x: 200, y: 200)
     let control = Rectangle(x: 10, y: 10, width: 20, height: 20)
 
-    let below = UIScriptView.tooltipBounds(textWidth: 50, below: control, screen: screen)
+    let below = UIScriptView.tooltipBounds(textWidth: 50, textHeight: 12, below: control, screen: screen)
     #expect(below == Rectangle(x: 10, y: 34, width: 58, height: 20))
 
     let nearBottom = Rectangle(x: 10, y: 180, width: 20, height: 20)
-    let above = UIScriptView.tooltipBounds(textWidth: 50, below: nearBottom, screen: screen)
+    let above = UIScriptView.tooltipBounds(textWidth: 50, textHeight: 12, below: nearBottom, screen: screen)
     #expect(above.y == 156)
 
     let nearRight = Rectangle(x: 190, y: 10, width: 10, height: 10)
-    #expect(UIScriptView.tooltipBounds(textWidth: 50, below: nearRight, screen: screen).x == 142)
-    #expect(UIScriptView.tooltipBounds(textWidth: 500, below: nearRight, screen: screen).x == 0)
+    #expect(UIScriptView.tooltipBounds(textWidth: 50, textHeight: 12, below: nearRight, screen: screen).x == 142)
+    #expect(UIScriptView.tooltipBounds(textWidth: 500, textHeight: 12, below: nearRight, screen: screen).x == 0)
 }
 
 @Test func clearFocusRemovesFocusFromTextFields() throws {

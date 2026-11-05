@@ -95,7 +95,7 @@ state. Some Maxis images hold six slices, and Hudini uses the first four.
 | `textColor`, `backgroundColor`, `borderColor` | Colors used when drawing. |
 | `selectedTextColor`, `highlightedTextColor`, `disabledTextColor` | Button label colors while pressed, hovered, and disabled. |
 | `fillColor` | The filled part of a progress bar and the thumb of a slider. |
-| `fontSize` | A positive size in pixels. |
+| `fontSize` | A positive size in pixels. Without one, text uses the theme's `body` size. |
 
 ## Position and size
 
@@ -245,6 +245,8 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   background the host draws itself needs its own check. When views overlap, the
   host decides which one gets the pointer.
 - Draw any window frame or background behind the view.
+- Choose the font and default text sizes through the `InterfaceTheme` passed to the
+  view. A document sets sizes through `<Style>`, and has no way to name a font.
 
 ### Panels inside panels
 

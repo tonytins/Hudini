@@ -18,7 +18,7 @@ form layout.
 - Button rows with hit testing and enabled states
 - A 2D camera with pointer-centered zoom and coordinate conversion
 - Declarative, vertically stacked form layout
-- Per-interface color themes
+- Per-interface themes with colors, a font, and text sizes
 - [UIScript](doc/UISCRIPT.md), an XML format describing resources, styles, visuals, and controls
 - `UIScriptView`, which builds, updates, and draws a document's controls
 - Readers for Maxis' `.uis` interface files and `.cst` text tables
@@ -134,6 +134,30 @@ CloseWindow()
 
 raylib closes the window on Escape by default. `SetExitKey(.null)` turns that off
 so Escape can cancel title edits and dismiss panels instead of quitting the game.
+
+### Fonts and text sizes
+
+A theme draws in raylib's default font unless you give it another. Your game owns the
+font, so load it after `InitWindow` and unload it before `CloseWindow`:
+
+```swift
+let font = LoadFontEx("ui.ttf", 32, nil, 0)
+guard IsFontValid(font) else {
+    fatalError("Couldn't load ui.ttf")
+}
+SetTextureFilter(font.texture, .bilinear)
+let theme = InterfaceTheme(
+    font: font,
+    textSizes: .init(title: 18, button: 16, input: 16)
+)
+// ...
+UnloadFont(font)
+CloseWindow()
+```
+
+A theme given a font that failed to load draws in the default font instead, so check
+it with `IsFontValid` as above. A different font changes text widths, so check your
+layouts after switching. Use one theme for every component in a screen.
 
 ### Building controls in code
 

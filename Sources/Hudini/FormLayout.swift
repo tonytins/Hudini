@@ -14,8 +14,6 @@ public protocol FormLayoutControl: AnyObject {
 
 /// Calculates label and control positions for a vertically stacked form.
 public final class FormLayout {
-    private static let labelFontSize: Int = 16
-    private static let labelHeight: Float = 18
 
     private let descriptions: [Field]
     private let horizontalInset: Float
@@ -24,6 +22,7 @@ public final class FormLayout {
     private let fieldSpacing: Float
     private let footerHeight: Float
     private let bottomInset: Float
+    private let theme: InterfaceTheme
     private var lastBounds: Rectangle?
 
     /// A labeled control's height in the form.
@@ -65,7 +64,8 @@ public final class FormLayout {
 
     /// Creates a form layout with fixed spacing.
     ///
-    /// `footerHeight` reserves room below the fields for buttons or other actions.
+    /// `footerHeight` reserves room below the fields for buttons or other actions. Each label gets
+    /// room for `theme`'s `label` size.
     public init(
         fields descriptions: [Field],
         horizontalInset: Float = 10,
@@ -73,7 +73,8 @@ public final class FormLayout {
         labelSpacing: Float = 4,
         fieldSpacing: Float = 8,
         footerHeight: Float = 0,
-        bottomInset: Float = 10
+        bottomInset: Float = 10,
+        theme: InterfaceTheme = .standard
     ) {
         precondition(horizontalInset >= 0, "horizontalInset must not be negative")
         precondition(topInset >= 0, "topInset must not be negative")
@@ -89,6 +90,7 @@ public final class FormLayout {
         self.fieldSpacing = fieldSpacing
         self.footerHeight = footerHeight
         self.bottomInset = bottomInset
+        self.theme = theme
         fields.reserveCapacity(descriptions.count)
     }
 
@@ -109,7 +111,7 @@ public final class FormLayout {
 
         for description in descriptions {
             let labelPosition = Vector2(x: bounds.x + horizontalInset, y: top)
-            let controlY = top + Self.labelHeight + labelSpacing
+            let controlY = top + Float(theme.textSizes.label + 2) + labelSpacing
             let controlBounds = Rectangle(
                 x: bounds.x + horizontalInset,
                 y: controlY,
@@ -132,14 +134,16 @@ public final class FormLayout {
         lastBounds = bounds
     }
 
-    /// Draws the form's labels using the theme's secondary text color.
-    public func drawLabels(theme: InterfaceTheme = .standard) {
+    /// Draws the form's labels in the theme's secondary text color. Without a `theme`, it uses
+    /// the one the layout was created with.
+    public func drawLabels(theme: InterfaceTheme? = nil) {
+        let theme = theme ?? self.theme
         for field in fields {
             theme.drawText(
                 field.label,
                 x: Int(clamping: field.labelPosition.x),
                 y: Int(clamping: field.labelPosition.y),
-                size: Self.labelFontSize,
+                size: theme.textSizes.label,
                 color: theme.secondaryText
             )
         }

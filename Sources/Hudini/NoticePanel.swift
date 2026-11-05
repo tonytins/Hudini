@@ -3,13 +3,9 @@ import Raylib
 
 /// A movable notice with a title, message, and dismiss button.
 public final class NoticePanel {
-    private static let fontSize: Int = 14
-
     private static let padding: Int = 12
 
     private static let width: Int = 340
-
-    private static let lineHeight: Int = 18
 
     private static let top: Int = WindowFrame.titleHeight + 8
 
@@ -43,7 +39,7 @@ public final class NoticePanel {
         lines.removeAll()
         lines.append(contentsOf: theme.wrappedLines(
             for: message,
-            size: Self.fontSize,
+            size: theme.textSizes.body,
             maximumWidth: Self.width - (Self.padding * 2)
         ))
         isOpen = true
@@ -73,19 +69,23 @@ public final class NoticePanel {
         let x = Int(clamping: bounds.x) + Self.padding
         var y = Int(clamping: bounds.y) + Self.top
         for line in lines {
-            theme.drawText(line, x: x, y: y, size: Self.fontSize, color: theme.secondaryText)
-            y += Self.lineHeight
+            theme.drawText(line, x: x, y: y, size: theme.textSizes.body, color: theme.secondaryText)
+            y += lineHeight
         }
         let button = Self.buttonBounds(bounds)
         let hovered = CheckCollisionPointRec(GetMousePosition(), button)
         DrawRectangleRec(button, hovered ? theme.border : theme.panel)
         DrawRectangleLinesEx(button, 1.0, theme.accent)
-        let textX = Int(clamping: button.x + Float((Self.buttonWidth - theme.textWidth(of: Self.buttonText, size: Self.fontSize)) / 2))
-        theme.drawText(Self.buttonText, x: textX, y: Int(clamping: button.y) + ((Self.buttonHeight - Self.fontSize) / 2), size: Self.fontSize, color: hovered ? theme.accent : theme.text)
+        let textX = Int(clamping: button.x + Float((Self.buttonWidth - theme.textWidth(of: Self.buttonText, size: theme.textSizes.body)) / 2))
+        theme.drawText(Self.buttonText, x: textX, y: Int(clamping: button.y) + ((Self.buttonHeight - theme.textSizes.body) / 2), size: theme.textSizes.body, color: hovered ? theme.accent : theme.text)
+    }
+
+    private var lineHeight: Int {
+        theme.textSizes.body + 4
     }
 
     private var height: Int {
-        Self.top + (max(lines.count, 1) * Self.lineHeight) + Self.padding + Self.buttonHeight + Self.padding
+        Self.top + (max(lines.count, 1) * lineHeight) + Self.padding + Self.buttonHeight + Self.padding
     }
 
     private static func buttonBounds(_ bounds: Rectangle) -> Rectangle {
