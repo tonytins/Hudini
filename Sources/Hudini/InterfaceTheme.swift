@@ -58,4 +58,19 @@ public struct InterfaceTheme: Sendable {
 
     /// Hudini's default dark palette with a warm accent.
     public static let standard = InterfaceTheme()
+
+    /// Draws text the way every Hudini control does.
+    func drawText(_ text: String, x: Int, y: Int, size: Int, color: Color) {
+        DrawText(text, x, y, size, color)
+    }
+
+    /// Returns how wide `drawText` draws `text`.
+    func textWidth(of text: String, size: Int) -> Int {
+        MeasureText(text, size)
+    }
+
+    /// Wraps `text` into lines that fit `maximumWidth` when drawn with `drawText`.
+    func wrappedLines(for text: String, size: Int, maximumWidth: Int) -> [String] {
+        TextWrapper.lines(for: text, maximumWidth: maximumWidth) { textWidth(of: $0, size: size) }
+    }
 }

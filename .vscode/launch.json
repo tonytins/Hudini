@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Hudini}",
+            "name": "Debug hudini-demo",
+            "target": "hudini-demo",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug hudini-demo"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Hudini}",
+            "name": "Release hudini-demo",
+            "target": "hudini-demo",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release hudini-demo"
+        }
+    ]
+}

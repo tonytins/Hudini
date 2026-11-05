@@ -15,15 +15,17 @@ public enum ButtonRow {
     public static let rowHeight: Int = height
 
     /// Returns the index of the enabled button containing `point`, or `nil` if there is none.
-    /// Missing enabled flags leave buttons enabled.
+    /// Missing enabled flags leave buttons enabled. Pass the theme the row is drawn with, so
+    /// buttons are measured the same way.
     public static func buttonIndex(
         at point: Vector2,
         endingAt corner: Vector2,
         labels: [String],
-        enabled: [Bool]? = nil
+        enabled: [Bool]? = nil,
+        theme: InterfaceTheme = .standard
     ) -> Int? {
         for index in labels.indices where isEnabled(index, enabled) {
-            if CheckCollisionPointRec(point, bounds(endingAt: corner, labels: labels, index: index)) {
+            if CheckCollisionPointRec(point, bounds(endingAt: corner, labels: labels, index: index, theme: theme)) {
                 return index
             }
         }
@@ -39,12 +41,12 @@ public enum ButtonRow {
         theme: InterfaceTheme = .standard
     ) {
         for index in labels.indices {
-            let buttonBounds = bounds(endingAt: corner, labels: labels, index: index)
+            let buttonBounds = bounds(endingAt: corner, labels: labels, index: index, theme: theme)
             DrawRectangleRec(buttonBounds, theme.border)
             let color = !isEnabled(index, enabled)
                 ? theme.secondaryText
                 : CheckCollisionPointRec(mousePosition, buttonBounds) ? theme.accent : theme.text
-            DrawText(labels[index], Int(clamping: buttonBounds.x) + labelPadding, Int(clamping: buttonBounds.y) + 5, fontSize, color)
+            theme.drawText(labels[index], x: Int(clamping: buttonBounds.x) + labelPadding, y: Int(clamping: buttonBounds.y) + 5, size: fontSize, color: color)
         }
     }
 
@@ -55,10 +57,10 @@ public enum ButtonRow {
         return enabled[index]
     }
 
-    private static func bounds(endingAt corner: Vector2, labels: [String], index: Int) -> Rectangle {
+    private static func bounds(endingAt corner: Vector2, labels: [String], index: Int, theme: InterfaceTheme) -> Rectangle {
         var right = corner.x
         for i in stride(from: labels.count - 1, through: 0, by: -1) {
-            let width = MeasureText(labels[i], fontSize) + (labelPadding * 2)
+            let width = theme.textWidth(of: labels[i], size: fontSize) + (labelPadding * 2)
             if i == index {
                 return Rectangle(x: right - Float(width), y: corner.y - Float(height), width: Float(width), height: Float(height))
             }

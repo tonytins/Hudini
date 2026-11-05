@@ -41,9 +41,9 @@ public final class NoticePanel {
     public func show(title: String, message: String) {
         frame.title = title
         lines.removeAll()
-        lines.append(contentsOf: TextWrapper.lines(
+        lines.append(contentsOf: theme.wrappedLines(
             for: message,
-            fontSize: Self.fontSize,
+            size: Self.fontSize,
             maximumWidth: Self.width - (Self.padding * 2)
         ))
         isOpen = true
@@ -73,15 +73,15 @@ public final class NoticePanel {
         let x = Int(clamping: bounds.x) + Self.padding
         var y = Int(clamping: bounds.y) + Self.top
         for line in lines {
-            DrawText(line, x, y, Self.fontSize, theme.secondaryText)
+            theme.drawText(line, x: x, y: y, size: Self.fontSize, color: theme.secondaryText)
             y += Self.lineHeight
         }
         let button = Self.buttonBounds(bounds)
         let hovered = CheckCollisionPointRec(GetMousePosition(), button)
         DrawRectangleRec(button, hovered ? theme.border : theme.panel)
         DrawRectangleLinesEx(button, 1.0, theme.accent)
-        let textX = Int(clamping: button.x + Float((Self.buttonWidth - MeasureText(Self.buttonText, Self.fontSize)) / 2))
-        DrawText(Self.buttonText, textX, Int(clamping: button.y) + ((Self.buttonHeight - Self.fontSize) / 2), Self.fontSize, hovered ? theme.accent : theme.text)
+        let textX = Int(clamping: button.x + Float((Self.buttonWidth - theme.textWidth(of: Self.buttonText, size: Self.fontSize)) / 2))
+        theme.drawText(Self.buttonText, x: textX, y: Int(clamping: button.y) + ((Self.buttonHeight - Self.fontSize) / 2), size: Self.fontSize, color: hovered ? theme.accent : theme.text)
     }
 
     private var height: Int {

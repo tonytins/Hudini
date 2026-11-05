@@ -219,20 +219,20 @@ public final class WindowFrame {
                 DrawRectangleRec(item, theme.selectedItem)
             }
             let color = selectedToolbarIndex == i ? theme.accent : CheckCollisionPointRec(mouse, item) ? theme.text : theme.secondaryText
-            DrawText(toolbarItems[i], Int(clamping: item.x) + WindowFrame.toolbarPadding, Int(clamping: item.y + ((item.height - Float(WindowFrame.toolbarSize)) / 2)), WindowFrame.toolbarSize, color)
+            theme.drawText(toolbarItems[i], x: Int(clamping: item.x) + WindowFrame.toolbarPadding, y: Int(clamping: item.y + ((item.height - Float(WindowFrame.toolbarSize)) / 2)), size: WindowFrame.toolbarSize, color: color)
         }
         let title = titleBounds(bounds)
         if isEditingTitle {
             titleField.draw(in: title)
             if let titleValidationMessage {
-                DrawText(titleValidationMessage, Int(clamping: title.x), Int(clamping: bounds.y + Float(WindowFrame.titleHeight) + 2), WindowFrame.problemSize, theme.error)
+                theme.drawText(titleValidationMessage, x: Int(clamping: title.x), y: Int(clamping: bounds.y + Float(WindowFrame.titleHeight) + 2), size: WindowFrame.problemSize, color: theme.error)
             }
             return
         }
         let shown = shown(title.width)
-        let width = MeasureText(shown, WindowFrame.titleSize)
+        let width = theme.textWidth(of: shown, size: WindowFrame.titleSize)
         let titleColor = allowsTitleEditing && CheckCollisionPointRec(mouse, title) ? theme.accent : theme.text
-        DrawText(shown, Int(clamping: title.x + ((title.width - Float(width)) / 2)), Int(clamping: bounds.y + Float((WindowFrame.titleHeight - WindowFrame.titleSize) / 2)), WindowFrame.titleSize, titleColor)
+        theme.drawText(shown, x: Int(clamping: title.x + ((title.width - Float(width)) / 2)), y: Int(clamping: bounds.y + Float((WindowFrame.titleHeight - WindowFrame.titleSize) / 2)), size: WindowFrame.titleSize, color: titleColor)
     }
 
     // A red dot, marked with an x while the pointer is over it, as macOS has it.
@@ -275,9 +275,9 @@ public final class WindowFrame {
         }
         (shownFor, shownRoom) = (_title, room)
         shownTitle = _title
-        if Float(MeasureText(_title, WindowFrame.titleSize)) > room {
+        if Float(theme.textWidth(of: _title, size: WindowFrame.titleSize)) > room {
             var length = _title.count
-            while length > 0 && Float(MeasureText(String(_title.prefix(length)) + WindowFrame.ellipsis, WindowFrame.titleSize)) > room {
+            while length > 0 && Float(theme.textWidth(of: String(_title.prefix(length)) + WindowFrame.ellipsis, size: WindowFrame.titleSize)) > room {
                 length -= 1
             }
             shownTitle = String(_title.prefix(length)) + WindowFrame.ellipsis
@@ -298,7 +298,7 @@ public final class WindowFrame {
         let between = max(0.0, right - left)
         let side = max(left - bounds.x, bounds.x + bounds.width - right)
         let centred = max(0.0, bounds.width - (side * 2))
-        let wanted = isEditingTitle ? WindowFrame.editWidth : MeasureText(_title, WindowFrame.titleSize)
+        let wanted = isEditingTitle ? WindowFrame.editWidth : theme.textWidth(of: _title, size: WindowFrame.titleSize)
         let (x, room) = centred >= Float(wanted) ? (bounds.x + ((bounds.width - centred) / 2), centred) : (left, between)
         return Rectangle(x: x, y: bounds.y + 3, width: room, height: Float(WindowFrame.titleHeight - 6))
     }
@@ -316,7 +316,7 @@ public final class WindowFrame {
     private func toolBounds(_ bounds: Rectangle, _ index: Int) -> Rectangle {
         var right = bounds.x + bounds.width - Float(WindowFrame.margin)
         for i in stride(from: toolbarItems.count - 1, through: 0, by: -1) {
-            let width = MeasureText(toolbarItems[i], WindowFrame.toolbarSize) + (WindowFrame.toolbarPadding * 2)
+            let width = theme.textWidth(of: toolbarItems[i], size: WindowFrame.toolbarSize) + (WindowFrame.toolbarPadding * 2)
             if i == index {
                 return Rectangle(x: right - Float(width), y: bounds.y + 4, width: Float(width), height: Float(WindowFrame.titleHeight - 8))
             }

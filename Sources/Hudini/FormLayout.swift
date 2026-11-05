@@ -135,12 +135,12 @@ public final class FormLayout {
     /// Draws the form's labels using the theme's secondary text color.
     public func drawLabels(theme: InterfaceTheme = .standard) {
         for field in fields {
-            DrawText(
+            theme.drawText(
                 field.label,
-                Int(clamping: field.labelPosition.x),
-                Int(clamping: field.labelPosition.y),
-                Self.labelFontSize,
-                theme.secondaryText
+                x: Int(clamping: field.labelPosition.x),
+                y: Int(clamping: field.labelPosition.y),
+                size: Self.labelFontSize,
+                color: theme.secondaryText
             )
         }
     }

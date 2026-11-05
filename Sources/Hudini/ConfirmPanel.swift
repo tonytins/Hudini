@@ -67,9 +67,9 @@ public final class ConfirmPanel {
         cancelTitle: String = "No"
     ) {
         (frame.title, self.confirmTitle, self.cancelTitle) = (title, confirmTitle, cancelTitle)
-        lines = TextWrapper.lines(
+        lines = theme.wrappedLines(
             for: message,
-            fontSize: Self.textSize,
+            size: Self.textSize,
             maximumWidth: Self.width - (Self.padding * 2)
         )
         isOpen = true
@@ -101,7 +101,7 @@ public final class ConfirmPanel {
         frame.draw(in: bounds)
         var y = Int(clamping: bounds.y) + WindowFrame.titleHeight + 12
         for line in lines {
-            DrawText(line, Int(clamping: bounds.x) + Self.padding, y, Self.textSize, theme.secondaryText)
+            theme.drawText(line, x: Int(clamping: bounds.x) + Self.padding, y: y, size: Self.textSize, color: theme.secondaryText)
             y += Self.lineHeight
         }
         let mouse = GetMousePosition()
@@ -131,9 +131,9 @@ public final class ConfirmPanel {
 
     private static func drawButton(_ bounds: Rectangle, _ label: String, _ mouse: Vector2, theme: InterfaceTheme) {
         DrawRectangleRec(bounds, theme.border)
-        let labelWidth = MeasureText(label, fontSize)
+        let labelWidth = theme.textWidth(of: label, size: fontSize)
         let color = CheckCollisionPointRec(mouse, bounds) ? theme.accent : theme.text
-        DrawText(label, Int(clamping: bounds.x + ((bounds.width - Float(labelWidth)) / 2)), Int(clamping: bounds.y) + 5, fontSize, color)
+        theme.drawText(label, x: Int(clamping: bounds.x + ((bounds.width - Float(labelWidth)) / 2)), y: Int(clamping: bounds.y) + 5, size: fontSize, color: color)
     }
 
     private var height: Int {
@@ -142,7 +142,7 @@ public final class ConfirmPanel {
 
     private func cancelBounds() -> Rectangle {
         let bounds = bounds
-        let buttonWidth = MeasureText(cancelTitle, Self.fontSize) + (Self.buttonPadding * 2)
+        let buttonWidth = theme.textWidth(of: cancelTitle, size: Self.fontSize) + (Self.buttonPadding * 2)
         return Rectangle(
             x: bounds.x + Float(Self.width - Self.padding - buttonWidth),
             y: bounds.y + Float(height - Self.padding - Self.buttonHeight),
@@ -153,7 +153,7 @@ public final class ConfirmPanel {
 
     private func confirmBounds() -> Rectangle {
         let cancel = cancelBounds()
-        let buttonWidth = MeasureText(confirmTitle, Self.fontSize) + (Self.buttonPadding * 2)
+        let buttonWidth = theme.textWidth(of: confirmTitle, size: Self.fontSize) + (Self.buttonPadding * 2)
         return Rectangle(
             x: cancel.x - Float(buttonWidth) - 10,
             y: cancel.y,

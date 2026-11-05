@@ -977,6 +977,17 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
     #expect(field.text == "08:01")
 }
 
+@Test func buttonRowHitTestingTakesTheThemeItDrawsWith() {
+    let corner = Vector2(x: 300, y: 100)
+    let theme = InterfaceTheme(accent: Color(r: 1, g: 2, b: 3, a: 255))
+    let point = Vector2(x: 295, y: 90)
+
+    #expect(
+        ButtonRow.buttonIndex(at: point, endingAt: corner, labels: ["OK"], theme: theme)
+            == ButtonRow.buttonIndex(at: point, endingAt: corner, labels: ["OK"])
+    )
+}
+
 @Test func hostsCanGiveAndRemoveFieldFocus() {
     let field = TextField(maximumLength: 8)
 

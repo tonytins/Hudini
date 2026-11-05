@@ -122,13 +122,13 @@ public final class TextArea: FormLayoutControl {
         let x = Int(clamping: bounds.x) + TextArea.padding
         var y = Int(clamping: bounds.y) + TextArea.padding
         for i in stride(from: first, to: lines.count, by: 1) {
-            DrawText(lines[i], x, y, fontSize, theme.text)
+            theme.drawText(lines[i], x: x, y: y, size: fontSize, color: theme.text)
             y += fontSize + TextArea.lineGap
         }
         if isFocused, Int(clamping: GetTime() * 2) % 2 == 0 {
             let last = lines.last ?? ""
             let caretY = Int(clamping: bounds.y) + TextArea.padding + ((max(lines.count, 1) - 1 - first) * (fontSize + TextArea.lineGap))
-            DrawRectangle(x + MeasureText(last, fontSize) + 2, caretY, 2, fontSize, theme.text)
+            DrawRectangle(x + theme.textWidth(of: last, size: fontSize) + 2, caretY, 2, fontSize, theme.text)
         }
     }
 
@@ -137,7 +137,7 @@ public final class TextArea: FormLayoutControl {
         guard wrappedWidth != width else {
             return
         }
-        lines = TextWrapper.lines(for: _text, fontSize: fontSize, maximumWidth: width)
+        lines = theme.wrappedLines(for: _text, size: fontSize, maximumWidth: width)
         wrappedWidth = width
     }
 

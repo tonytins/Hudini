@@ -194,7 +194,7 @@ public final class TextField: FormLayoutControl {
         let text = shownText
         let left = Int(clamping: bounds.x) + TextField.padding
         let room = max(0, Int(clamping: bounds.width) - (TextField.padding * 2))
-        let overflow = max(0, MeasureText(text, fontSize) + TextField.caretRoom - room)
+        let overflow = max(0, theme.textWidth(of: text, size: fontSize) + TextField.caretRoom - room)
         let x = left - overflow
         let y = Int(clamping: bounds.y) + ((Int(clamping: bounds.height) - fontSize) / 2)
         BeginScissorMode(
@@ -207,12 +207,12 @@ public final class TextField: FormLayoutControl {
             EndScissorMode()
         }
         if text.isEmpty, let placeholder {
-            DrawText(placeholder, x, y, fontSize, theme.secondaryText)
+            theme.drawText(placeholder, x: x, y: y, size: fontSize, color: theme.secondaryText)
         } else {
-            DrawText(text, x, y, fontSize, textColor)
+            theme.drawText(text, x: x, y: y, size: fontSize, color: textColor)
         }
         if isFocused, Int(clamping: GetTime() * 2) % 2 == 0 {
-            let caretX = x + MeasureText(text, fontSize) + 2
+            let caretX = x + theme.textWidth(of: text, size: fontSize) + 2
             DrawRectangle(caretX, y, 2, fontSize, textColor)
         }
     }

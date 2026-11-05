@@ -19,6 +19,7 @@ public final class TextList {
     private var pendingWheelLines: Float = 0
 
     private let fontSize: Int
+    private let theme: InterfaceTheme
     private let textColor: Color
     private let backgroundColor: Color
     private let borderColor: Color
@@ -107,6 +108,7 @@ public final class TextList {
         precondition(fontSize > 0, "fontSize must be positive")
         self.items = items
         self.fontSize = fontSize
+        self.theme = theme
         self.textColor = textColor ?? theme.text
         self.backgroundColor = backgroundColor ?? theme.panel
         self.borderColor = borderColor ?? theme.border
@@ -231,7 +233,7 @@ public final class TextList {
             if lineItems[index] == selectedIndex {
                 DrawRectangle(Int(clamping: textBounds.x), y, Int(clamping: textBounds.width), lineHeight, selectionColor)
             }
-            DrawText(lines[index], Int(clamping: bounds.x) + Self.padding, y, fontSize, textColor)
+            theme.drawText(lines[index], x: Int(clamping: bounds.x) + Self.padding, y: y, size: fontSize, color: textColor)
         }
         EndScissorMode()
     }
@@ -254,7 +256,7 @@ public final class TextList {
                 let itemLines = item
                     .split(separator: "\n", omittingEmptySubsequences: false)
                     .flatMap { paragraph -> [String] in
-                        let wrapped = TextWrapper.lines(for: String(paragraph), fontSize: fontSize, maximumWidth: width)
+                        let wrapped = theme.wrappedLines(for: String(paragraph), size: fontSize, maximumWidth: width)
                         return wrapped.isEmpty ? [""] : wrapped
                     }
                 lines += itemLines

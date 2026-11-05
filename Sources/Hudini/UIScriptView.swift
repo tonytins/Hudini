@@ -639,18 +639,18 @@ public final class UIScriptView {
             return
         }
         let bounds = Self.tooltipBounds(
-            textWidth: Float(MeasureText(text, Self.tooltipFontSize)),
+            textWidth: Float(theme.textWidth(of: text, size: Self.tooltipFontSize)),
             below: screenRectangle(for: control.frame, named: name, at: origin),
             screen: Vector2(x: Float(GetScreenWidth()), y: Float(GetScreenHeight()))
         )
         DrawRectangleRec(bounds, theme.panel)
         DrawRectangleLinesEx(bounds, 1, theme.border)
-        DrawText(
+        theme.drawText(
             text,
-            Int(clamping: bounds.x + Self.tooltipPadding),
-            Int(clamping: bounds.y + Self.tooltipPadding),
-            Self.tooltipFontSize,
-            theme.text
+            x: Int(clamping: bounds.x + Self.tooltipPadding),
+            y: Int(clamping: bounds.y + Self.tooltipPadding),
+            size: Self.tooltipFontSize,
+            color: theme.text
         )
     }
 
@@ -695,10 +695,10 @@ public final class UIScriptView {
         for line in label.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
             let x = switch control.alignment {
             case .left: left
-            case .center: left + ((room - MeasureText(line, fontSize)) / 2)
-            case .right: left + room - MeasureText(line, fontSize)
+            case .center: left + ((room - theme.textWidth(of: line, size: fontSize)) / 2)
+            case .right: left + room - theme.textWidth(of: line, size: fontSize)
             }
-            DrawText(line, x, y, fontSize, style?.textColor ?? theme.text)
+            theme.drawText(line, x: x, y: y, size: fontSize, color: style?.textColor ?? theme.text)
             y += fontSize + Self.textLineGap
         }
     }
@@ -729,12 +729,12 @@ public final class UIScriptView {
             return
         }
         let fontSize = style?.fontSize ?? Self.defaultFontSize
-        DrawText(
+        theme.drawText(
             label,
-            Int(clamping: bounds.x + ((bounds.width - Float(MeasureText(label, fontSize))) / 2)),
-            Int(clamping: bounds.y + ((bounds.height - Float(fontSize)) / 2)),
-            fontSize,
-            style?.textColor(for: state) ?? (state == .disabled ? theme.secondaryText : theme.text)
+            x: Int(clamping: bounds.x + ((bounds.width - Float(theme.textWidth(of: label, size: fontSize))) / 2)),
+            y: Int(clamping: bounds.y + ((bounds.height - Float(fontSize)) / 2)),
+            size: fontSize,
+            color: style?.textColor(for: state) ?? (state == .disabled ? theme.secondaryText : theme.text)
         )
     }
 
