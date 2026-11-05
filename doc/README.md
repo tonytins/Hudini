@@ -4,8 +4,8 @@ This directory holds Hudini's design notes and roadmap.
 
 - [UIScript format](UISCRIPT.md) describes the XML interface format, reading
   `.uis` files, and what hosts are responsible for.
-- [CST format](CST.md) specifies The Sims Online's text tables, and how sure each
-  rule is.
+- The Sims Online's text tables are specified in
+  [SwiftCST's CST format](https://github.com/tonytins/swift-cst/blob/main/doc/CST.md), which also reads them.
 - [Roadmap](ROADMAP.md) tracks the milestones so far and the questions still open.
 
 ## Where Hudini came from

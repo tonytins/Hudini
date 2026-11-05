@@ -4,6 +4,7 @@
 import Foundation
 @testable import Hudini
 import Raylib
+import SwiftCST
 import Testing
 
 @Test func cameraRoundTripsBetweenScreenAndWorld() {
@@ -2007,20 +2008,30 @@ func catalogFindsEitherInstallLayout(path: String) throws {
 }
 
 @Test func theDemoHasTextForEveryStringItsInterfacesUse() throws {
-    let catalog = try CSTCatalog(directory: demoResource("uitext"))
+    // The demo reads its text with SwiftCST, as games now do.
+    let directory = demoResource("uitext")
+    let text = UIText(directory: directory)
+    let tableIDs = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        .compactMap { name in name.split(separator: "_").first.flatMap { Int($0) } }
     let documents = [
         try UIScript(contentsOf: demoResource("livepanel1024.xml")),
         try UIScript(contentsOf: demoResource("statspanel.xml")),
         try UIScript(contentsOf: demoResource("optionspanel.xml")),
+        try UIScript(contentsOf: demoResource("movelot.xml")),
         try UIScript(uisContentsOf: demoResource("lemonadestand.uis")),
         try UIScript(uisContentsOf: demoResource("debugbar.uis"))
     ]
 
-    for id in catalog.tableIDs {
-        #expect(catalog.table(id)?.problems.isEmpty == true)
+    #expect(tableIDs.count == 6)
+    for id in tableIDs {
+        #expect(try text.table(for: id)?.problems == [])
     }
     for document in documents {
-        #expect(UIScriptView(script: document, resolveString: catalog.text(for:)).missingStrings.isEmpty)
+        let view = UIScriptView(script: document) { resource in
+            resource.table.split(separator: ":").last.flatMap { Int($0) }
+                .flatMap { try? text.textIfPresent(for: $0, key: resource.index) }
+        }
+        #expect(view.missingStrings.isEmpty)
     }
 }
 

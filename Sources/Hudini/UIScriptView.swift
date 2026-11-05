@@ -66,7 +66,8 @@ public final class UIScriptView {
     /// Creates the controls for `script`.
     ///
     /// `resolveString` supplies the text for localized-string references once,
-    /// during creation. `CSTCatalog.text(for:)` fits here. When it returns `nil`,
+    /// during creation. A host reading The Sims Online's `.cst` tables can look them up
+    /// with SwiftCST's `UIText.textIfPresent` here. When it returns `nil`,
     /// the reference shows its table and index and appears in `missingStrings`,
     /// which is what happens to every reference by default.
     ///

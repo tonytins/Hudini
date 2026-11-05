@@ -22,7 +22,11 @@ let package = Package(
         ),
         .executableTarget(
             name: "hudini-demo",
-            dependencies: ["Hudini", .product(name: "Raylib", package: "raylib-swift")],
+            dependencies: [
+                "Hudini",
+                .product(name: "Raylib", package: "raylib-swift"),
+                .product(name: "SwiftCST", package: "swift-cst"),
+            ],
             resources: [
                 .copy("Resources/chatdialog.xml"),
                 .copy("Resources/debugbar.uis"),
@@ -34,7 +38,14 @@ let package = Package(
                 .copy("Resources/uitext")
             ]
         ),
-        .testTarget(name: "HudiniTests", dependencies: ["Hudini", .product(name: "Raylib", package: "raylib-swift")]),
+        .testTarget(
+            name: "HudiniTests",
+            dependencies: [
+                "Hudini",
+                .product(name: "Raylib", package: "raylib-swift"),
+                .product(name: "SwiftCST", package: "swift-cst"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

@@ -138,8 +138,8 @@ debug bar is in Maxis' format.
 - **Do positions in CST tables count from 0 or 1?** Hudini follows FreeSO and counts
   from 0, but the files lean the other way. The credits screen would settle it, but it
   needs a login and the game's servers are gone, so that takes a screenshot from when it
-  was live. See the [specification](CST.md#entries) for this and its other
-  unsettled rules.
+  was live. See [SwiftCST's specification](https://github.com/tonytins/swift-cst/blob/main/doc/CST.md#positions-wrapper) for this and
+  its other unsettled rules.
 - **How should sliders draw their images?** Most real sliders name an image, and
   two name a separate thumb image. The view draws a plain track and thumb for now.
 
@@ -174,9 +174,13 @@ already learned. CST files are not known to appear in any other game.
 - [x] Read CST files in the encodings real files use, loading each table once.
 - [x] Read values by key, by the line above them, and by position, and follow
   references between tables.
-- [x] Write the [format's specification](CST.md), marking what is confirmed.
+- [x] Write the [format's specification](https://github.com/tonytins/swift-cst/blob/main/doc/CST.md), marking what is confirmed.
 - [x] Offer a catalog that plugs into `resolveString` and reports missing text.
 - [x] Find text in both install layouts.
 - [x] Give the demo original CST files in place of its strings in code.
 - [x] Check the reader against local copies of TSO's beta, base game, and New &
   Improved text, without committing them. Every string their `.uis` files use is found.
+
+The reader and specification have since moved to swift-cst, which now reads every
+version of TSO. Hudini's `CSTCatalog` wraps it and is deprecated, and games read text
+with swift-cst directly through `resolveString`. It goes once Simburbia has moved over.

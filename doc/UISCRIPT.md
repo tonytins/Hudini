@@ -211,7 +211,7 @@ throws. There is no partial result.
 ```swift
 let view = UIScriptView(
     script: script,
-    resolveString: catalog.text(for:), // Or any closure. See "Reading CST text".
+    resolveString: { resource in text(for: resource) }, // See "Reading CST text".
     loadImage: { loadTexture(for: $0) }
 )
 guard let history = view.list(named: "history") else { /* report it */ }
@@ -321,20 +321,32 @@ the [roadmap's open questions](ROADMAP.md#open-questions) for what remains unkno
 ## Reading CST text
 
 The Sims Online keeps its interface text in `.cst` tables, which `.uis` files refer
-to by table and index. `CSTCatalog` loads a directory of them once, so lookups never
-touch the disk:
+to by table and index. Hudini leaves text to the host, so read them with
+[SwiftCST](https://github.com/tonytins/swift-cst), which reads every version of the
+game, and pass its lookup to the view:
 
 ```swift
-let catalog = try CSTCatalog(gameData: installURL.appendingPathComponent("gamedata"))
-let view = UIScriptView(script: script, resolveString: catalog.text(for:))
-let greeting = catalog.text(table: 174, key: "1", arguments: ["Maya"])
+import SwiftCST
+
+let text = UIText(gameData: installURL.appendingPathComponent("gamedata"))
+let view = UIScriptView(script: script, resolveString: { resource in
+    // The table ID is the number at the end, so `UIText:174` and `174` mean the same table.
+    guard let id = resource.table.split(separator: ":").last.flatMap({ Int($0) }) else {
+        return nil
+    }
+    return try? text.textIfPresent(for: id, key: resource.index)
+})
 ```
 
-`CSTCatalog(gameData:language:)` finds either install layout, and
-`CSTCatalog(directory:)` reads any directory of files named `_<id>_<name>.cst`. It uses
-only the number at the end of a resource's table, so `UIText:174` and `174` mean the
-same table. `CSTCatalog.format(_:with:)` fills a text's placeholders. See the
-[CST specification](CST.md) for the format and how sure each rule is.
+`textIfPresent` returns `nil` for missing text, which the view lists in
+`missingStrings`. Use `try` instead of `try?` to report a table that can't be read.
+`UIText(gameData:language:)` finds either install layout, and `UIText(directory:)`
+reads a game's own folder of files named `_<id>_<name>.cst`. See the
+[CST specification](https://github.com/tonytins/swift-cst/blob/main/doc/CST.md) for the format and how sure each rule is.
+
+Hudini's `CSTCatalog` did this before, and is deprecated. It still works, so games can
+move to SwiftCST in their own time: create a `UIText` the same way, and call
+`textIfPresent` where you called `text`. It finds the same text.
 
 ## Not yet supported
 

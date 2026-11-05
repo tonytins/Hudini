@@ -15,6 +15,7 @@
 import Foundation
 import Hudini
 import Raylib
+import SwiftCST
 
 
 func fail(_ message: String) -> Never {
@@ -301,20 +302,26 @@ guard ["live", "stats", "options", "stand", "standwindow", "movelot"].contains(s
     fail("Unknown scene '\(scene)'.")
 }
 
-// The host's localized text, in the same kind of tables The Sims Online uses.
-let demoText: CSTCatalog
-do {
-    guard let directory = Bundle.module.url(forResource: "uitext", withExtension: nil) else {
-        throw CocoaError(.fileNoSuchFile)
+// The host's localized text, in the same kind of tables The Sims Online uses, read with SwiftCST.
+// Hudini leaves text to the host, which hands each view a closure that looks strings up.
+guard let textDirectory = Bundle.module.url(forResource: "uitext", withExtension: nil) else {
+    fail("The demo's text is missing.")
+}
+let demoText = UIText(directory: textDirectory)
+
+/// Returns the text a document's string refers to, or `nil` so the view reports it as missing.
+/// The table ID is the number at the end of the string's table, such as `DemoText:6`.
+@MainActor
+func demoString(_ resource: UIScript.StringResource) -> String? {
+    guard let id = resource.table.split(separator: ":").last.flatMap({ Int($0) }) else {
+        return nil
     }
-    demoText = try CSTCatalog(directory: directory)
-    for id in demoText.tableIDs {
-        for problem in demoText.table(id)?.problems ?? [] {
-            log("Text table \(id) line \(problem.line): \(problem.message)")
-        }
+    do {
+        return try demoText.textIfPresent(for: id, key: resource.index)
+    } catch {
+        log("Unable to read text table \(id): \(error.localizedDescription)")
+        return nil
     }
-} catch {
-    fail("Unable to load the demo's text: \(error.localizedDescription)")
 }
 
 let chatScript = loadUIScript(named: "chatdialog")
@@ -356,7 +363,7 @@ func makeView(_ script: UIScript) -> UIScriptView {
     let view = UIScriptView(
         script: script,
         theme: theme,
-        resolveString: demoText.text(for:),
+        resolveString: demoString,
         loadImage: { resource in
             let texture = makePlaceholderTexture(for: resource)
             placeholderTextures.append(texture)
@@ -572,7 +579,7 @@ reportSimulatedError("A simulated error, so the demo can show the bar opening by
 
 let window = WindowFrame(title: "Maple Street - Property Chat", theme: theme)
 // A choice the player has to make or cancel on purpose, so the window has no close button.
-let moveLotWindow = WindowFrame(title: demoText.text(table: 6, key: "1") ?? "Move", theme: theme)
+let moveLotWindow = WindowFrame(title: (try? demoText.textIfPresent(for: 6, key: 1)) ?? "Move", theme: theme)
 moveLotWindow.showsCloseButton = false
 guard let lotChoices = moveLot.list(named: "lotChoices"),
       let lotKey = moveLot.textField(named: "lotKey") else {
