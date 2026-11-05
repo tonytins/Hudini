@@ -121,7 +121,7 @@ public final class UIScriptView {
             case .list:
                 lists[control.name] = TextList(
                     items: text.map { [$0] } ?? [],
-                    fontSize: style?.fontSize ?? theme.textSizes.body,
+                    fontSize: style?.fontSize,
                     theme: theme,
                     textColor: style?.textColor,
                     backgroundColor: style?.backgroundColor,
@@ -132,7 +132,8 @@ public final class UIScriptView {
                 textFields[control.name] = TextField(
                     text: text ?? "",
                     maximumLength: control.maximumLength ?? Self.defaultMaximumLength,
-                    fontSize: style?.fontSize ?? theme.textSizes.body,
+                    fontSize: style?.fontSize,
+                    themeSize: \.body,
                     theme: theme,
                     placeholder: resolved(control.placeholder),
                     textColor: style?.textColor,

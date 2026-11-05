@@ -17,6 +17,8 @@ public final class ConfirmPanel {
 
     private let theme: InterfaceTheme
 
+    private var message = ""
+
     private var lines: [String] = []
 
     private var confirmTitle = "Yes"
@@ -60,13 +62,17 @@ public final class ConfirmPanel {
         confirmTitle: String = "Yes",
         cancelTitle: String = "No"
     ) {
-        (frame.title, self.confirmTitle, self.cancelTitle) = (title, confirmTitle, cancelTitle)
+        (frame.title, self.message, self.confirmTitle, self.cancelTitle) = (title, message, confirmTitle, cancelTitle)
+        wrapMessage()
+        isOpen = true
+    }
+
+    private func wrapMessage() {
         lines = theme.wrappedLines(
             for: message,
             size: theme.textSizes.body,
             maximumWidth: Self.width - (Self.padding * 2)
         )
-        isOpen = true
     }
 
     /// Handles this frame's input, including dragging, and returns the selected action. Any

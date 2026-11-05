@@ -15,7 +15,12 @@ public final class TextArea: FormLayoutControl {
 
     private let maxLength: Int
 
-    private let fontSize: Int
+    // What the caller asked for, or nil for the theme's `input` size.
+    private let fontSizeOverride: Int?
+
+    private var fontSize: Int {
+        fontSizeOverride ?? theme.textSizes.input
+    }
 
     private var lines: [String] = []
 
@@ -40,7 +45,7 @@ public final class TextArea: FormLayoutControl {
         precondition(maximumLength > 0, "maximumLength must be positive")
         precondition(fontSize.map { $0 > 0 } ?? true, "fontSize must be positive")
         self.maxLength = maximumLength
-        self.fontSize = fontSize ?? theme.textSizes.input
+        fontSizeOverride = fontSize
         self.theme = theme
         self.text = text
     }

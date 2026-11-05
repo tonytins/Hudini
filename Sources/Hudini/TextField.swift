@@ -20,17 +20,35 @@ public final class TextField: FormLayoutControl {
 
     private let accepts: (Character) -> Bool
 
-    private let fontSize: Int
-
     private let theme: InterfaceTheme
 
     private let placeholder: String?
 
-    private let textColor: Color
+    // What the caller asked for. Anything left out comes from the theme when drawing.
+    private let fontSizeOverride: Int?
+    private let textColorOverride: Color?
+    private let backgroundColorOverride: Color?
+    private let borderColorOverride: Color?
 
-    private let backgroundColor: Color
+    // The theme's size this field uses without a fontSize: `input`, or another for a field that a
+    // window or document owns.
+    private let themeSize: KeyPath<InterfaceTheme.TextSizes, Int>
 
-    private let borderColor: Color
+    private var fontSize: Int {
+        fontSizeOverride ?? theme.textSizes[keyPath: themeSize]
+    }
+
+    private var textColor: Color {
+        textColorOverride ?? theme.text
+    }
+
+    private var backgroundColor: Color {
+        backgroundColorOverride ?? theme.inputBackground
+    }
+
+    private var borderColor: Color {
+        borderColorOverride ?? theme.border
+    }
 
     /// Whether this field only displays text. A read-only field never takes focus or typing, and
     /// the host can still set its `text`.
@@ -48,7 +66,7 @@ public final class TextField: FormLayoutControl {
 
     /// Creates a field that accepts at most `maximumLength` characters. Without a `fontSize`, it
     /// uses the theme's `input` size.
-    public init(
+    public convenience init(
         text: String = "",
         maximumLength: Int,
         accepting characters: @escaping (Character) -> Bool = { _ in true },
@@ -61,16 +79,48 @@ public final class TextField: FormLayoutControl {
         isReadOnly: Bool = false,
         isSecure: Bool = false
     ) {
+        self.init(
+            text: text,
+            maximumLength: maximumLength,
+            accepting: characters,
+            fontSize: fontSize,
+            themeSize: \.input,
+            theme: theme,
+            placeholder: placeholder,
+            textColor: textColor,
+            backgroundColor: backgroundColor,
+            borderColor: borderColor,
+            isReadOnly: isReadOnly,
+            isSecure: isSecure
+        )
+    }
+
+    /// Creates a field whose size, without a `fontSize`, is `themeSize` from the theme.
+    init(
+        text: String = "",
+        maximumLength: Int,
+        accepting characters: @escaping (Character) -> Bool = { _ in true },
+        fontSize: Int?,
+        themeSize: KeyPath<InterfaceTheme.TextSizes, Int>,
+        theme: InterfaceTheme,
+        placeholder: String? = nil,
+        textColor: Color? = nil,
+        backgroundColor: Color? = nil,
+        borderColor: Color? = nil,
+        isReadOnly: Bool = false,
+        isSecure: Bool = false
+    ) {
         precondition(maximumLength > 0, "maximumLength must be positive")
         precondition(fontSize.map { $0 > 0 } ?? true, "fontSize must be positive")
         maxLength = maximumLength
         accepts = characters
-        self.fontSize = fontSize ?? theme.textSizes.input
+        fontSizeOverride = fontSize
+        self.themeSize = themeSize
         self.theme = theme
         self.placeholder = placeholder
-        self.textColor = textColor ?? theme.text
-        self.backgroundColor = backgroundColor ?? theme.inputBackground
-        self.borderColor = borderColor ?? theme.border
+        textColorOverride = textColor
+        backgroundColorOverride = backgroundColor
+        borderColorOverride = borderColor
         self.isReadOnly = isReadOnly
         self.isSecure = isSecure
         self.text = text

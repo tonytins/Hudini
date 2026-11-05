@@ -18,12 +18,29 @@ public final class TextList {
     private var visibleLineCount = 1
     private var pendingWheelLines: Float = 0
 
-    private let fontSize: Int
     private let theme: InterfaceTheme
-    private let textColor: Color
-    private let backgroundColor: Color
-    private let borderColor: Color
-    private let selectionColor: Color
+
+    // What the caller asked for. Anything left out comes from the theme when drawing.
+    private let fontSizeOverride: Int?
+    private let textColorOverride: Color?
+    private let backgroundColorOverride: Color?
+    private let borderColorOverride: Color?
+
+    private var fontSize: Int {
+        fontSizeOverride ?? theme.textSizes.body
+    }
+
+    private var textColor: Color {
+        textColorOverride ?? theme.text
+    }
+
+    private var backgroundColor: Color {
+        backgroundColorOverride ?? theme.panel
+    }
+
+    private var borderColor: Color {
+        borderColorOverride ?? theme.border
+    }
 
     /// The plain-text items supplied by the host.
     public var items: [String] {
@@ -108,12 +125,11 @@ public final class TextList {
     ) {
         precondition(fontSize.map { $0 > 0 } ?? true, "fontSize must be positive")
         self.items = items
-        self.fontSize = fontSize ?? theme.textSizes.body
+        fontSizeOverride = fontSize
         self.theme = theme
-        self.textColor = textColor ?? theme.text
-        self.backgroundColor = backgroundColor ?? theme.panel
-        self.borderColor = borderColor ?? theme.border
-        selectionColor = theme.selectedItem
+        textColorOverride = textColor
+        backgroundColorOverride = backgroundColor
+        borderColorOverride = borderColor
         self.isSelectable = isSelectable
     }
 
@@ -232,7 +248,7 @@ public final class TextList {
         for index in firstLine..<endLine {
             let y = Int(clamping: bounds.y) + Self.padding + ((index - firstLine) * lineHeight)
             if lineItems[index] == selectedIndex {
-                DrawRectangle(Int(clamping: textBounds.x), y, Int(clamping: textBounds.width), lineHeight, selectionColor)
+                DrawRectangle(Int(clamping: textBounds.x), y, Int(clamping: textBounds.width), lineHeight, theme.selectedItem)
             }
             theme.drawText(lines[index], x: Int(clamping: bounds.x) + Self.padding, y: y, size: fontSize, color: textColor)
         }

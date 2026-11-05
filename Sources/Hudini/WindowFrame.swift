@@ -47,7 +47,8 @@ public final class WindowFrame {
         titleField = TextField(
             text: title,
             maximumLength: maximumTitleLength,
-            fontSize: theme.textSizes.title,
+            fontSize: nil,
+            themeSize: \.title,
             theme: theme
         )
     }

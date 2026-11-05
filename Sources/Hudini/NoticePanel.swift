@@ -17,6 +17,8 @@ public final class NoticePanel {
 
     private let frame: WindowFrame
 
+    private var message = ""
+
     private var lines: [String] = []
 
     private let theme: InterfaceTheme
@@ -36,13 +38,17 @@ public final class NoticePanel {
     /// Presents the notice with a title and message.
     public func show(title: String, message: String) {
         frame.title = title
-        lines.removeAll()
-        lines.append(contentsOf: theme.wrappedLines(
+        self.message = message
+        wrapMessage()
+        isOpen = true
+    }
+
+    private func wrapMessage() {
+        lines = theme.wrappedLines(
             for: message,
             size: theme.textSizes.body,
             maximumWidth: Self.width - (Self.padding * 2)
-        ))
-        isOpen = true
+        )
     }
 
     /// Handles input for this frame, including dragging, and reports whether the notice was
