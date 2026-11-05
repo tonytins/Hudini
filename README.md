@@ -182,6 +182,23 @@ To draw your game's own shapes and text the way the controls do, such as a dock 
 a menu bar, use the theme's `fillRectangle`, `outlineRectangle`, `fillTitleBar`,
 `drawText`, `textWidth`, and `wrappedLines`.
 
+### Changing the theme
+
+Every component that keeps a theme lets you set a new one, such as when the player picks
+an accent color. Nothing is rebuilt, so text, focus, selections, and where the player
+moved each window all stay:
+
+```swift
+theme = InterfaceTheme(accent: chosenColor)
+window.theme = theme
+view.theme = theme // Its lists and fields follow.
+notice.theme = theme
+```
+
+A view passes the theme to its controls, and a window or panel to its frame, but a
+`FormLayout` doesn't own its controls, so set theirs too. Colors and sizes you gave a
+control, or a document's styles, still win over the theme.
+
 ### Building controls in code
 
 Every control also works on its own, which suits something small or a layout your

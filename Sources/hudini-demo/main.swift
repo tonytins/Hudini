@@ -6,7 +6,7 @@
 // Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>] [--glossy]
 //
 // Scenes are for checking the interface without input: live, stats, options, stand, standwindow,
-// movelot.
+// movelot, and accent, which shows the options panel after its Accent Color button is pressed.
 // --pointer holds the pointer in place, and a screenshot then waits long enough to show a tooltip.
 // --font draws the interface in a font file, such as a .ttf. The demo's own lot art keeps raylib's
 // default font, since the theme only reaches Hudini's controls.
@@ -226,6 +226,7 @@ let peopleMarginY: Float = 11
 let lastPeoplePage = (residents.count - 1) / peoplePerPage
 var peoplePage = 0
 
+@MainActor
 func drawNeeds(in bounds: Rectangle) {
     let columnWidth = bounds.width / 2
     let rowHeight = bounds.height / 4
@@ -298,7 +299,7 @@ while let argument = arguments.popFirst() {
         fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>] [--glossy]")
     }
 }
-guard ["live", "stats", "options", "stand", "standwindow", "movelot"].contains(scene) else {
+guard ["live", "stats", "options", "stand", "standwindow", "movelot", "accent"].contains(scene) else {
     fail("Unknown scene '\(scene)'.")
 }
 
@@ -348,12 +349,27 @@ let font: Font? = fontPath.map { path in
     SetTextureFilter(font.texture, .bilinear)
     return font
 }
-let theme = InterfaceTheme(
-    titleBar: isGlossy ? Color(r: 92, g: 112, b: 142, a: 245) : InterfaceTheme.standard.titleBar,
-    titleBarBottom: isGlossy ? Color(r: 30, g: 40, b: 58, a: 245) : nil,
-    font: font,
-    cornerRadius: isGlossy ? 8 : 0
-)
+// The accents the options panel's Accent Color button steps through, starting with Hudini's own.
+let accents = [
+    InterfaceTheme.standard.accent,
+    Color(r: 110, g: 180, b: 240, a: 255),
+    Color(r: 130, g: 205, b: 120, a: 255),
+    Color(r: 235, g: 115, b: 165, a: 255),
+]
+var accentIndex = 0
+
+@MainActor
+func makeTheme(accent: Color) -> InterfaceTheme {
+    InterfaceTheme(
+        accent: accent,
+        titleBar: isGlossy ? Color(r: 92, g: 112, b: 142, a: 245) : InterfaceTheme.standard.titleBar,
+        titleBarBottom: isGlossy ? Color(r: 30, g: 40, b: 58, a: 245) : nil,
+        font: font,
+        cornerRadius: isGlossy ? 8 : 0
+    )
+}
+
+var theme = makeTheme(accent: accents[accentIndex])
 SetExitKey(.null)
 SetTargetFPS(60)
 
@@ -628,6 +644,21 @@ func confirmMoveLot() {
 let standWindow = WindowFrame(title: "Lemonade Stand", theme: theme)
 standWindow.toolbarItems = ["Dock"]
 
+/// Gives every window, panel, and view the next accent. Nothing is rebuilt, so text, focus, and
+/// where the player moved each window all stay.
+@MainActor
+func showNextAccent() {
+    accentIndex = (accentIndex + 1) % accents.count
+    theme = makeTheme(accent: accents[accentIndex])
+    for view in [chat, panel, stats, options, moveLot, bar, stand] {
+        view.theme = theme
+    }
+    for frame in [window, moveLotWindow, standWindow] {
+        frame.theme = theme
+    }
+    notice.theme = theme
+}
+
 switch scene {
 case "stats":
     showMode(.stats)
@@ -637,6 +668,9 @@ case "stand":
     placeStand(.inPanel)
 case "standwindow":
     placeStand(.inWindow)
+case "accent":
+    showMode(.options)
+    showNextAccent()
 case "movelot":
     showMode(.options)
     openMoveLot()
@@ -790,6 +824,8 @@ while running && !WindowShouldClose() {
                 switch event {
                 case .pressed(control: "moveLot"):
                     openMoveLot()
+                case .pressed(control: "accent"):
+                    showNextAccent()
                 case .pressed(control: "previousPage"):
                     showPeoplePage(peoplePage - 1)
                 case .pressed(control: "nextPage"):
@@ -880,7 +916,8 @@ while running && !WindowShouldClose() {
         itemCount: toolbarItemCount,
         selectedIndex: mode.rawValue,
         mousePosition: pointer,
-        in: lotArea
+        in: lotArea,
+        theme: theme
     ) { index, iconBounds, color in
         DrawText(
             Mode.allCases[index].icon,
