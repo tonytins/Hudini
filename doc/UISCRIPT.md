@@ -57,7 +57,7 @@ Exactly one `<Window>` is required. It gives the interface's size in pixels.
 | Attribute | Required | Value |
 | --- | --- | --- |
 | `width`, `height` | Yes | The size. Both must be positive. |
-| `minWidth`, `minHeight` | No | The smallest resizable size. Give both or neither. Not yet used by `UIScriptView`. |
+| `minWidth`, `minHeight` | No | The smallest size the view lays out at. Give both or neither. |
 
 ## Resources
 
@@ -110,7 +110,8 @@ Visuals and controls share these attributes:
 An edge offset replaces the position on its axis. `edgeOffsetRight` alone anchors
 a control to the right edge, and `edgeOffsetLeft` with `edgeOffsetRight` stretches
 it between both. Top and bottom work the same way. Offsets measure from the
-document's window size until the host calls `setWindowSize(_:)`.
+document's window size until the host calls `setWindowSize(_:)`, and never from less
+than `minWidth` and `minHeight`.
 
 A button or visual with an image may leave out `width`, `height`, or both to take
 them from one slice of the image. Any other control needs both. If the host cannot
@@ -229,7 +230,9 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   supplied. A missing string shows its table and index instead.
 - Show and hide controls with `setHidden(_:named:)`, disable buttons with
   `setDisabled(_:named:)`, and mark toggles or choices with `setSelected(_:named:)`.
-- Call `setWindowSize(_:)` when the space around anchored controls changes.
+- Call `setWindowSize(_:)` when the space around anchored controls changes, then size
+  the window around the view from `windowSize`. A size below the document's minimum
+  uses the minimum on that axis.
 - Slide or move a whole view by changing the `origin` passed to `update(at:)` and
   `draw(at:)`.
 - Read or set a selectable list's choice through its `selectedIndex`. The host's
@@ -352,4 +355,3 @@ move to SwiftCST in their own time: create a `UIText` the same way, and call
 
 - Drawing slider images, which `.uis` sliders name and the view replaces with a
   plain track and thumb
-- Enforcing `minWidth` and `minHeight`, which the host currently owns

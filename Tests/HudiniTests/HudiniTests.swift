@@ -1547,6 +1547,32 @@ func uisReadsEveryLocalFile() throws {
     #expect(view.bounds(named: "plain", at: .zero) == Rectangle(x: 1, y: 2, width: 20, height: 10))
 }
 
+@Test func windowSizeStopsAtTheDocumentsMinimum() throws {
+    let view = UIScriptView(script: try UIScript(data: Data("""
+    <UIScript>
+      <Window width="400" height="255" minWidth="350" minHeight="196"/>
+      <Region name="anchored" x="0" y="0" width="20" height="10" edgeOffsetRight="5" edgeOffsetBottom="7"/>
+    </UIScript>
+    """.utf8)))
+
+    #expect(view.windowSize == Vector2(x: 400, y: 255))
+
+    view.setWindowSize(Vector2(x: 300, y: 500))
+    #expect(view.windowSize == Vector2(x: 350, y: 500))
+    #expect(view.bounds(named: "anchored", at: .zero) == Rectangle(x: 325, y: 483, width: 20, height: 10))
+
+    view.setWindowSize(Vector2(x: 600, y: 100))
+    #expect(view.windowSize == Vector2(x: 600, y: 196))
+    #expect(view.bounds(named: "anchored", at: .zero) == Rectangle(x: 575, y: 179, width: 20, height: 10))
+}
+
+@Test func windowSizeWithoutAMinimumTakesAnySize() throws {
+    let view = UIScriptView(script: try script("<Region name='r' x='0' y='0' width='20' height='10'/>"))
+
+    view.setWindowSize(Vector2(x: 10, y: 4))
+    #expect(view.windowSize == Vector2(x: 10, y: 4))
+}
+
 @Test func anchoringUsesASizeTakenFromTheImage() throws {
     let loaded = try script("<Image name='art' path='a.bmp'/><Button name='b' x='0' y='0' image='art' edgeOffsetRight='8'/>")
     let view = UIScriptView(script: loaded, loadImage: { _ in stubTexture(width: 20, height: 20) })

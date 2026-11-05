@@ -37,7 +37,6 @@ public final class UIScriptView {
     private var hiddenNames: Set<String> = []
     private var disabledNames: Set<String> = []
     private var selectedNames: Set<String> = []
-    private var windowSize: Vector2
 
     /// The names of image resources the host could not supply, in sorted order.
     ///
@@ -50,6 +49,10 @@ public final class UIScriptView {
     /// Controls using these show their table and index instead, so the gap is easy to notice.
     /// A tooltip using one does not show.
     public let missingStrings: [String]
+
+    /// The size edge offsets measure from. It starts as the document's window size, and is never
+    /// smaller than the document's `minWidth` and `minHeight`.
+    public private(set) var windowSize: Vector2
 
     /// Something a control reports for the host to act on.
     public enum Event: Equatable, Sendable {
@@ -258,8 +261,16 @@ public final class UIScriptView {
 
     /// Sets the size edge offsets measure from, such as a resized screen. It starts as the
     /// document's window size.
+    ///
+    /// On an axis where `size` is smaller than the document's `minWidth` or `minHeight`, the view
+    /// uses the minimum, so anchored controls don't run into each other. Size the window around
+    /// the view from `windowSize` afterward.
     public func setWindowSize(_ size: Vector2) {
-        windowSize = size
+        guard let minimum = script.window.minSize else {
+            windowSize = size
+            return
+        }
+        windowSize = Vector2(x: max(size.x, minimum.width), y: max(size.y, minimum.height))
     }
 
     /// Places a control or visual within the view, replacing its document position, size, and
