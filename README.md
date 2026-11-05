@@ -25,7 +25,7 @@ form layout.
 
 ## Requirements
 
-- Swift 6.2 or later
+- Swift 6.3 or later
 - [raylib-swift](https://github.com/tonytins/raylib-swift)
 
 Building raylib-swift requires the native development libraries for raylib's
@@ -243,7 +243,7 @@ came from.
 
 | Hudini | Minimum Swift version |
 | --- | --- |
-| Current | 6.2 |
+| Current | 6.3 |
 
 ## License
 

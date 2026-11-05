@@ -1,5 +1,5 @@
 {
-  "originHash" : "9d876da8d576a16988cc684264868a98214fda655d12a6a3c69168a19b206f5a",
+  "originHash" : "db6992581629697eafbe736c883f8183dba89466d88512058a7a96a9502c4a0f",
   "pins" : [
     {
       "identity" : "raylib-swift",
@@ -8,6 +8,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "3fe725b204bf30913366a82203566ab316941f2e"
+      }
+    },
+    {
+      "identity" : "swift-cst",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tonytins/swift-cst.git",
+      "state" : {
+        "revision" : "12c64713bd30937381944a5349a433da6c76caf4",
+        "version" : "0.3.2"
       }
     }
   ],

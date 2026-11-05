@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.3
 
 import PackageDescription
 
@@ -10,9 +10,16 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/tonytins/raylib-swift", branch: "main"),
+        .package(url: "https://github.com/tonytins/swift-cst.git", from: "0.3.2"),
     ],
     targets: [
-        .target(name: "Hudini", dependencies: [.product(name: "Raylib", package: "raylib-swift")]),
+        .target(
+            name: "Hudini",
+            dependencies: [
+                .product(name: "Raylib", package: "raylib-swift"),
+                .product(name: "SwiftCST", package: "swift-cst"),
+            ]
+        ),
         .executableTarget(
             name: "hudini-demo",
             dependencies: ["Hudini", .product(name: "Raylib", package: "raylib-swift")],

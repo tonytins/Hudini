@@ -1810,6 +1810,9 @@ private func tooltipView() throws -> UIScriptView {
 
 // MARK: CST text
 
+// These cover the deprecated CSTCatalog adapter: how it turns SwiftCST's tables into its own shapes.
+// SwiftCST's own tests cover reading the format.
+
 private func cst(_ text: String) -> CSTFile {
     CSTFile(data: Data(text.utf8))
 }
@@ -1823,80 +1826,6 @@ private func temporaryTextDirectory(_ files: [String: String], under path: Strin
         try Data(text.utf8).write(to: tables.appendingPathComponent(name))
     }
     return (root, tables)
-}
-
-@Test func cstReadsEveryEntryLayoutRealFilesUse() {
-    let file = cst("""
-    1 ^Same line^
-    \t2 ^Indented with a tab^
-      3 ^Indented with spaces^
-    4
-    ^Value below its key^
-    5 ^First line
-    Second line^
-    word ^A word as a key^
-    6^No space^
-    7 ^^
-
-    """)
-
-    #expect(file.entries["1"] == "Same line")
-    #expect(file.entries["2"] == "Indented with a tab")
-    #expect(file.entries["3"] == "Indented with spaces")
-    #expect(file.entries["4"] == "Value below its key")
-    #expect(file.entries["5"] == "First line\nSecond line")
-    #expect(file.entries["word"] == "A word as a key")
-    #expect(file.entries["6"] == "No space")
-    #expect(file.entries["7"] == "")
-    #expect(file.problems.isEmpty)
-}
-
-@Test func cstIgnoresComments() {
-    let file = cst("""
-    // A comment with 1 ^Not this^
-    # Another with 2 ^Not this^
-    /* A block with
-    3 ^Not this^
-    still going */
-    /* One line */
-    4 ^First
-    // Not part of the value
-    Last^
-    5 ^Has // and # inside^
-    """)
-
-    #expect(file.entries.keys.sorted() == ["4", "5"])
-    #expect(file.entries["4"] == "First\nLast")
-    #expect(file.entries["5"] == "Has // and # inside")
-}
-
-@Test func theSpecExampleReadsAsDocumented() throws {
-    let page = try String(contentsOf: demoResource("../../../doc/CST.md"), encoding: .utf8)
-    let opening = try #require(page.range(of: "```text\n"))
-    let closing = try #require(page.range(of: "```", range: opening.upperBound..<page.endIndex))
-    let file = cst(String(page[opening.upperBound..<closing.lowerBound]))
-
-    #expect(file.problems.isEmpty)
-    #expect(file.entries["1"] == "A value after its key")
-    #expect(file.entries["2"] == "An indented key")
-    #expect(file.entries["3"] == "A key above its value")
-    #expect(file.entries["4"] == "A value that runs\nacross lines")
-    #expect(file.entries["ok button"] == "A key with spaces")
-    #expect(file.entries["kErrNoFood"] == "A name above its value")
-    #expect(file.entries["5"] == "A name above its value")
-    #expect(file.entries["A note for translators."] == "A value with a note above it")
-    #expect(file.entries["6"] == "A value with a note above it")
-    #expect(file.entries["7"] == "A value on its own")
-    #expect(file.entries["8"] == "Another value on its own")
-    #expect(file.entries.count == 11)
-}
-
-@Test func cstNormalizesLineEndings() {
-    let file = cst("1 ^One\r\nTwo^\r\n2 ^Three\rFour^\r3 ^Five\u{2028}Six^")
-
-    #expect(file.entries["1"] == "One\nTwo")
-    #expect(file.entries["2"] == "Three\nFour")
-    #expect(file.entries["3"] == "Five\nSix")
 }
 
 @Test func cstReadsTheEncodingsRealFilesUse() {
@@ -1934,25 +1863,6 @@ private func temporaryTextDirectory(_ files: [String: String], under path: Strin
     #expect(file.entries["3"] == "Fourth")
 }
 
-@Test func cstTreatsTextBetweenEntriesAsNotes() {
-    let file = cst("""
-    #145#OptionStrs.cst
-    The next ones are tool tips, so read on
-    tooltips
-
-    ^First^
-    1st column
-    ^Second^
-    2 - refund
-    ^Third^
-    """)
-
-    #expect(file.entries["0"] == "First")
-    #expect(file.entries["1"] == "Second")
-    #expect(file.entries["2"] == "Third")
-    #expect(file.problems.isEmpty)
-}
-
 @Test func cstFindsAnEntryByTheLineAboveItAndByPosition() {
     let file = cst("""
     kErrOne
@@ -1971,12 +1881,6 @@ private func temporaryTextDirectory(_ files: [String: String], under path: Strin
     #expect(file.entries.count == 5)
 }
 
-@Test func cstDoesNotTakeAKeyFromTextAfterAValue() {
-    let file = cst("^p^ pause\n^q^ quit\n^r^")
-
-    #expect(file.entries.keys.sorted() == ["0", "1", "2"])
-}
-
 @Test func cstLetsARealKeyWinOverALineAbove() {
     let file = cst("7\n^Numbered^\nname\n^Named^\nname ^Real^\n^Fourth^\nname\n^Fifth^")
 
@@ -1986,21 +1890,6 @@ private func temporaryTextDirectory(_ files: [String: String], under path: Strin
     #expect(file.entries["3"] == "Fourth")
     #expect(file.entries["4"] == "Fifth")
     #expect(file.problems.isEmpty)
-}
-
-@Test func cstKeepsAKeyWithSpaces() {
-    let file = cst("ok button ^OK^\n24 012 ^Failed^")
-
-    #expect(file.entries["ok button"] == "OK")
-    #expect(file.entries["24 012"] == "Failed")
-}
-
-@Test func cstReadsMoreThanOneEntryOnALine() {
-    let file = cst("7 ^One^ 8 ^Two^ ^Third^")
-
-    #expect(file.entries["7"] == "One")
-    #expect(file.entries["8"] == "Two")
-    #expect(file.entries["2"] == "Third")
 }
 
 @Test func cstReportsAnUnclosedValueAndKeepsTheEntriesAfterIt() {
@@ -2017,8 +1906,9 @@ private func temporaryTextDirectory(_ files: [String: String], under path: Strin
     #expect(file.entries["2"] == nil)
     #expect(file.entries["3"] == "Still found")
     #expect(file.entries["5"] == nil)
-    // The skipped value still takes a position, so the keyless entry collides with key 3.
-    #expect(file.problems.map(\.line) == [2, 4, 5])
+    // The skipped value still takes a position, so the keyless value's position is 3. The key
+    // written in the file wins, as SwiftCST specifies, so that isn't a problem to report.
+    #expect(file.problems.map(\.line) == [2, 5])
 }
 
 @Test func cstKeepsTheFirstOfARepeatedKeyAndReportsTheOther() {
@@ -2028,34 +1918,8 @@ private func temporaryTextDirectory(_ files: [String: String], under path: Strin
     #expect(file.problems.map(\.line) == [2])
 }
 
-@Test func cstClosingCaretOnItsOwnLineEndsAValue() {
-    let file = cst("1 ^First line\nlast ^\n2 ^Next^\n3 ^One\n^\n4 ^After^")
-
-    #expect(file.entries["1"] == "First line\nlast ")
-    #expect(file.entries["2"] == "Next")
-    #expect(file.entries["3"] == "One\n")
-    #expect(file.entries["4"] == "After")
-    #expect(file.problems.isEmpty)
-}
-
-@Test(arguments: [
-    ("Hello %s!", ["Maya"], "Hello Maya!"),
-    ("%s has %d of %i and %u", ["A", "1", "2", "3"], "A has 1 of 2 and 3"),
-    ("%3d|%03d|%.3d", ["7", "7", "7"], "  7|007|007"),
-    ("%.2d:%.2d", ["5", "30"], "05:30"),
-    ("%3s", ["a"], "a"),
-    ("100%%", [], "100%"),
-    ("%ld properties", ["3"], "3 properties"),
-    ("%d.%02d", ["5", "7"], "5.07"),
-    ("<%> says", ["no"], "<%> says"),
-    ("%s and %s", ["only"], "only and %s"),
-    ("%d", [], "%d"),
-    ("%.3d", [], "%.3d"),
-    ("extra", ["ignored"], "extra"),
-    ("10% off, %l, %. and %", ["no"], "10% off, %l, %. and %")
-])
-func cstFormatsPlaceholders(text: String, arguments: [String], expected: String) {
-    #expect(CSTCatalog.format(text, with: arguments) == expected)
+@Test func catalogFormatsPlaceholdersAsSwiftCSTDoes() {
+    #expect(CSTCatalog.format("%s has %03d, 100%% %d", with: ["Maya", "-5"]) == "Maya has -05, 100% %d")
 }
 
 @Test func catalogLoadsTablesAndLooksUpText() throws {
