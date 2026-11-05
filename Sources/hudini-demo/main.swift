@@ -567,6 +567,7 @@ func openMoveLot() {
     options.clearFocus()
     lotChoices.selectedIndex = nil
     lotKey.text = ""
+    lotKey.setFocused(true)
     moveLot.setDisabled(true, named: "moveConfirm")
     isMoveLotOpen = true
 }

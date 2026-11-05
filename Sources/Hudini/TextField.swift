@@ -114,8 +114,14 @@ public final class TextField: FormLayoutControl {
         self.bounds = bounds
     }
 
-    func setFocused(_ isFocused: Bool) {
-        self.isFocused = isFocused
+    /// Gives or removes keyboard focus, for example so a window opens with its field ready for
+    /// typing. A read-only field stays unfocused.
+    ///
+    /// `update` still applies the current frame's click, so a click outside the field takes focus
+    /// away again if this is called before `update` in that frame. Focus is not shared between
+    /// fields: remove it from the others first, or they all react to the same keys.
+    public func setFocused(_ isFocused: Bool) {
+        self.isFocused = isFocused && !isReadOnly
     }
 
     /// Takes this frame's typing regardless of focus and reports whether the text changed.

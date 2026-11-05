@@ -977,6 +977,37 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
     #expect(field.text == "08:01")
 }
 
+@Test func hostsCanGiveAndRemoveFieldFocus() {
+    let field = TextField(maximumLength: 8)
+
+    field.setFocused(true)
+    #expect(field.isFocused)
+    // A frame without a click leaves the host's choice in place.
+    #expect(field.update(in: Rectangle(x: 500, y: 500, width: 80, height: 30)) == nil)
+    #expect(field.isFocused)
+
+    field.setFocused(false)
+    #expect(!field.isFocused)
+}
+
+@Test func readOnlyFieldsRefuseFocusFromTheHost() {
+    let field = TextField(maximumLength: 8, isReadOnly: true)
+
+    field.setFocused(true)
+    #expect(!field.isFocused)
+}
+
+@Test func viewFieldsTakeFocusByNameAndLoseItWhenHidden() throws {
+    let view = UIScriptView(script: try script("<TextField name='entry' \(tenByTen)/>"))
+    let field = try #require(view.textField(named: "entry"))
+
+    field.setFocused(true)
+    #expect(field.isFocused)
+
+    view.setHidden(true, named: "entry")
+    #expect(!field.isFocused)
+}
+
 @Test func fieldsAndAreasRememberBoundsFromUpdate() {
     let bounds = Rectangle(x: 500, y: 500, width: 80, height: 30)
     let field = TextField(maximumLength: 8)

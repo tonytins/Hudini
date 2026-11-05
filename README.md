@@ -61,9 +61,84 @@ tracking the `main` branch.
 
 ## Example
 
-Create the raylib window before constructing or drawing the interface. Use one
-theme value across the components in a screen, then lay out fields against the
-window's content bounds:
+Prefer describing screens in [UIScript](doc/UISCRIPT.md) over hardcoding them. The
+layout stays out of your game code, so moving a control means changing one
+attribute in one file, and your code only deals with what the controls mean.
+
+Describe the screen in an XML file, such as `settings.xml`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<UIScript version="1">
+  <Window width="360" height="130"/>
+
+  <Text name="nameLabel" x="12" y="14" width="336" height="14" text="Player name"/>
+  <TextField name="playerName" x="12" y="34" width="336" height="32"
+             text="Player" maximumLength="24" placeholder="Your name"/>
+  <Button name="save" x="268" y="84" width="80" height="30" text="Save"/>
+</UIScript>
+```
+
+Then load it and handle what it reports. Create the raylib window before
+constructing or drawing the interface, and use one theme value across the
+components in a screen:
+
+```swift
+import Foundation
+import Hudini
+import Raylib
+
+InitWindow(800, 600, "Game")
+SetExitKey(.null)
+
+let theme = InterfaceTheme(
+    accent: Color(r: 120, g: 180, b: 240, a: 255)
+)
+let script = try UIScript(contentsOf: URL(fileURLWithPath: "settings.xml"))
+let view = UIScriptView(script: script, theme: theme)
+let window = WindowFrame(title: "Settings", theme: theme)
+
+// Open ready for typing, without a click on the field first.
+view.textField(named: "playerName")?.setFocused(true)
+
+while !WindowShouldClose() {
+    let bounds = window.place(
+        size: Vector2(
+            x: script.window.size.width,
+            y: script.window.size.height + Float(WindowFrame.titleHeight)
+        ),
+        at: Vector2(x: 40, y: 40)
+    )
+    let content = WindowFrame.content(in: bounds)
+    let origin = Vector2(x: content.x, y: content.y)
+
+    _ = window.followPointer(in: bounds)
+    if window.update(in: bounds) == .close {
+        break
+    }
+    for event in view.update(at: origin) {
+        if event == .pressed(control: "save") {
+            print("Saved \(view.text(named: "playerName") ?? "")")
+        }
+    }
+
+    BeginDrawing()
+    ClearBackground(Color(r: 54, g: 84, b: 120, a: 255))
+    window.draw(in: bounds)
+    view.draw(at: origin)
+    EndDrawing()
+}
+
+CloseWindow()
+```
+
+raylib closes the window on Escape by default. `SetExitKey(.null)` turns that off
+so Escape can cancel title edits and dismiss panels instead of quitting the game.
+
+### Building controls in code
+
+Every control also works on its own, which suits something small or a layout your
+game works out at runtime, such as a form with a varying number of fields:
 
 ```swift
 import Hudini
@@ -109,8 +184,7 @@ while !WindowShouldClose() {
 CloseWindow()
 ```
 
-raylib closes the window on Escape by default. `SetExitKey(.null)` turns that off
-so Escape can cancel title edits and dismiss panels instead of quitting the game.
+### More examples
 
 See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable example: a
 property chat window over a control panel with live, statistics, and options modes,

@@ -237,6 +237,8 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   event.
 - Change text at runtime with `setText(_:named:)`, and the value of a slider or
   progress bar with `setValue(_:named:)`. Both are cheap enough to call every frame.
+- Open a window ready for typing with `textField(named:)?.setFocused(true)`, after
+  taking focus from any other view with `clearFocus()`.
 - Place something the document leaves to the game with `setBounds(_:named:)`.
 - Use `containsPoint(_:origin:)` to keep a click on the interface from also
   reaching the game behind it. It covers visible controls and visuals, so a
