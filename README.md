@@ -178,6 +178,10 @@ let theme = InterfaceTheme(
 The radius is in pixels, and a shape too small for it uses the largest radius that
 fits. Clicks still land on the whole rectangle, including just outside a corner.
 
+To draw your game's own shapes and text the way the controls do, such as a dock or
+a menu bar, use the theme's `fillRectangle`, `outlineRectangle`, `fillTitleBar`,
+`drawText`, `textWidth`, and `wrappedLines`.
+
 ### Building controls in code
 
 Every control also works on its own, which suits something small or a layout your

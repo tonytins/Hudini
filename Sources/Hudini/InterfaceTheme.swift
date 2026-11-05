@@ -141,8 +141,11 @@ public struct InterfaceTheme: Sendable {
     /// Hudini's default dark palette with a warm accent.
     public static let standard = InterfaceTheme()
 
-    /// Draws text the way every Hudini control does.
-    func drawText(_ text: String, x: Int, y: Int, size: Int, color: Color) {
+    /// Draws text in the theme's font, the way every Hudini control does, so a game's own drawing
+    /// matches its controls.
+    ///
+    /// Call it while drawing, between `BeginDrawing` and `EndDrawing`.
+    public func drawText(_ text: String, x: Int, y: Int, size: Int, color: Color) {
         guard let font = loadedFont else {
             DrawText(text, x, y, size, color)
             return
@@ -150,16 +153,19 @@ public struct InterfaceTheme: Sendable {
         DrawTextEx(font, text, Vector2(x: Float(x), y: Float(y)), Float(size), fontSpacing, color)
     }
 
-    /// Returns how wide `drawText` draws `text`.
-    func textWidth(of text: String, size: Int) -> Int {
+    /// Returns how wide `drawText(_:x:y:size:color:)` draws `text`, in pixels.
+    ///
+    /// Measuring needs raylib's window, and returns zero before `InitWindow`.
+    public func textWidth(of text: String, size: Int) -> Int {
         guard let font = loadedFont else {
             return MeasureText(text, size)
         }
         return Int(clamping: MeasureTextEx(font, text, Float(size), fontSpacing).x.rounded(.up))
     }
 
-    /// Wraps `text` into lines that fit `maximumWidth` when drawn with `drawText`.
-    func wrappedLines(for text: String, size: Int, maximumWidth: Int) -> [String] {
+    /// Wraps `text` into lines that fit `maximumWidth` pixels when drawn with
+    /// `drawText(_:x:y:size:color:)`, breaking between words where it can. See `TextWrapper`.
+    public func wrappedLines(for text: String, size: Int, maximumWidth: Int) -> [String] {
         TextWrapper.lines(for: text, maximumWidth: maximumWidth) { textWidth(of: $0, size: size) }
     }
 
@@ -167,8 +173,8 @@ public struct InterfaceTheme: Sendable {
     // straight diagonal, so a slider thumb would come out as a diamond.
     private static let cornerSegments = 8
 
-    /// Fills a shape with the theme's corners.
-    func fillRectangle(_ bounds: Rectangle, _ color: Color) {
+    /// Fills a shape with the theme's corners, or a plain rectangle when `cornerRadius` is zero.
+    public func fillRectangle(_ bounds: Rectangle, _ color: Color) {
         let radius = cornerRadius(for: bounds)
         guard radius > 0 else {
             DrawRectangleRec(bounds, color)
@@ -177,8 +183,8 @@ public struct InterfaceTheme: Sendable {
         DrawRectangleRounded(bounds, radius * 2 / min(bounds.width, bounds.height), Self.cornerSegments, color)
     }
 
-    /// Outlines a shape with the theme's corners, drawing inside `bounds`.
-    func outlineRectangle(_ bounds: Rectangle, _ color: Color, thickness: Float = 1) {
+    /// Outlines a shape with the theme's corners, drawing inside `bounds` as a square outline does.
+    public func outlineRectangle(_ bounds: Rectangle, _ color: Color, thickness: Float = 1) {
         // raylib draws a rounded outline outside its rectangle and a square one inside.
         let inner = Rectangle(
             x: bounds.x + thickness,
@@ -194,8 +200,9 @@ public struct InterfaceTheme: Sendable {
         DrawRectangleRoundedLinesEx(inner, radius * 2 / min(inner.width, inner.height), Self.cornerSegments, thickness, color)
     }
 
-    /// Fills a title bar, rounding only its top corners, from `titleBar` to `titleBarBottom`.
-    func fillTitleBar(_ bar: Rectangle) {
+    /// Fills a title bar, rounding only its top corners, from `titleBar` to `titleBarBottom`, the way
+    /// `WindowFrame` does.
+    public func fillTitleBar(_ bar: Rectangle) {
         let radius = cornerRadius(for: bar)
         guard radius > 0 || titleBarBottom != nil else {
             DrawRectangleRec(bar, titleBar)
@@ -212,8 +219,9 @@ public struct InterfaceTheme: Sendable {
         }
     }
 
-    /// The radius to draw a shape with: the theme's, or the largest that fits it.
-    func cornerRadius(for bounds: Rectangle) -> Float {
+    /// Returns the radius `fillRectangle(_:_:)` draws `bounds` with: `cornerRadius`, or the largest
+    /// that fits a smaller shape.
+    public func cornerRadius(for bounds: Rectangle) -> Float {
         max(0, min(cornerRadius, min(bounds.width, bounds.height) / 2))
     }
 
