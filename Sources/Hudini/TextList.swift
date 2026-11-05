@@ -18,7 +18,14 @@ public final class TextList {
     private var visibleLineCount = 1
     private var pendingWheelLines: Float = 0
 
-    private let theme: InterfaceTheme
+    /// The colors and size the list draws with. Setting it takes effect from the next draw, and keeps
+    /// the list's items, selection, and scroll position. Colors and a size passed when creating the
+    /// list still win.
+    public var theme: InterfaceTheme {
+        didSet {
+            lineWidth = nil
+        }
+    }
 
     // What the caller asked for. Anything left out comes from the theme when drawing.
     private let fontSizeOverride: Int?

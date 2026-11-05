@@ -1089,6 +1089,98 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
     )
 }
 
+@Test func settingAFieldsThemeKeepsItsTextFocusAndOwnSize() {
+    let larger = InterfaceTheme(textSizes: .init(input: 30))
+    let field = TextField(text: "Maya", maximumLength: 8)
+    let sized = TextField(maximumLength: 8, fontSize: 10)
+    field.setFocused(true)
+
+    field.theme = larger
+    sized.theme = larger
+
+    #expect(field.height == 42)
+    #expect(field.text == "Maya")
+    #expect(field.isFocused)
+    #expect(sized.height == 22)
+}
+
+@Test func settingAnAreasThemeFollowsItsSize() {
+    let area = TextArea(text: "Some words", maximumLength: 40)
+
+    area.theme = InterfaceTheme(textSizes: .init(input: 30))
+
+    #expect(area.formHeight == TextArea(maximumLength: 40, fontSize: 30).formHeight)
+    #expect(area.text == "Some words")
+}
+
+@Test func settingAListsThemeKeepsItsSelectionAndUsesTheNewLineHeight() {
+    let list = TextList(items: ["Maple", "Oak", "Birch"], isSelectable: true)
+    let bounds = Rectangle(x: 0, y: 0, width: 200, height: 200)
+    // The second line starts 6 + 16 pixels down at the standard body size.
+    let point = Vector2(x: 10, y: 26)
+    list.selectedIndex = 2
+
+    #expect(list.itemIndex(at: point, in: bounds) == 1)
+
+    list.theme = InterfaceTheme(textSizes: .init(body: 30))
+
+    #expect(list.itemIndex(at: point, in: bounds) == 0)
+    #expect(list.selectedIndex == 2)
+}
+
+@Test func settingAViewsThemeReachesItsControlsAndKeepsTheirState() throws {
+    let view = UIScriptView(script: try script("""
+    <Style name='fixed' fontSize='18'/>
+    <TextField name='entry' \(tenByTen)/>
+    <TextField name='styled' style='fixed' \(tenByTen)/>
+    <List name='lots' x='0' y='20' width='200' height='200' selectable='true'/>
+    """))
+    let lots = try #require(view.list(named: "lots"))
+    lots.items = ["Maple", "Oak", "Birch"]
+    lots.selectedIndex = 2
+    view.setText("Maya", named: "entry")
+
+    view.theme = InterfaceTheme(textSizes: .init(body: 30))
+
+    #expect(view.textField(named: "entry")?.height == 42)
+    #expect(view.textField(named: "styled")?.height == 30)
+    #expect(view.text(named: "entry") == "Maya")
+    #expect(lots.selectedIndex == 2)
+    #expect(lots.theme.textSizes.body == 30)
+}
+
+@Test func settingAFramesThemeKeepsItsTitle() {
+    let frame = WindowFrame(title: "Lots", theme: .standard)
+
+    frame.theme = InterfaceTheme(textSizes: .init(title: 22))
+
+    #expect(frame.theme.textSizes.title == 22)
+    #expect(frame.title == "Lots")
+}
+
+@Test func formsLayOutAgainForANewThemeOrControlHeight() {
+    let bounds = Rectangle(x: 0, y: 0, width: 200, height: 300)
+    let name = TextField(maximumLength: 8)
+    let note = TextField(maximumLength: 8)
+    let layout = FormLayout(fields: [
+        .init(label: "Name", control: name),
+        .init(label: "Note", control: note),
+    ])
+    layout.layout(in: bounds)
+    let before = layout.fields.map(\.controlBounds.y)
+
+    layout.theme = InterfaceTheme(textSizes: .init(label: 26))
+    layout.layout(in: bounds)
+    // Each label is 10 pixels taller, so each field moves down 10 more than the one above it.
+    #expect(layout.fields.map(\.controlBounds.y) == [before[0] + 10, before[1] + 20])
+    let afterLabels = layout.fields.map(\.controlBounds.y)
+
+    name.theme = InterfaceTheme(textSizes: .init(input: 30))
+    layout.layout(in: bounds)
+    #expect(layout.fields[0].controlBounds.height == 42)
+    #expect(layout.fields[1].controlBounds.y == afterLabels[1] + 10)
+}
+
 @Test func hostsCanGiveAndRemoveFieldFocus() {
     let field = TextField(maximumLength: 8)
 

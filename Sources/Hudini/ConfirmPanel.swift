@@ -15,7 +15,14 @@ public final class ConfirmPanel {
 
     private let frame: WindowFrame
 
-    private let theme: InterfaceTheme
+    /// The look the panel draws with, including its frame. Setting it takes effect from the next draw,
+    /// and wraps an open question's message again.
+    public var theme: InterfaceTheme {
+        didSet {
+            frame.theme = theme
+            wrapMessage()
+        }
+    }
 
     private var message = ""
 

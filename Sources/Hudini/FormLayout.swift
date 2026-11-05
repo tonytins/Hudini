@@ -22,22 +22,36 @@ public final class FormLayout {
     private let fieldSpacing: Float
     private let footerHeight: Float
     private let bottomInset: Float
-    private let theme: InterfaceTheme
+    /// The theme whose `label` size the labels get room for. Setting it lays the form out again on
+    /// the next `layout(in:)`. A form doesn't own its controls, so set their themes too.
+    public var theme: InterfaceTheme {
+        didSet {
+            lastBounds = nil
+        }
+    }
+
+    // The heights the form was last laid out with, since a control's height can follow its theme.
+    private var lastHeights: [Float] = []
     private var lastBounds: Rectangle?
 
     /// A labeled control's height in the form.
     public struct Field {
         public let label: String
         public let control: any FormLayoutControl
-        public let height: Float
+        private let customHeight: Float?
+
+        /// The control's height: the one given when creating the field, or the control's form
+        /// height, which can change with the control's theme.
+        public var height: Float {
+            customHeight ?? control.formHeight
+        }
 
         /// Creates a field using the control's default form height.
         public init(label: String, control: any FormLayoutControl) {
-            let height = control.formHeight
-            precondition(height > 0, "control formHeight must be positive")
+            precondition(control.formHeight > 0, "control formHeight must be positive")
             self.label = label
             self.control = control
-            self.height = height
+            customHeight = nil
         }
 
         /// Creates a field with a custom control height.
@@ -45,7 +59,7 @@ public final class FormLayout {
             precondition(height > 0, "height must be positive")
             self.label = label
             self.control = control
-            self.height = height
+            customHeight = height
         }
     }
 
@@ -96,11 +110,12 @@ public final class FormLayout {
 
     /// Calculates field positions before `fields` or `drawLabels` are used.
     ///
-    /// Repeated calls with unchanged bounds do not recalculate the layout. Bounds too small for
-    /// the form, such as a window the player shrank, leave controls narrow or overlapping the
-    /// footer rather than failing.
+    /// Repeated calls with unchanged bounds and control heights do not recalculate the layout.
+    /// Bounds too small for the form, such as a window the player shrank, leave controls narrow or
+    /// overlapping the footer rather than failing.
     public func layout(in bounds: Rectangle) {
-        if lastBounds == bounds {
+        let heights = descriptions.map(\.height)
+        if lastBounds == bounds, lastHeights == heights {
             for (description, field) in zip(descriptions, fields) {
                 description.control.place(in: field.controlBounds)
             }
@@ -132,6 +147,7 @@ public final class FormLayout {
             y: bounds.y + bounds.height - bottomInset
         )
         lastBounds = bounds
+        lastHeights = heights
     }
 
     /// Draws the form's labels in the theme's secondary text color. Without a `theme`, it uses

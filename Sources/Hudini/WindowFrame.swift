@@ -24,7 +24,14 @@ public final class WindowFrame {
 
     private let titleField: TextField
 
-    private let theme: InterfaceTheme
+    /// The look the frame draws with, including its title field. Setting it takes effect from the next
+    /// draw, and keeps the window's position, title, and toolbar selection.
+    public var theme: InterfaceTheme {
+        didSet {
+            titleField.theme = theme
+            shownFor = nil
+        }
+    }
 
     private var _title: String
 

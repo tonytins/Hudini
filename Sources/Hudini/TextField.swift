@@ -20,7 +20,9 @@ public final class TextField: FormLayoutControl {
 
     private let accepts: (Character) -> Bool
 
-    private let theme: InterfaceTheme
+    /// The colors and size the field draws with. Setting it takes effect from the next draw, and
+    /// keeps the field's text and focus. Colors and a size passed when creating the field still win.
+    public var theme: InterfaceTheme
 
     private let placeholder: String?
 

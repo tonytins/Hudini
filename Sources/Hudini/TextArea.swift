@@ -27,7 +27,13 @@ public final class TextArea: FormLayoutControl {
     // The width `lines` was wrapped to, or nil when the text has changed since.
     private var wrappedWidth: Int?
 
-    private let theme: InterfaceTheme
+    /// The colors and size the area draws with. Setting it takes effect from the next draw, and keeps
+    /// the area's text and focus. A size passed when creating the area still wins.
+    public var theme: InterfaceTheme {
+        didSet {
+            wrappedWidth = nil
+        }
+    }
 
     /// Whether this area currently receives keyboard input.
     public private(set) var isFocused = false

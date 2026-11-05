@@ -21,7 +21,19 @@ public final class UIScriptView {
     private static let tooltipGap: Float = 4
 
     private let script: UIScript
-    private let theme: InterfaceTheme
+    /// The look the view draws with, including its lists and text fields. Setting it takes effect
+    /// from the next draw, and keeps every control's text, value, focus, and selection. A document's
+    /// styles still win over it.
+    public var theme: InterfaceTheme {
+        didSet {
+            for list in lists.values {
+                list.theme = theme
+            }
+            for field in textFields.values {
+                field.theme = theme
+            }
+        }
+    }
     private var labels: [String: String]
     private let lists: [String: TextList]
     private let textFields: [String: TextField]

@@ -21,7 +21,14 @@ public final class NoticePanel {
 
     private var lines: [String] = []
 
-    private let theme: InterfaceTheme
+    /// The look the notice draws with, including its frame. Setting it takes effect from the next draw,
+    /// and wraps an open notice's message again.
+    public var theme: InterfaceTheme {
+        didSet {
+            frame.theme = theme
+            wrapMessage()
+        }
+    }
 
     /// Whether the notice is currently visible.
     public private(set) var isOpen: Bool = false
