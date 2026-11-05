@@ -124,7 +124,7 @@ public final class ConfirmPanel {
     }
 
     private static func drawButton(_ bounds: Rectangle, _ label: String, _ mouse: Vector2, theme: InterfaceTheme) {
-        DrawRectangleRec(bounds, theme.border)
+        theme.fillRectangle(bounds, theme.border)
         let size = theme.textSizes.button
         let labelWidth = theme.textWidth(of: label, size: size)
         let color = CheckCollisionPointRec(mouse, bounds) ? theme.accent : theme.text

@@ -40,7 +40,7 @@ public enum ButtonRow {
     ) {
         for index in labels.indices {
             let buttonBounds = bounds(endingAt: corner, labels: labels, index: index, theme: theme)
-            DrawRectangleRec(buttonBounds, theme.border)
+            theme.fillRectangle(buttonBounds, theme.border)
             let color = !isEnabled(index, enabled)
                 ? theme.secondaryText
                 : CheckCollisionPointRec(mousePosition, buttonBounds) ? theme.accent : theme.text

@@ -198,19 +198,19 @@ public final class WindowFrame {
     /// over the area `content(in:)` returns.
     public func draw(in bounds: Rectangle) {
         let mouse = GetMousePosition()
-        DrawRectangleRec(bounds, theme.panel)
+        theme.fillRectangle(bounds, theme.panel)
         var bar = bounds
         bar.height = Float(WindowFrame.titleHeight)
-        DrawRectangleRec(bar, theme.titleBar)
+        theme.fillTitleBar(bar)
         DrawLine(Int(clamping: bounds.x), Int(clamping: bounds.y + Float(WindowFrame.titleHeight)), Int(clamping: bounds.x + bounds.width), Int(clamping: bounds.y + Float(WindowFrame.titleHeight)), theme.border)
-        DrawRectangleLinesEx(bounds, 1.0, theme.border)
+        theme.outlineRectangle(bounds, theme.border)
         if showsCloseButton {
             drawCloseButton(in: bounds, mouse: mouse)
         }
         for i in 0..<toolbarItems.count {
             let item = toolBounds(bounds, i)
             if selectedToolbarIndex == i {
-                DrawRectangleRec(item, theme.selectedItem)
+                theme.fillRectangle(item, theme.selectedItem)
             }
             let color = selectedToolbarIndex == i ? theme.accent : CheckCollisionPointRec(mouse, item) ? theme.text : theme.secondaryText
             theme.drawText(toolbarItems[i], x: Int(clamping: item.x) + WindowFrame.toolbarPadding, y: Int(clamping: item.y + ((item.height - Float(theme.textSizes.body)) / 2)), size: theme.textSizes.body, color: color)

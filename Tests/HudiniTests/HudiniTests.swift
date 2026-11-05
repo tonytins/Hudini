@@ -977,6 +977,47 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
     #expect(field.text == "08:01")
 }
 
+@Test func standardThemeKeepsSquareCornersAndAFlatTitleBar() {
+    #expect(InterfaceTheme.standard.cornerRadius == 0)
+    #expect(InterfaceTheme.standard.titleBarBottom == nil)
+    #expect(InterfaceTheme.standard.cornerRadius(for: Rectangle(x: 0, y: 0, width: 100, height: 100)) == 0)
+}
+
+@Test func cornersShrinkToFitSmallShapes() {
+    let theme = InterfaceTheme(cornerRadius: 8)
+
+    #expect(theme.cornerRadius(for: Rectangle(x: 0, y: 0, width: 300, height: 200)) == 8)
+    #expect(theme.cornerRadius(for: Rectangle(x: 0, y: 0, width: 300, height: 10)) == 5)
+    #expect(theme.cornerRadius(for: Rectangle(x: 0, y: 0, width: 0, height: 200)) == 0)
+    #expect(theme.cornerRadius(for: Rectangle(x: 0, y: 0, width: -4, height: 200)) == 0)
+}
+
+@Test func titleBarRowsFollowTheCornerThenRunFullWidth() {
+    #expect(InterfaceTheme.cornerInset(ofRow: 0, radius: 0) == 0)
+
+    let insets = (0..<10).map { InterfaceTheme.cornerInset(ofRow: $0, radius: 8) }
+    #expect(insets[0] > 4 && insets[0] < 8)
+    #expect(zip(insets, insets.dropFirst()).allSatisfy { $0 >= $1 })
+    #expect(insets[7] > 0)
+    #expect(insets[8] == 0)
+    #expect(insets[9] == 0)
+}
+
+@Test func titleBarFadesFromTopColorToBottomColor() {
+    let top = Color(r: 0, g: 100, b: 200, a: 255)
+    let bottom = Color(r: 100, g: 200, b: 0, a: 155)
+    let glossy = InterfaceTheme(titleBar: top, titleBarBottom: bottom)
+    let flat = InterfaceTheme(titleBar: top)
+
+    func channels(_ color: Color) -> [UInt8] { [color.r, color.g, color.b, color.a] }
+
+    #expect(channels(glossy.titleBarColor(ofRow: 0, rowCount: 30)) == channels(top))
+    #expect(channels(glossy.titleBarColor(ofRow: 29, rowCount: 30)) == channels(bottom))
+    #expect(channels(glossy.titleBarColor(ofRow: 1, rowCount: 3)) == [50, 150, 100, 205])
+    #expect(channels(glossy.titleBarColor(ofRow: 0, rowCount: 1)) == channels(top))
+    #expect(channels(flat.titleBarColor(ofRow: 29, rowCount: 30)) == channels(top))
+}
+
 @Test func standardTextSizesKeepHudinisLook() {
     let sizes = InterfaceTheme.standard.textSizes
 

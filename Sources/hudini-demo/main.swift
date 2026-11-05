@@ -3,13 +3,14 @@
 // debug bar. The options panel opens a window for moving to another lot. The chat, mode panels, and
 // move window are UIScript XML. The stand and the bar are Maxis' .uis format.
 //
-// Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>]
+// Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>] [--glossy]
 //
 // Scenes are for checking the interface without input: live, stats, options, stand, standwindow,
 // movelot.
 // --pointer holds the pointer in place, and a screenshot then waits long enough to show a tooltip.
 // --font draws the interface in a font file, such as a .ttf. The demo's own lot art keeps raylib's
 // default font, since the theme only reaches Hudini's controls.
+// --glossy gives the theme rounded corners and a title bar that fades, and asks for smoother curves.
 
 import Foundation
 import Hudini
@@ -266,6 +267,7 @@ var screenshot: String?
 var scene = "live"
 var heldPointer: Vector2?
 var fontPath: String?
+var isGlossy = false
 var arguments = CommandLine.arguments.dropFirst()
 while let argument = arguments.popFirst() {
     switch argument {
@@ -289,8 +291,10 @@ while let argument = arguments.popFirst() {
             fail("--font needs a file")
         }
         fontPath = path
+    case "--glossy":
+        isGlossy = true
     default:
-        fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>]")
+        fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>] [--glossy]")
     }
 }
 guard ["live", "stats", "options", "stand", "standwindow", "movelot"].contains(scene) else {
@@ -322,7 +326,11 @@ let barScript = loadUIS(named: "debugbar")
 let standScript = loadUIS(named: "lemonadestand")
 
 SetTraceLogLevel(.warning)
-SetConfigFlags(screenshot == nil ? [.windowResizable, .vsyncHint] : [.windowHidden])
+var windowFlags: ConfigFlags = screenshot == nil ? [.windowResizable, .vsyncHint] : [.windowHidden]
+if isGlossy {
+    windowFlags.insert(.msaa4xHint)
+}
+SetConfigFlags(windowFlags)
 InitWindow(1024, 768, "Hudini Live Mode")
 // The host owns the font: it loads after InitWindow and unloads before CloseWindow.
 let font: Font? = fontPath.map { path in
@@ -333,7 +341,12 @@ let font: Font? = fontPath.map { path in
     SetTextureFilter(font.texture, .bilinear)
     return font
 }
-let theme = InterfaceTheme(font: font)
+let theme = InterfaceTheme(
+    titleBar: isGlossy ? Color(r: 92, g: 112, b: 142, a: 245) : InterfaceTheme.standard.titleBar,
+    titleBarBottom: isGlossy ? Color(r: 30, g: 40, b: 58, a: 245) : nil,
+    font: font,
+    cornerRadius: isGlossy ? 8 : 0
+)
 SetExitKey(.null)
 SetTargetFPS(60)
 
@@ -842,7 +855,7 @@ while running && !WindowShouldClose() {
         14,
         Color(r: 255, g: 255, b: 255, a: 255)
     )
-    DrawRectangle(0, Int32(panelTop), Int32(screenSize.x), Int32(panelHeight), theme.titleBar)
+    DrawRectangle(0, Int32(panelTop), Int32(screenSize.x), Int32(panelHeight), theme.titleBarBottom ?? theme.titleBar)
     modePanel.draw(at: panelOrigin) { name, regionBounds in
         switch name {
         case "motives":

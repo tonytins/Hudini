@@ -190,8 +190,8 @@ public final class TextField: FormLayoutControl {
     /// Contents are clipped to the field. Text too wide to fit shifts left so
     /// its end and the caret stay visible.
     public func draw(in bounds: Rectangle) {
-        DrawRectangleRec(bounds, backgroundColor)
-        DrawRectangleLinesEx(bounds, 1.0, isFocused ? theme.accent : borderColor)
+        theme.fillRectangle(bounds, backgroundColor)
+        theme.outlineRectangle(bounds, isFocused ? theme.accent : borderColor)
         let text = shownText
         let left = Int(clamping: bounds.x) + TextField.padding
         let room = max(0, Int(clamping: bounds.width) - (TextField.padding * 2))

@@ -245,8 +245,8 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   background the host draws itself needs its own check. When views overlap, the
   host decides which one gets the pointer.
 - Draw any window frame or background behind the view.
-- Choose the font and default text sizes through the `InterfaceTheme` passed to the
-  view. A document sets sizes through `<Style>`, and has no way to name a font.
+- Choose the font, default text sizes, and corners through the `InterfaceTheme` passed
+  to the view. A document sets sizes through `<Style>`, and has no way to name a font.
 
 ### Panels inside panels
 

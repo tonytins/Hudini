@@ -98,8 +98,8 @@ public enum IconToolbar {
             return
         }
         if showsBackground {
-            DrawRectangleRec(toolbar, theme.panel)
-            DrawRectangleLinesEx(toolbar, 1, theme.border)
+            theme.fillRectangle(toolbar, theme.panel)
+            theme.outlineRectangle(toolbar, theme.border)
         }
 
         for index in 0..<itemCount {
@@ -113,7 +113,7 @@ public enum IconToolbar {
             let isSelected = selectedIndex == index
             let isHovered = CheckCollisionPointRec(mousePosition, button)
             if isSelected || isHovered {
-                DrawRectangleRec(button, isSelected ? theme.selectedItem : theme.border)
+                theme.fillRectangle(button, isSelected ? theme.selectedItem : theme.border)
             }
             let iconColor = isSelected || isHovered ? theme.accent : theme.text
             drawIcon(index, button, iconColor)

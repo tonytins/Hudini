@@ -609,7 +609,7 @@ public final class UIScriptView {
             case .text:
                 drawText(of: control, in: bounds, inset: 0)
             case .formattedText:
-                DrawRectangleRec(bounds, script.style(for: control)?.backgroundColor ?? theme.panel)
+                theme.fillRectangle(bounds, script.style(for: control)?.backgroundColor ?? theme.panel)
                 drawText(of: control, in: bounds, inset: Self.textInset)
             case .button:
                 drawButton(control, in: bounds)
@@ -642,8 +642,8 @@ public final class UIScriptView {
             below: screenRectangle(for: control.frame, named: name, at: origin),
             screen: Vector2(x: Float(GetScreenWidth()), y: Float(GetScreenHeight()))
         )
-        DrawRectangleRec(bounds, theme.panel)
-        DrawRectangleLinesEx(bounds, 1, theme.border)
+        theme.fillRectangle(bounds, theme.panel)
+        theme.outlineRectangle(bounds, theme.border)
         theme.drawText(
             text,
             x: Int(clamping: bounds.x + Self.tooltipPadding),
@@ -721,8 +721,8 @@ public final class UIScriptView {
         if let image = control.image {
             drawImage(named: image, state: state, in: bounds)
         } else {
-            DrawRectangleRec(bounds, style?.backgroundColor ?? theme.panel)
-            DrawRectangleLinesEx(bounds, 1, style?.borderColor ?? theme.border)
+            theme.fillRectangle(bounds, style?.backgroundColor ?? theme.panel)
+            theme.outlineRectangle(bounds, style?.borderColor ?? theme.border)
         }
         guard let label = labels[control.name] else {
             return
@@ -739,21 +739,21 @@ public final class UIScriptView {
 
     private func drawSlider(_ control: UIScript.Control, in bounds: Rectangle, origin: Vector2) {
         let style = script.style(for: control)
-        DrawRectangleRec(bounds, style?.backgroundColor ?? theme.panel)
-        DrawRectangleLinesEx(bounds, 1, style?.borderColor ?? theme.border)
+        theme.fillRectangle(bounds, style?.backgroundColor ?? theme.panel)
+        theme.outlineRectangle(bounds, style?.borderColor ?? theme.border)
         if control.scrolls != nil, control.scrolls.flatMap({ lists[$0.list] }) == nil {
             return
         }
         let color = disabledNames.contains(control.name) ? theme.secondaryText : (style?.fillColor ?? theme.accent)
-        DrawRectangleRec(sliderThumb(of: control, in: bounds, origin: origin), color)
+        theme.fillRectangle(sliderThumb(of: control, in: bounds, origin: origin), color)
     }
 
     private func drawProgressBar(_ control: UIScript.Control, in bounds: Rectangle) {
         let style = script.style(for: control)
-        DrawRectangleRec(bounds, style?.backgroundColor ?? theme.panel)
+        theme.fillRectangle(bounds, style?.backgroundColor ?? theme.panel)
         var filled = bounds
         filled.width *= fraction(of: control)
-        DrawRectangleRec(filled, style?.fillColor ?? theme.accent)
-        DrawRectangleLinesEx(bounds, 1, style?.borderColor ?? theme.border)
+        theme.fillRectangle(filled, style?.fillColor ?? theme.accent)
+        theme.outlineRectangle(bounds, style?.borderColor ?? theme.border)
     }
 }

@@ -115,8 +115,8 @@ public final class TextArea: FormLayoutControl {
     /// box can show are left out from the top, so the end being typed stays in view.
     public func draw(in bounds: Rectangle) {
         wrap(toFit: bounds)
-        DrawRectangleRec(bounds, theme.inputBackground)
-        DrawRectangleLinesEx(bounds, 1.0, isFocused ? theme.accent : theme.border)
+        theme.fillRectangle(bounds, theme.inputBackground)
+        theme.outlineRectangle(bounds, isFocused ? theme.accent : theme.border)
         let room = max(1, (Int(clamping: bounds.height) - (TextArea.padding * 2) + TextArea.lineGap) / (fontSize + TextArea.lineGap))
         let first = max(0, lines.count - room)
         let x = Int(clamping: bounds.x) + TextArea.padding

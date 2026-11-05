@@ -212,8 +212,8 @@ public final class TextList {
     public func draw(in bounds: Rectangle) {
         prepareLines(for: bounds)
 
-        DrawRectangleRec(bounds, backgroundColor)
-        DrawRectangleLinesEx(bounds, 1, borderColor)
+        theme.fillRectangle(bounds, backgroundColor)
+        theme.outlineRectangle(bounds, borderColor)
 
         let firstLine = firstVisibleLine
         let endLine = min(lines.count, firstLine + visibleLineCount)

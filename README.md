@@ -18,7 +18,7 @@ form layout.
 - Button rows with hit testing and enabled states
 - A 2D camera with pointer-centered zoom and coordinate conversion
 - Declarative, vertically stacked form layout
-- Per-interface themes with colors, a font, and text sizes
+- Per-interface themes with colors, a font, text sizes, rounded corners, and glossy title bars
 - [UIScript](doc/UISCRIPT.md), an XML format describing resources, styles, visuals, and controls
 - `UIScriptView`, which builds, updates, and draws a document's controls
 - Readers for Maxis' `.uis` interface files and `.cst` text tables
@@ -158,6 +158,24 @@ CloseWindow()
 A theme given a font that failed to load draws in the default font instead, so check
 it with `IsFontValid` as above. A different font changes text widths, so check your
 layouts after switching. Use one theme for every component in a screen.
+
+### Corners and title bars
+
+Controls have square corners and flat title bars unless the theme says otherwise:
+
+```swift
+SetConfigFlags(.msaa4xHint) // Before InitWindow, for smooth curves.
+InitWindow(800, 600, "Game")
+
+let theme = InterfaceTheme(
+    titleBar: Color(r: 92, g: 112, b: 142, a: 245),
+    titleBarBottom: Color(r: 30, g: 40, b: 58, a: 245),
+    cornerRadius: 8
+)
+```
+
+The radius is in pixels, and a shape too small for it uses the largest radius that
+fits. Clicks still land on the whole rectangle, including just outside a corner.
 
 ### Building controls in code
 
