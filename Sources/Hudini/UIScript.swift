@@ -34,6 +34,14 @@ public struct UIScript: Sendable {
     /// The controls in document order.
     public let controls: [Control]
 
+    /// The buttons the document puts on its window's title bar, in document order, which runs
+    /// from left to right. A view alone doesn't draw them: a `WindowFrame` made with the view does.
+    public let toolbarItems: [ToolbarItem]
+
+    /// The editable title the document gives its window's title bar, if any. A view alone doesn't
+    /// draw it: a `WindowFrame` made with the view does.
+    public let titleField: TitleField?
+
     /// Every `SetControlProperties` entry in a `.uis` file, keyed by lowercased name.
     ///
     /// Game code reads these by name. Use `setting(named:)` to look one up. This is always
@@ -87,6 +95,8 @@ public struct UIScript: Sendable {
         styles: [String: Style],
         visuals: [Visual],
         controls: [Control],
+        toolbarItems: [ToolbarItem] = [],
+        titleField: TitleField? = nil,
         settings: [String: Setting] = [:],
         ignoredAttributes: [IgnoredAttribute],
         conversionNotes: [ConversionNote] = []
@@ -98,6 +108,8 @@ public struct UIScript: Sendable {
         self.styles = styles
         self.visuals = visuals
         self.controls = controls
+        self.toolbarItems = toolbarItems
+        self.titleField = titleField
         self.settings = settings
         self.ignoredAttributes = ignoredAttributes
         self.conversionNotes = conversionNotes
@@ -146,7 +158,9 @@ public struct UIScript: Sendable {
                 throw UIScriptError.invalidStateCount(image: name)
             }
         }
-        try validateUniqueNames(visuals.map(\.name) + controls.map(\.name))
+        try validateUniqueNames(
+            visuals.map(\.name) + controls.map(\.name) + toolbarItems.map(\.name) + [titleField?.name].compactMap { $0 }
+        )
 
         for visual in visuals {
             try validateReference(
@@ -645,6 +659,24 @@ public struct UIScript: Sendable {
         public let direction: ScrollDirection?
     }
 
+    /// A button on the window's title bar.
+    public struct ToolbarItem: Sendable, Equatable {
+        /// The stable document-local name, which a click reports.
+        public let name: String
+
+        /// The text on the button.
+        public let title: String
+    }
+
+    /// An editable window title, as an address bar is.
+    public struct TitleField: Sendable, Equatable {
+        /// The stable document-local name, which a submitted edit reports.
+        public let name: String
+
+        /// The text shown while the title is empty.
+        public let placeholder: String?
+    }
+
     /// A control described by a UIScript document.
     public struct Control: Sendable {
         /// The stable document-local name.
@@ -768,7 +800,7 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A style has a nonpositive font size.
     case invalidFontSize(style: String)
 
-    /// Two controls or visuals share a name, or two resources of a kind do.
+    /// Two controls, visuals, or title bar elements share a name, or two resources of a kind do.
     case duplicateName(String)
 
     /// An image resource has neither a path nor an asset ID.

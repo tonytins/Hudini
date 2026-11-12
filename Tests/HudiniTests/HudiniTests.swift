@@ -797,6 +797,8 @@ private func row(_ row: Int, of bounds: Rectangle) -> Vector2 {
     #expect(moveLot.ignoredAttributes.isEmpty)
     #expect(moveLot.control(named: "lotChoices")?.isSelectable == true)
     #expect(moveLot.control(named: "lotKey")?.isSecure == true)
+    #expect(moveLot.titleField?.name == "lotSearch")
+    #expect(moveLot.toolbarItems.map(\.name) == ["showAll"])
 }
 
 @Test func uiScriptReadsSelectable() throws {
@@ -2395,4 +2397,146 @@ private let threeLines = Rectangle(x: 0, y: 0, width: 200, height: 80)
     #expect(InterfaceTheme().monospaced.font == nil)
     // A font that failed to load counts as none, so text stays in the interface font.
     #expect(InterfaceTheme(monospaceFont: unloaded).monospaced.font == nil)
+}
+
+// MARK: Title bars from documents
+
+// Without a window, text measures as empty, so each toolbar item is 20 pixels of padding wide. In a
+// 400-wide frame, the last item spans x 372 to 392 and the one before it 348 to 368. The close
+// button spans x 6 to 26, and a minimize button after it 26 to 46.
+private let frameBounds = Rectangle(x: 0, y: 0, width: 400, height: 200)
+private let titleBarDocument = """
+    <ToolbarItem name='back' title='Back'/>
+    <ToolbarItem name='go' title='Go'/>
+    <TitleField name='address' placeholder='Path'/>
+    """
+
+private func documentFrame(_ body: String = titleBarDocument) throws -> (WindowFrame, UIScriptView) {
+    let view = UIScriptView(script: try script(body))
+    return (WindowFrame(view: view), view)
+}
+
+@Test func uiScriptReadsTitleBarElements() throws {
+    let loaded = try script(titleBarDocument)
+
+    #expect(loaded.ignoredAttributes.isEmpty)
+    #expect(loaded.toolbarItems == [.init(name: "back", title: "Back"), .init(name: "go", title: "Go")])
+    #expect(loaded.titleField == .init(name: "address", placeholder: "Path"))
+    #expect(try script("").titleField == nil)
+}
+
+@Test func uiScriptRefusesASecondTitleFieldOrASharedName() {
+    #expect(throws: UIScriptError.self) {
+        try script("<TitleField name='a'/><TitleField name='b'/>")
+    }
+    #expect(throws: UIScriptError.duplicateName("go")) {
+        try script("<ToolbarItem name='go' title='Go'/><Button name='go' \(tenByTen)/>")
+    }
+    #expect(throws: UIScriptError.self) {
+        try script("<ToolbarItem name='go'/>")
+    }
+}
+
+@Test func aViewHoldsItsTitleFieldsTextByName() throws {
+    let view = UIScriptView(script: try script(titleBarDocument))
+
+    #expect(view.text(named: "address") == "")
+    view.setText("/home", named: "address")
+    #expect(view.text(named: "address") == "/home")
+}
+
+@Test func toolbarItemsReportPressesUnlessDisabled() throws {
+    let (frame, view) = try documentFrame()
+
+    #expect(frame.press(at: Vector2(x: 380, y: 15), in: frameBounds) == [.view(.pressed(control: "go"))])
+    #expect(frame.press(at: Vector2(x: 355, y: 15), in: frameBounds) == [.view(.pressed(control: "back"))])
+    view.setDisabled(true, named: "go")
+    #expect(frame.press(at: Vector2(x: 380, y: 15), in: frameBounds) == [])
+}
+
+@Test func closeAndMinimizeAreRequestsAndMinimizeIsOffByDefault() throws {
+    let (frame, _) = try documentFrame("")
+
+    #expect(frame.press(at: Vector2(x: 15, y: 15), in: frameBounds) == [.closeRequested])
+    #expect(!frame.isMinimizeButton(at: Vector2(x: 35, y: 15), in: frameBounds))
+    frame.showsMinimizeButton = true
+    #expect(frame.press(at: Vector2(x: 35, y: 15), in: frameBounds) == [.minimizeRequested])
+    frame.showsCloseButton = false
+    // With no close button, minimize takes the first place.
+    #expect(frame.press(at: Vector2(x: 15, y: 15), in: frameBounds) == [.minimizeRequested])
+}
+
+@Test func aTitleFieldEditSubmitsUnderItsName() throws {
+    let (frame, view) = try documentFrame()
+
+    #expect(frame.press(at: Vector2(x: 200, y: 15), in: frameBounds) == [])
+    #expect(frame.isEditingTitle)
+    frame.typeTitle("  /docs ")
+    #expect(view.text(named: "address") == "  /docs ")
+
+    #expect(frame.submitTitleEdit() == [.view(.submitted(control: "address", text: "/docs"))])
+    #expect(!frame.isEditingTitle)
+    #expect(view.text(named: "address") == "/docs")
+}
+
+@Test func aToolbarClickKeepsTheTitleEditAndSeesWhatWasTyped() throws {
+    let (frame, view) = try documentFrame()
+    _ = frame.press(at: Vector2(x: 200, y: 15), in: frameBounds)
+    frame.typeTitle("/docs")
+
+    #expect(frame.press(at: Vector2(x: 380, y: 15), in: frameBounds) == [.view(.pressed(control: "go"))])
+    #expect(frame.isEditingTitle)
+    #expect(view.text(named: "address") == "/docs")
+}
+
+@Test func aClickElsewhereCancelsTheTitleEditAndPutsTheOldTextBack() throws {
+    let (frame, view) = try documentFrame()
+    view.setText("/home", named: "address")
+    _ = frame.press(at: Vector2(x: 200, y: 15), in: frameBounds)
+    frame.typeTitle("/docs")
+
+    #expect(frame.press(at: Vector2(x: 200, y: 100), in: frameBounds) == [])
+    #expect(!frame.isEditingTitle)
+    #expect(view.text(named: "address") == "/home")
+}
+
+@Test func aRefusedTitleStaysInEdit() throws {
+    let (frame, view) = try documentFrame()
+    frame.validateTitle = { $0.isEmpty ? "Type a path" : nil }
+    _ = frame.press(at: Vector2(x: 200, y: 15), in: frameBounds)
+    frame.typeTitle("   ")
+
+    #expect(frame.submitTitleEdit() == [])
+    #expect(frame.isEditingTitle)
+    #expect(frame.titleValidationMessage == "Type a path")
+    #expect(view.text(named: "address") == "   ")
+}
+
+@Test func aDisabledTitleFieldCannotBeEditedAndDrags() throws {
+    let (frame, view) = try documentFrame()
+    view.setDisabled(true, named: "address")
+
+    #expect(frame.press(at: Vector2(x: 200, y: 15), in: frameBounds) == [])
+    #expect(!frame.isEditingTitle)
+    #expect(frame.beginDragging(at: Vector2(x: 200, y: 15), within: frameBounds))
+}
+
+@Test func aFrameAroundAViewDragsFromNoneOfItsItems() throws {
+    let (frame, view) = try documentFrame()
+    view.setSelected(true, named: "go")
+
+    #expect(!frame.beginDragging(at: Vector2(x: 380, y: 15), within: frameBounds))
+    #expect(!frame.beginDragging(at: Vector2(x: 200, y: 15), within: frameBounds))
+}
+
+@Test func aFrameAroundAViewFitsItAndSharesItsTheme() throws {
+    let (frame, view) = try documentFrame("")
+
+    let bounds = frame.place(at: Vector2(x: 0, y: 0))
+    // The test documents' window is 100 by 80.
+    #expect(bounds.width == 100)
+    #expect(bounds.height == 80 + Float(WindowFrame.titleHeight))
+
+    frame.theme = InterfaceTheme(textSizes: .init(body: 22))
+    #expect(view.theme.textSizes.body == 22)
 }

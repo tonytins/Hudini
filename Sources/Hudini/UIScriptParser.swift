@@ -44,6 +44,8 @@ enum UIScriptParser {
         var styles: [String: UIScript.Style] = [:]
         var visuals: [UIScript.Visual] = []
         var controls: [UIScript.Control] = []
+        var toolbarItems: [UIScript.ToolbarItem] = []
+        var titleField: UIScript.TitleField?
         var ignoredAttributes = rootReader.unusedAttributes()
 
         for element in elements {
@@ -86,6 +88,19 @@ enum UIScriptParser {
                     frame: try makeFrame(reader),
                     isInitiallyHidden: false
                 ))
+            case "ToolbarItem":
+                toolbarItems.append(UIScript.ToolbarItem(
+                    name: try reader.requiredString("name"),
+                    title: try reader.requiredString("title")
+                ))
+            case "TitleField":
+                guard titleField == nil else {
+                    throw UIScriptError.duplicateElement("TitleField", line: element.line)
+                }
+                titleField = UIScript.TitleField(
+                    name: try reader.requiredString("name"),
+                    placeholder: reader.string("placeholder")
+                )
             default:
                 guard let type = controlTypes[element.name] else {
                     throw UIScriptError.unknownElement(element.name, line: element.line)
@@ -106,6 +121,8 @@ enum UIScriptParser {
             styles: styles,
             visuals: visuals,
             controls: controls,
+            toolbarItems: toolbarItems,
+            titleField: titleField,
             ignoredAttributes: ignoredAttributes
         )
     }

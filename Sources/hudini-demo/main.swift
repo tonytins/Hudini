@@ -607,14 +607,15 @@ bar.setText("\(residents.count) Objects", named: "ObjectCount")
 reportSimulatedError("A simulated error, so the demo can show the bar opening by itself.")
 
 let window = WindowFrame(title: "Maple Street - Property Chat", theme: theme)
-// A choice the player has to make or cancel on purpose, so the window has no close button.
-let moveLotWindow = WindowFrame(title: (try? demoText.textIfPresent(for: 6, key: 1)) ?? "Move", theme: theme)
+// A choice the player has to make or cancel on purpose, so the window has no close button. The
+// document's title field finds lots, so the frame wraps the view and drives it.
+let moveLotWindow = WindowFrame(view: moveLot)
 moveLotWindow.showsCloseButton = false
 guard let lotChoices = moveLot.list(named: "lotChoices"),
       let lotKey = moveLot.textField(named: "lotKey") else {
     fail("movelot.uix is missing a required control")
 }
-lotChoices.items = [
+let allLots = [
     "Maple Street",
     "Oak Avenue",
     "Birch Lane",
@@ -624,17 +625,27 @@ lotChoices.items = [
     "Cedar Hill",
     "Lakeshore Way",
 ]
+lotChoices.items = allLots
 var isMoveLotOpen = false
+
+/// Shows the lots whose names hold `search`, ignoring case, or every lot for an empty search.
+@MainActor
+func findLots(_ search: String) {
+    lotChoices.items = search.isEmpty ? allLots : allLots.filter { $0.localizedCaseInsensitiveContains(search) }
+    lotChoices.selectedIndex = nil
+    moveLot.setDisabled(true, named: "moveConfirm")
+}
 
 @MainActor
 func openMoveLot() {
     chat.clearFocus()
     stand.clearFocus()
     options.clearFocus()
-    lotChoices.selectedIndex = nil
+    moveLotWindow.cancelEdit()
+    moveLot.setText("", named: "lotSearch")
+    findLots("")
     lotKey.text = ""
     lotKey.setFocused(true)
-    moveLot.setDisabled(true, named: "moveConfirm")
     isMoveLotOpen = true
 }
 
@@ -732,16 +743,9 @@ while running && !WindowShouldClose() {
         ? Vector2(x: standWindowContent.x + (standPadding / 2), y: standWindowContent.y + (standPadding / 2))
         : Vector2(x: panelOrigin.x + standPanelPosition.x, y: panelOrigin.y + standPanelPosition.y)
     let isOverStandWindow = standPlacement == .inWindow && CheckCollisionPointRec(pointer, standWindowBounds)
-    let moveLotSize = Vector2(
-        x: moveLotScript.window.size.width,
-        y: moveLotScript.window.size.height + Float(WindowFrame.titleHeight)
-    )
     let moveLotBounds = moveLotWindow.place(
-        size: moveLotSize,
-        at: Vector2(x: screenSize.x - moveLotSize.x - 24, y: 60)
+        at: Vector2(x: screenSize.x - moveLotScript.window.size.width - 24, y: 60)
     )
-    let moveLotContent = WindowFrame.content(in: moveLotBounds)
-    let moveLotOrigin = Vector2(x: moveLotContent.x, y: moveLotContent.y)
     let modePanel = switch mode {
     case .live: panel
     case .stats: stats
@@ -759,17 +763,22 @@ while running && !WindowShouldClose() {
     if notice.isOpen {
         _ = notice.update()
     } else if isMoveLotOpen {
-        _ = moveLotWindow.followPointer(in: moveLotBounds)
-        for event in moveLot.update(at: moveLotOrigin) {
+        for event in moveLotWindow.updateWindow(in: moveLotBounds) {
             switch event {
-            case .selected(control: "lotChoices", index: _):
+            case .view(.selected(control: "lotChoices", index: _)):
                 moveLot.setDisabled(false, named: "moveConfirm")
-            case .pressed(control: "moveCancel"):
+            case .view(.pressed(control: "moveCancel")):
                 closeMoveLot()
             // Double-clicking a lot moves there, as Move does.
-            case .pressed(control: "moveConfirm"), .submitted(control: "lotKey", text: _),
-                 .submitted(control: "lotChoices", text: _):
+            case .view(.pressed(control: "moveConfirm")), .view(.submitted(control: "lotKey", text: _)),
+                 .view(.submitted(control: "lotChoices", text: _)):
                 confirmMoveLot()
+            case let .view(.submitted(control: "lotSearch", text: search)):
+                findLots(search)
+            case .view(.pressed(control: "showAll")):
+                moveLotWindow.cancelEdit()
+                moveLot.setText("", named: "lotSearch")
+                findLots("")
             default:
                 break
             }
@@ -953,8 +962,7 @@ while running && !WindowShouldClose() {
     }
     if isMoveLotOpen {
         moveLotWindow.draw(in: moveLotBounds)
-        moveLot.draw(at: moveLotOrigin)
-        moveLot.drawTooltip(at: moveLotOrigin)
+        moveLotWindow.drawTooltip(in: moveLotBounds)
     }
     modePanel.drawTooltip(at: panelOrigin)
     chat.drawTooltip(at: chatOrigin)

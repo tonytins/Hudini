@@ -21,7 +21,8 @@ public final class UIScriptView {
     private static let tooltipPadding: Float = 4
     private static let tooltipGap: Float = 4
 
-    private let script: UIScript
+    /// The document the view was made from.
+    let script: UIScript
     /// The look the view draws with, including its lists and text fields. Setting it takes effect
     /// from the next draw, and keeps every control's text, value, focus, and selection. A document's
     /// styles still win over it.
@@ -211,6 +212,9 @@ public final class UIScriptView {
             sizes[control.name] = size(of: control.frame, image: control.image)
         }
 
+        if let titleField = script.titleField {
+            labels[titleField.name] = ""
+        }
         self.labels = labels
         self.lists = lists
         self.textFields = textFields
@@ -339,15 +343,17 @@ public final class UIScriptView {
         textAreas[name]
     }
 
-    /// Returns the text of a text, formatted text, button, text field, or text area control, or
-    /// `nil` when it has none.
+    /// Returns the text of a text, formatted text, button, text field, or text area control, or of
+    /// the document's title field, or `nil` when it has none.
     ///
-    /// Typing in a text area reports no event, so read its text here when the host needs it.
+    /// Typing in a text area reports no event, so read its text here when the host needs it. While
+    /// the title field is being edited, this is what has been typed so far.
     public func text(named name: String) -> String? {
         textFields[name]?.text ?? textAreas[name]?.text ?? labels[name]
     }
 
-    /// Replaces the text of a text, formatted text, button, text field, or text area control.
+    /// Replaces the text of a text, formatted text, button, text field, or text area control, or of
+    /// the document's title field.
     ///
     /// This is cheap enough to call every frame, for example for a clock or a
     /// balance. Other controls and unknown names are left alone.
@@ -360,6 +366,10 @@ public final class UIScriptView {
             if area.text != text {
                 area.text = text
             }
+            return
+        }
+        if name == script.titleField?.name {
+            labels[name] = text
             return
         }
         switch script.control(named: name)?.type {
@@ -437,8 +447,10 @@ public final class UIScriptView {
         hiddenNames.contains(name)
     }
 
-    /// Enables or disables a button or slider. A disabled button shows its disabled image and
-    /// absorbs presses without reporting them. A disabled slider cannot be dragged.
+    /// Enables or disables a button, slider, toolbar item, or title field. A disabled button shows
+    /// its disabled image and absorbs presses without reporting them. A disabled slider cannot be
+    /// dragged. A disabled toolbar item dims and ignores clicks, and a disabled title field can't be
+    /// edited.
     public func setDisabled(_ isDisabled: Bool, named name: String) {
         if isDisabled {
             disabledNames.insert(name)
@@ -447,13 +459,14 @@ public final class UIScriptView {
         }
     }
 
-    /// Returns whether a button or slider is disabled.
+    /// Returns whether a button, slider, toolbar item, or title field is disabled.
     public func isDisabled(named name: String) -> Bool {
         disabledNames.contains(name)
     }
 
-    /// Selects or deselects a button, for a toggle or a choice among buttons. A selected button
-    /// shows its pressed image and selected text color, and still reports presses.
+    /// Selects or deselects a button or toolbar item, for a toggle or a choice among them, such as
+    /// tabs. A selected button shows its pressed image and selected text color, a selected toolbar
+    /// item shows held down, and both still report presses.
     public func setSelected(_ isSelected: Bool, named name: String) {
         if isSelected {
             selectedNames.insert(name)
@@ -462,7 +475,7 @@ public final class UIScriptView {
         }
     }
 
-    /// Returns whether a button is selected.
+    /// Returns whether a button or toolbar item is selected.
     public func isSelected(named name: String) -> Bool {
         selectedNames.contains(name)
     }

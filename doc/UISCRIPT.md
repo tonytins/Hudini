@@ -239,21 +239,36 @@ adding these moves nothing.
 
 `<ToolbarItem>` is a button on the bar. It takes `name` and `title`, both
 required. Items run along the bar's right end in document order, the last at the
-right edge. A click, pressing and releasing on the item, reports `pressed` with
-its name, as a button does. `setDisabled(_:named:)` dims an item, and
+right edge. A click reports `pressed` with its name, as a button does. A host
+decides whether that happens on the press or the release, as it does for its
+buttons: Hudini reports both on the press, and VentureOS on the release. `setDisabled(_:named:)` dims an item, and
 `setSelected(_:named:)` shows it held down, so items can work as tabs.
 
 `<TitleField>` makes the title editable, as an address bar is. It takes `name`,
-which is required, and `placeholder`. A document has at most one.
+which is required, and `placeholder`. A document has at most one. While the title
+field is empty, the bar shows the placeholder in place of a title.
+
+The `title` and `placeholder` of these elements are literal text. They don't take
+string references yet.
 
 - A click starts an edit. Enter reports `submitted` with the text, and Esc or a
   click elsewhere puts the old text back.
 - A click on one of the same window's toolbar items keeps the edit, so an item
   such as Go acts on what was typed.
-- The host reads and sets it by name, as it does a text field.
+- The host reads and sets it by name, as it does a text field. While an edit is
+  under way, reading it gives what has been typed so far.
+- `setDisabled(_:named:)` stops it being edited.
 
 A host that shows a document without a title bar doesn't draw either element.
 They aren't errors there.
+
+In Hudini, a `WindowFrame` made with `WindowFrame(view:)` draws them. It wraps the
+view: `updateWindow(in:)` handles dragging, the bar, and the view, and returns one
+list of events, and `draw(in:)` draws the frame and the view. A toolbar item or the
+title field reports as the view's own event, wrapped in `.view`, and the close and
+minimize buttons report `.closeRequested` and `.minimizeRequested`, leaving the host
+to decide what they mean. The minimize button is off until `showsMinimizeButton` is
+set. A `UIScriptView` drawn on its own ignores both elements.
 
 ## Events
 
@@ -488,7 +503,7 @@ container type. To swap a control panel between modes, keep one view per mode an
 update and draw only the active one, calling `clearFocus()` on the one going away.
 To put one interface inside another, hide the parent's controls it replaces and
 draw the child at a position inside the parent. To give the same interface its own
-window, draw it in a `WindowFrame`'s content instead. The host decides which view
+window, wrap it in `WindowFrame(view:)` instead. The host decides which view
 gets the pointer when they overlap, and `drawTooltip(at:)` shows nothing for a view
 that was not updated that frame.
 
@@ -583,8 +598,8 @@ move to SwiftCST in their own time: create a `UIText` the same way, and call
 
 ## Not yet supported
 
-Hudini's reader is catching up with this draft. It doesn't yet read
-`<ToolbarItem>` and `<TitleField>`, which refuse the document.
+Hudini's reader reads everything in this draft's core. It implements no modules
+yet.
 
 A text area's caret stays at the end of its text. Clicking to place it, moving it
 with the arrow keys, selection, and the clipboard aren't supported yet.
@@ -596,6 +611,9 @@ replaces with a plain track and thumb.
 
 Newest first. Changes before the draft are in the repository's history.
 
+- **2026-11-12:** A toolbar item's click follows the host's buttons, on the press
+  or the release, rather than always on the release. The title bar's `title` and
+  `placeholder` are literal text for now.
 - **2026-11-12:** Added from VentureOS, which built and tested each of them
   first: `<TextArea>` and `follows`, `font` on `<Style>`, double-clicking a
   selectable list, the title bar's `<ToolbarItem>` and `<TitleField>`, the

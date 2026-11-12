@@ -13,6 +13,10 @@ public struct InterfaceTheme: Sendable {
     public let closeButton: Color
     /// Marks a hovered close control.
     public let closeMark: Color
+    /// Fills window minimize controls.
+    public let minimizeButton: Color
+    /// Marks a hovered minimize control.
+    public let minimizeMark: Color
     /// Dims the content behind a modal panel.
     public let overlay: Color
     /// Marks invalid values or validation messages.
@@ -109,6 +113,8 @@ public struct InterfaceTheme: Sendable {
         inputBackground: Color = Color(r: 0, g: 0, b: 0, a: 255),
         closeButton: Color = Color(r: 236, g: 95, b: 86, a: 255),
         closeMark: Color = Color(r: 90, g: 20, b: 16, a: 255),
+        minimizeButton: Color = Color(r: 245, g: 170, b: 60, a: 255),
+        minimizeMark: Color = Color(r: 100, g: 60, b: 10, a: 255),
         overlay: Color = Color(r: 0, g: 0, b: 0, a: 140),
         error: Color = Color(r: 232, g: 106, b: 96, a: 255),
         panel: Color = Color(r: 22, g: 26, b: 32, a: 225),
@@ -129,6 +135,8 @@ public struct InterfaceTheme: Sendable {
         self.inputBackground = inputBackground
         self.closeButton = closeButton
         self.closeMark = closeMark
+        self.minimizeButton = minimizeButton
+        self.minimizeMark = minimizeMark
         self.overlay = overlay
         self.error = error
         self.panel = panel
@@ -159,6 +167,8 @@ public struct InterfaceTheme: Sendable {
             inputBackground: inputBackground,
             closeButton: closeButton,
             closeMark: closeMark,
+            minimizeButton: minimizeButton,
+            minimizeMark: minimizeMark,
             overlay: overlay,
             error: error,
             panel: panel,

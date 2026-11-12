@@ -97,36 +97,30 @@ let theme = InterfaceTheme(
 )
 let script = try UIScript(contentsOf: URL(fileURLWithPath: "settings.uix"))
 let view = UIScriptView(script: script, theme: theme)
-let window = WindowFrame(title: "Settings", theme: theme)
+// The frame wraps the view: it drags, draws its title bar, and drives the view below it.
+let window = WindowFrame(view: view, title: "Settings")
 
 // Open ready for typing, without a click on the field first.
 view.textField(named: "playerName")?.setFocused(true)
 
-while !WindowShouldClose() {
-    let bounds = window.place(
-        size: Vector2(
-            x: script.window.size.width,
-            y: script.window.size.height + Float(WindowFrame.titleHeight)
-        ),
-        at: Vector2(x: 40, y: 40)
-    )
-    let content = WindowFrame.content(in: bounds)
-    let origin = Vector2(x: content.x, y: content.y)
-
-    _ = window.followPointer(in: bounds)
-    if window.update(in: bounds) == .close {
-        break
-    }
-    for event in view.update(at: origin) {
-        if event == .pressed(control: "save") {
+var isOpen = true
+while isOpen && !WindowShouldClose() {
+    let bounds = window.place(at: Vector2(x: 40, y: 40))
+    for event in window.updateWindow(in: bounds) {
+        switch event {
+        case .view(.pressed(control: "save")):
             print("Saved \(view.text(named: "playerName") ?? "")")
+        case .closeRequested:
+            isOpen = false
+        default:
+            break
         }
     }
 
     BeginDrawing()
     ClearBackground(Color(r: 54, g: 84, b: 120, a: 255))
     window.draw(in: bounds)
-    view.draw(at: origin)
+    window.drawTooltip(in: bounds)
     EndDrawing()
 }
 
