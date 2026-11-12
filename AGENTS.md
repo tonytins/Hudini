@@ -6,6 +6,12 @@ Hudini is a Swift library for game interfaces built with raylib-swift. Reusable
 components belong in `Sources/Hudini`; `Sources/hudini-demo` shows how to use
 them, and `Tests/HudiniTests` covers their behavior.
 
+The demo opens on a menu (`Menu.swift`) with two demos. The Sims Online-style one
+is the rest of `main.swift`, with its documents in `Resources`. The CityLimits-style
+one is `CityDemo.swift`, with its documents in `Resources/city`. It's the reference
+for how a Swift port of CityLimits could use Hudini: HUD panels outside a
+`WindowManager`, and windows as small classes with their own handlers.
+
 ## Build and test
 
 - Build with `swift build`.

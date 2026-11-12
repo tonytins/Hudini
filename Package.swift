@@ -29,9 +29,11 @@ let package = Package(
             ],
             resources: [
                 .copy("Resources/chatdialog.uix"),
+                .copy("Resources/city"),
                 .copy("Resources/debugbar.uis"),
                 .copy("Resources/lemonadestand.uis"),
                 .copy("Resources/livepanel1024.uix"),
+                .copy("Resources/menu.uix"),
                 .copy("Resources/movelot.uix"),
                 .copy("Resources/optionspanel.uix"),
                 .copy("Resources/statspanel.uix"),

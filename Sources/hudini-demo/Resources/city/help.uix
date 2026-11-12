@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Help, a window that stays open and can be minimized. The host fills the read-only text. -->
+<UIScript version="1">
+  <Window width="320" height="200"/>
+
+  <TextArea name="helpText" x="8" y="8" width="286" height="184" readOnly="true"/>
+  <Slider name="helpScroll" x="298" y="8" width="14" height="184" scrolls="helpText"/>
+</UIScript>

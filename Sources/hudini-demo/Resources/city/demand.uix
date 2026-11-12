@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Demand for each zone, a window that stays open beside the map and can be minimized. -->
+<UIScript version="1">
+  <Window width="200" height="102"/>
+
+  <Style name="label" textColor="#FFF99D" fontSize="14"/>
+  <Style name="residential" fillColor="#5FC46A" backgroundColor="#17212A"/>
+  <Style name="commercial" fillColor="#5B9BE0" backgroundColor="#17212A"/>
+  <Style name="industrial" fillColor="#E0C25B" backgroundColor="#17212A"/>
+
+  <Text name="residentialLabel" x="12" y="14" width="20" height="14" style="label" text="R"/>
+  <ProgressBar name="residential" x="36" y="14" width="152" height="14" style="residential"/>
+  <Text name="commercialLabel" x="12" y="42" width="20" height="14" style="label" text="C"/>
+  <ProgressBar name="commercial" x="36" y="42" width="152" height="14" style="commercial"/>
+  <Text name="industrialLabel" x="12" y="70" width="20" height="14" style="label" text="I"/>
+  <ProgressBar name="industrial" x="36" y="70" width="152" height="14" style="industrial"/>
+</UIScript>

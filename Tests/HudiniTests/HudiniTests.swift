@@ -2540,3 +2540,155 @@ private func documentFrame(_ body: String = titleBarDocument) throws -> (WindowF
     frame.theme = InterfaceTheme(textSizes: .init(body: 22))
     #expect(view.theme.textSizes.body == 22)
 }
+
+// MARK: Window manager
+
+// Without a window, the screen measures as empty, so every window sits at the corner, 100 by 110.
+private func managedFrame(_ body: String = "<TextField name='entry' x='0' y='0' width='50' height='20'/>") throws -> WindowFrame {
+    WindowFrame(view: UIScriptView(script: try script(body)))
+}
+
+@Test func windowsOpenInFrontAndAPressBringsOneForward() throws {
+    let manager = WindowManager()
+    let back = try managedFrame()
+    let front = try managedFrame()
+
+    manager.open(back)
+    manager.open(front)
+    #expect(manager.windows.map(ObjectIdentifier.init) == [back, front].map(ObjectIdentifier.init))
+    #expect(manager.frontWindow === front)
+    #expect(manager.window(at: Vector2(x: 10, y: 10)) === front)
+
+    manager.bringToFront(back)
+    #expect(manager.frontWindow === back)
+    // Opening one that's already open brings it forward rather than adding it again.
+    manager.open(front)
+    #expect(manager.windows.count == 2)
+    #expect(manager.frontWindow === front)
+}
+
+@Test func aWindowLeavingTheFrontGivesUpTheKeyboard() throws {
+    let manager = WindowManager()
+    let first = try managedFrame()
+    manager.open(first)
+    let field = try #require(first.view?.textField(named: "entry"))
+    field.setFocused(true)
+
+    manager.open(try managedFrame())
+    #expect(!field.isFocused)
+}
+
+@Test func modalWindowsStayAboveTheRestAndHoldTheInput() throws {
+    let manager = WindowManager()
+    let plain = try managedFrame()
+    let modal = try managedFrame()
+    let confirm = try managedFrame()
+
+    manager.open(modal, modal: true)
+    manager.open(plain)
+    #expect(manager.hasModal)
+    // A window opened under a modal one stays under it.
+    #expect(manager.frontWindow === modal)
+
+    manager.focusWindow(at: Vector2(x: 10, y: 10))
+    manager.bringToFront(plain)
+    #expect(manager.frontWindow === modal)
+
+    // Modals stack, the newest on top.
+    manager.open(confirm, modal: true)
+    #expect(manager.frontWindow === confirm)
+    manager.close(confirm)
+    #expect(manager.frontWindow === modal)
+    manager.close(modal)
+    #expect(!manager.hasModal)
+    #expect(manager.frontWindow === plain)
+}
+
+@Test func aWindowOpenedBelowAModalOneLeavesTheModalsKeyboardAlone() throws {
+    let manager = WindowManager()
+    let modal = try managedFrame()
+    manager.open(modal, modal: true)
+    let field = try #require(modal.view?.textField(named: "entry"))
+    field.setFocused(true)
+
+    manager.open(try managedFrame())
+    #expect(field.isFocused)
+}
+
+@Test func minimizedWindowsStayOpenButOutOfTheWay() throws {
+    let manager = WindowManager()
+    let back = try managedFrame()
+    let front = try managedFrame()
+    manager.open(back)
+    manager.open(front)
+
+    #expect(manager.minimize(front))
+    #expect(manager.isOpen(front))
+    #expect(manager.isMinimized(front))
+    #expect(manager.minimizedWindows.map(ObjectIdentifier.init) == [ObjectIdentifier(front)])
+    #expect(manager.frontWindow === back)
+    #expect(manager.window(at: Vector2(x: 10, y: 10)) === back)
+    #expect(!manager.minimize(front))
+
+    manager.restore(front)
+    #expect(!manager.isMinimized(front))
+    #expect(manager.frontWindow === front)
+}
+
+@Test func modalWindowsCannotBeMinimized() throws {
+    let manager = WindowManager()
+    let modal = try managedFrame()
+    manager.open(modal, modal: true)
+
+    #expect(!manager.minimize(modal))
+    #expect(manager.frontWindow === modal)
+}
+
+@Test func closingForgetsTheWindowAndOnlyCountsOnce() throws {
+    let manager = WindowManager()
+    let window = try managedFrame()
+    manager.open(window)
+
+    #expect(manager.close(window))
+    #expect(!manager.close(window))
+    #expect(!manager.isOpen(window))
+    #expect(manager.frontWindow == nil)
+    #expect(!manager.contains(Vector2(x: 10, y: 10)))
+    #expect(manager.bounds(of: window) == nil)
+}
+
+@Test func managedWindowsKnowWhereTheyAre() throws {
+    let manager = WindowManager()
+    let window = try managedFrame()
+    manager.open(window, at: Vector2(x: 0, y: 0))
+
+    #expect(manager.bounds(of: window) == Rectangle(x: 0, y: 0, width: 100, height: 80 + Float(WindowFrame.titleHeight)))
+    #expect(manager.contains(Vector2(x: 50, y: 50)))
+    #expect(!manager.contains(Vector2(x: 150, y: 50)))
+}
+
+@Test func eachWindowsEventsReachItsOwnHandler() throws {
+    let manager = WindowManager()
+    let budget = try managedFrame()
+    let other = try managedFrame()
+    var budgetEvents: [WindowFrame.Event] = []
+    var otherEvents: [WindowFrame.Event] = []
+    manager.open(budget) { budgetEvents.append($0) }
+    manager.open(other) { otherEvents.append($0) }
+
+    let delivered = manager.deliver([.closeRequested, .view(.pressed(control: "ok"))], from: budget)
+
+    #expect(budgetEvents == [.closeRequested, .view(.pressed(control: "ok"))])
+    #expect(otherEvents.isEmpty)
+    #expect(delivered == [
+        WindowManager.Event(window: budget, event: .closeRequested),
+        WindowManager.Event(window: budget, event: .view(.pressed(control: "ok"))),
+    ])
+}
+
+@Test(arguments: ["menu.uix"] + ["tools", "overview", "status", "budget", "confirm", "demand", "help", "citypanel"].map { "city/\($0).uix" })
+func demoMenuAndCityDocumentsLoadCleanly(name: String) throws {
+    let loaded = try UIScript(contentsOf: demoResource(name))
+
+    #expect(loaded.ignoredAttributes.isEmpty)
+}

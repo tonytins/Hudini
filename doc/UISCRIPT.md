@@ -503,7 +503,8 @@ container type. To swap a control panel between modes, keep one view per mode an
 update and draw only the active one, calling `clearFocus()` on the one going away.
 To put one interface inside another, hide the parent's controls it replaces and
 draw the child at a position inside the parent. To give the same interface its own
-window, wrap it in `WindowFrame(view:)` instead. The host decides which view
+window, wrap it in `WindowFrame(view:)` instead, and give several such windows to a
+`WindowManager` to stack them. The host decides which view
 gets the pointer when they overlap, and `drawTooltip(at:)` shows nothing for a view
 that was not updated that frame.
 

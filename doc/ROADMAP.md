@@ -201,6 +201,7 @@ and VentureOS proved the design first.
 - [x] Read `<TextArea>`, `follows`, `font="monospace"`, and double-click `submitted`.
 - [x] Let a `WindowFrame` wrap a view, with `<ToolbarItem>`, `<TitleField>`, and
   minimize.
-- [ ] Add a window manager: stacking, focus, dragging, minimizing, and modal
+- [x] Add a window manager: stacking, focus, dragging, minimizing, and modal
   windows that block what's behind them.
-- [ ] Show it in the demo: windows that stay open, and a modal one.
+- [x] Show it in the demo: windows that stay open, and a modal one. The demo now
+  opens on a menu with the TSO-style demo and a CityLimits-style one.

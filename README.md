@@ -8,6 +8,8 @@ form layout.
 ## Features
 
 - Draggable windows with merged title bars and selectable toolbar items
+- A window manager with stacking, modal windows that stack and dim what's behind
+  them, minimizing, and a handler for each window
 - Bottom-left icon toolbar with host-owned selection and custom icon drawing
 - Editable window titles with optional validation
 - Single-line and multiline text fields
@@ -244,15 +246,59 @@ while !WindowShouldClose() {
 CloseWindow()
 ```
 
+### Managing windows
+
+A game with several windows gives them to a `WindowManager`, which keeps their
+order, brings a clicked window to the front, and gives each frame's input only to the
+window in front, so overlapping windows never both react to a click. Each window can
+carry its own handler, which keeps its logic with it rather than in one big switch:
+
+```swift
+let windows = WindowManager()
+windows.open(budget, modal: true) { event in
+    switch event {
+    case .view(.pressed(control: "done")), .closeRequested:
+        windows.close(budget)
+    default:
+        break
+    }
+}
+
+// Each frame:
+windows.update()                    // runs the handlers, and also returns every event
+game.isPaused = windows.hasModal    // a modal window holds the input until it closes
+let pointer = GetMousePosition()
+let isOverInterface = windows.contains(pointer) || hud.containsPoint(pointer, origin: hudOrigin)
+// ...draw the game and any HUD panels, then:
+windows.draw()
+windows.drawTooltip()
+```
+
+Modal windows stay above the rest, the newest on top, and can dim what's behind them.
+Close and minimize are requests: the manager closes or minimizes a window only when
+the host calls `close(_:)` or `minimize(_:)`. Minimized windows stay open, and
+`minimizedWindows` lets the host show them however suits the game, such as a dock or
+a row of icons. HUD panels that never stack, like a control panel along the screen's
+edge, stay outside the manager.
+
 ### More examples
 
-See [`Sources/hudini-demo`](Sources/hudini-demo) for a runnable example: a
-property chat window over a control panel with live, statistics, and options modes,
-all loaded from UIScript XML. Click the lemonade stand on the lot to open its panel,
-read from an original `.uis` file, which can sit in the live panel or in its own
-window. An auto-hiding debug bar, also from a `.uis` file, waits at the top of the
-screen. The demo host owns all the game state and images, and it generates
-placeholder art because Hudini ships no game assets.
+[`Sources/hudini-demo`](Sources/hudini-demo) opens on a menu with two runnable
+demos. Run it with `swift run hudini-demo`, or skip the menu with `--demo sims` or
+`--demo city`.
+
+- **The Sims Online style:** a property chat window over a control panel with live,
+  statistics, and options modes, all loaded from UIScript XML. Click the lemonade
+  stand on the lot to open its panel, read from an original `.uis` file, which can sit
+  in the live panel or in its own window. An auto-hiding debug bar, also from a `.uis`
+  file, waits at the top of the screen.
+- **CityLimits style:** a city map under a tool palette, an overview, and a status
+  bar, with windows run by a `WindowManager`. The budget is a modal window that pauses
+  the city, a confirm window stacks over it, and the city, demand, and help windows
+  stay open and minimize to icons. Each window is a small class with its own handler.
+
+The demo hosts own all the game state and images, and they generate placeholder art
+because Hudini ships no game assets.
 
 See [the documentation](doc/README.md) for the format, roadmap, and where Hudini
 came from.

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The tool palette, a HUD panel along the map's top left. It never stacks with windows, so the
+     host draws it outside the WindowManager. The host marks the chosen tool selected. -->
+<UIScript version="1">
+  <Window width="104" height="170"/>
+
+  <Style name="heading" textColor="#FFF99D" fontSize="14"/>
+  <Style name="note" textColor="#A8B0BC" fontSize="12"/>
+  <Style name="tool" textColor="#E4E8EE" selectedTextColor="#F0BE5A" highlightedTextColor="#FFFFFF" fontSize="14"/>
+
+  <Text name="heading" x="8" y="6" width="88" height="16" style="heading" text="Tools"/>
+  <Button name="residential" x="8" y="28" width="42" height="30" style="tool" text="R"/>
+  <Button name="commercial" x="54" y="28" width="42" height="30" style="tool" text="C"/>
+  <Button name="industrial" x="8" y="62" width="42" height="30" style="tool" text="I"/>
+  <Button name="road" x="54" y="62" width="42" height="30" style="tool" text="Road"/>
+  <Button name="park" x="8" y="96" width="42" height="30" style="tool" text="Park"/>
+  <Button name="bulldoze" x="54" y="96" width="42" height="30" style="tool" text="Doze"/>
+  <Text name="toolName" x="8" y="136" width="88" height="28" style="note"/>
+</UIScript>

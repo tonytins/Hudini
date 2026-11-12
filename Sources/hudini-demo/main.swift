@@ -1,13 +1,25 @@
-// An example host: a property chat window over a control panel that swaps between modes, with a
-// lemonade stand panel that sits inside the live panel or in its own window, and an auto-hiding
-// debug bar. The options panel opens a window for moving to another lot. The chat, mode panels, and
-// move window are UIScript XML. The stand and the bar are Maxis' .uis format.
+// Hudini's demos. The demo opens on a menu (Menu.swift, Resources/menu.uix) offering two:
 //
-// Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>]
-//                    [--monospace-font <file>] [--glossy]
+// - The Sims Online style, the rest of this file: a property chat window over a control panel that
+//   swaps between modes, with a lemonade stand panel that sits inside the live panel or in its own
+//   window, and an auto-hiding debug bar. The options panel opens a window for moving to another
+//   lot. The chat, mode panels, and move window are UIScript XML. The stand and the bar are Maxis'
+//   .uis format, and the text comes from CST tables.
+// - CityLimits style, in CityDemo.swift with its documents in Resources/city: a city map under HUD
+//   panels, with windows run by a WindowManager, each with its own handler. It's the shape a Swift
+//   port of CityLimits, the game Hudini grew out of, could take.
 //
-// Scenes are for checking the interface without input: live, stats, options, stand, standwindow,
-// movelot, and accent, which shows the options panel after its Accent Color button is pressed.
+// The city demo can go back to the menu. The Sims demo runs to the end of this file, so it can't.
+//
+// Usage: hudini-demo [--demo sims|city] [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>]
+//                    [--font <file>] [--monospace-font <file>] [--glossy]
+//
+// --demo skips the menu. A scene also picks its demo, and a screenshot with neither shows the Sims
+// demo's live scene. Scenes are for checking the interface without input:
+// - menu: the opening menu.
+// - The Sims demo: live, stats, options, stand, standwindow, movelot, and accent, which shows the
+//   options panel after its Accent Color button is pressed.
+// - The city demo: city, citybudget, and cityconfirm. See CityDemo.swift.
 // --pointer holds the pointer in place, and a screenshot then waits long enough to show a tooltip.
 // --font draws the interface in a font file, such as a .ttf. The demo's own lot art keeps raylib's
 // default font, since the theme only reaches Hudini's controls.
@@ -269,7 +281,8 @@ func drawPeople(in bounds: Rectangle) {
 }
 
 var screenshot: String?
-var scene = "live"
+var requestedDemo: DemoChoice?
+var sceneArgument: String?
 var heldPointer: Vector2?
 var fontPath: String?
 var monospaceFontPath: String?
@@ -282,11 +295,16 @@ while let argument = arguments.popFirst() {
             fail("--screenshot needs a file")
         }
         screenshot = path
+    case "--demo":
+        guard let name = arguments.popFirst(), let demo = DemoChoice(rawValue: name) else {
+            fail("--demo needs sims or city")
+        }
+        requestedDemo = demo
     case "--scene":
         guard let name = arguments.popFirst() else {
             fail("--scene needs a name")
         }
-        scene = name
+        sceneArgument = name
     case "--pointer":
         guard let x = arguments.popFirst().flatMap(Float.init), let y = arguments.popFirst().flatMap(Float.init) else {
             fail("--pointer needs an x and a y")
@@ -305,12 +323,25 @@ while let argument = arguments.popFirst() {
     case "--glossy":
         isGlossy = true
     default:
-        fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>] [--monospace-font <file>] [--glossy]")
+        fail("usage: hudini-demo [--demo sims|city] [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>] [--monospace-font <file>] [--glossy]")
     }
 }
-guard ["live", "stats", "options", "stand", "standwindow", "movelot", "accent"].contains(scene) else {
-    fail("Unknown scene '\(scene)'.")
+let simsScenes = ["live", "stats", "options", "stand", "standwindow", "movelot", "accent"]
+let cityScenes = ["city", "citybudget", "cityconfirm"]
+if let sceneArgument {
+    guard sceneArgument == "menu" || simsScenes.contains(sceneArgument) || cityScenes.contains(sceneArgument) else {
+        fail("Unknown scene '\(sceneArgument)'.")
+    }
+    let sceneDemo: DemoChoice? = sceneArgument == "menu" ? nil : cityScenes.contains(sceneArgument) ? .city : .sims
+    if let requestedDemo, requestedDemo != sceneDemo {
+        fail("The scene '\(sceneArgument)' isn't part of the \(requestedDemo.rawValue) demo.")
+    }
+    requestedDemo = sceneDemo
+} else if screenshot != nil, requestedDemo == nil {
+    // A bare screenshot shows the Sims demo's live scene, as it did before the menu.
+    requestedDemo = .sims
 }
+let scene = sceneArgument ?? "live"
 
 // The host's localized text, in the same kind of tables The Sims Online uses, read with SwiftCST.
 // Hudini leaves text to the host, which hands each view a closure that looks strings up.
@@ -348,7 +379,7 @@ if isGlossy {
     windowFlags.insert(.msaa4xHint)
 }
 SetConfigFlags(windowFlags)
-InitWindow(1024, 768, "Hudini Live Mode")
+InitWindow(1024, 768, "Hudini Demos")
 // The host owns the fonts: they load after InitWindow and unload before CloseWindow.
 @MainActor
 func loadFont(at path: String) -> Font {
@@ -385,6 +416,30 @@ func makeTheme(accent: Color) -> InterfaceTheme {
 var theme = makeTheme(accent: accents[accentIndex])
 SetExitKey(.null)
 SetTargetFPS(60)
+
+/// Unloads the fonts and closes the window, for a run that ends before the Sims demo starts.
+@MainActor
+func finishWithoutSimsDemo() -> Never {
+    for font in [font, monospaceFont].compactMap({ $0 }) {
+        UnloadFont(font)
+    }
+    CloseWindow()
+    exit(screenshotFailed ? 1 : 0)
+}
+
+// The menu picks a demo, unless --demo or --scene already did. The city demo runs here and can come
+// back to the menu. The Sims demo is the rest of this file, so it runs last.
+var demo = requestedDemo ?? showMenu(theme: theme, screenshot: sceneArgument == "menu" ? screenshot : nil)
+var cityScene = sceneArgument
+while demo == .city {
+    let ending = CityDemo(theme: theme).run(scene: cityScene, screenshot: screenshot)
+    cityScene = nil
+    demo = ending == .menu ? showMenu(theme: theme, screenshot: nil) : nil
+}
+guard demo == .sims else {
+    finishWithoutSimsDemo()
+}
+SetWindowTitle("Hudini Demo - The Sims Online Style")
 
 var placeholderTextures: [Texture2D] = []
 @MainActor
