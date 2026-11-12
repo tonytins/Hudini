@@ -4,6 +4,12 @@ Hudini is a Swift interface library for games using raylib. It aims to make
 game interfaces easier to describe and compose without hiding raylib or
 growing into a general-purpose application UI framework.
 
+Hudini grew out of CityLimits, a city builder whose windows outgrew the code that
+ran them. Along the way it became a showcase for interfaces inspired by The Sims
+Online, and the foundation for Simburbia. Both directions shape it: CityLimits
+sets what windows have to do, and TSO's interfaces test how much a document can
+describe.
+
 The demo is the proving ground for a standalone, XML-based interface
 description. The first concrete target is a small chat dialog based on TSO's
 UIScript examples; the larger breadth target is a 1024-wide live mode panel
@@ -13,8 +19,7 @@ goal of reproducing TSO's code or runtime.
 The demo's longer-term goal is still a Sims-inspired HUD, based on the fourth
 iteration of The Sims' interface. The chat window and live panel are stepping
 stones toward it, so components the demo does not currently show remain part of
-the library. CityLimits has no separate proof here: TSO's interface is broad
-enough that CityLimits is expected to benefit and adopt UIScript later.
+the library.
 
 Milestones use cat-named Mac OS X releases as inspiration only. They are
 ordered stages, not promises to implement every behavior from the legacy
@@ -184,3 +189,18 @@ already learned. CST files are not known to appear in any other game.
 The reader and specification have since moved to swift-cst, which now reads every
 version of TSO. Hudini's `CSTCatalog` wraps it and is deprecated, and games read text
 with swift-cst directly through `resolveString`. It goes once Simburbia has moved over.
+
+## Lion — Windows a game can run on
+
+Give games a window manager, so open windows, dialogs, and their title bars stop
+being hand-written in every game loop. CityLimits' windows set the requirements,
+and VentureOS proved the design first.
+
+- [x] Bring VentureOS's additions into the [UIScript spec](UISCRIPT.md), with menus
+  and the sidebar as modules.
+- [ ] Read `<TextArea>`, `follows`, `font="monospace"`, and double-click `submitted`.
+- [ ] Let a `WindowFrame` wrap a view, with `<ToolbarItem>`, `<TitleField>`, and
+  minimize.
+- [ ] Add a window manager: stacking, focus, dragging, minimizing, and modal
+  windows that block what's behind them.
+- [ ] Show it in the demo: windows that stay open, and a modal one.
