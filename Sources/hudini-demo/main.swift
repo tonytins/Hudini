@@ -38,14 +38,14 @@ func logProblems(in script: UIScript, file: String) {
 
 func loadUIScript(named name: String) -> UIScript {
     do {
-        guard let url = Bundle.module.url(forResource: name, withExtension: "xml") else {
+        guard let url = Bundle.module.url(forResource: name, withExtension: "uix") else {
             throw CocoaError(.fileNoSuchFile)
         }
         let script = try UIScript(contentsOf: url)
-        logProblems(in: script, file: "\(name).xml")
+        logProblems(in: script, file: "\(name).uix")
         return script
     } catch {
-        fail("Unable to load \(name).xml: \(error.localizedDescription)")
+        fail("Unable to load \(name).uix: \(error.localizedDescription)")
     }
 }
 
@@ -403,13 +403,13 @@ let notice = NoticePanel(theme: theme)
 
 guard let history = chat.list(named: "chatHistory"),
       chat.textField(named: "chatEntry") != nil else {
-    fail("chatdialog.xml is missing a required property-chat control")
+    fail("chatdialog.uix is missing a required property-chat control")
 }
 guard let statusMessage = panel.list(named: "statusBarMessageWindow"),
       panel.textField(named: "statusBarTimerEntry") != nil,
       panelScript.control(named: "previousPage") != nil,
       panelScript.control(named: "nextPage") != nil else {
-    fail("livepanel1024.xml is missing a required live-panel control")
+    fail("livepanel1024.uix is missing a required live-panel control")
 }
 let barSpeedButtons = ["SpeedSlow", "SpeedMedium", "SpeedFast"]
 let requiredBarControls = barSpeedButtons + ["LotName", "GameClock", "FloorName", "ObjectCount", "ErrorCount", "HelpButton"]
@@ -430,7 +430,7 @@ guard requiredStandControls.allSatisfy({ standScript.control(named: $0) != nil }
 statusMessage.items = ["Maya is visiting"]
 
 guard let standMessage = panel.list(named: "messageWindow") else {
-    fail("livepanel1024.xml is missing a required live-panel control")
+    fail("livepanel1024.uix is missing a required live-panel control")
 }
 
 // The control panel shows one mode's panel at a time, chosen from the icon toolbar.
@@ -599,7 +599,7 @@ let moveLotWindow = WindowFrame(title: (try? demoText.textIfPresent(for: 6, key:
 moveLotWindow.showsCloseButton = false
 guard let lotChoices = moveLot.list(named: "lotChoices"),
       let lotKey = moveLot.textField(named: "lotKey") else {
-    fail("movelot.xml is missing a required control")
+    fail("movelot.uix is missing a required control")
 }
 lotChoices.items = [
     "Maple Street",

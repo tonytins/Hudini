@@ -19,7 +19,7 @@ form layout.
 - A 2D camera with pointer-centered zoom and coordinate conversion
 - Declarative, vertically stacked form layout
 - Per-interface themes with colors, a font, text sizes, rounded corners, and glossy title bars
-- [UIScript](doc/UISCRIPT.md), an XML format describing resources, styles, visuals, and controls
+- [UIScript](doc/UISCRIPT.md), a draft XML format (`.uix`) describing resources, styles, visuals, and controls
 - `UIScriptView`, which builds, updates, and draws a document's controls
 - A reader for Maxis' `.uis` interface files, whose `.cst` text tables
   [SwiftCST](https://github.com/tonytins/swift-cst) reads
@@ -66,7 +66,7 @@ Prefer describing screens in [UIScript](doc/UISCRIPT.md) over hardcoding them. T
 layout stays out of your game code, so moving a control means changing one
 attribute in one file, and your code only deals with what the controls mean.
 
-Describe the screen in an XML file, such as `settings.xml`:
+Describe the screen in a UIScript document, such as `settings.uix`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -95,7 +95,7 @@ SetExitKey(.null)
 let theme = InterfaceTheme(
     accent: Color(r: 120, g: 180, b: 240, a: 255)
 )
-let script = try UIScript(contentsOf: URL(fileURLWithPath: "settings.xml"))
+let script = try UIScript(contentsOf: URL(fileURLWithPath: "settings.uix"))
 let view = UIScriptView(script: script, theme: theme)
 let window = WindowFrame(title: "Settings", theme: theme)
 

@@ -9,6 +9,25 @@ and localized text. The format is inspired by The Sims Online's `.uis` files.
 Those are not valid XML, so Hudini has a [separate reader](#reading-uis-files) for
 them that produces the same model.
 
+## Status
+
+**Draft.** This spec changes on Hudini's `main` branch as games need it, rather
+than in numbered releases. Additions land here once a host has built and tested
+them, and the [change log](#change-log) dates each one so other readers can catch
+up. Hudini's reader follows this document, and other readers, such as VentureOS's,
+treat it as the reference.
+
+While the format is a draft, `version` stays at `1`. Optional parts of the format
+are [modules](#modules) that a document names in `requires`, so a host can leave
+one out entirely and still refuse documents that need it.
+
+## Files
+
+UIScript documents use the `.uix` extension. The contents are XML, so `.uix` only
+says which format it is, and keeps documents apart from Maxis' `.uis` files. A
+reader must not depend on the extension: Hudini's reads any file it is given, and
+documents named `.xml` still load.
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Comments are welcome anywhere. -->
@@ -25,8 +44,8 @@ them that produces the same model.
 </UIScript>
 ```
 
-See [`chatdialog.xml`](../Sources/hudini-demo/Resources/chatdialog.xml) and
-[`livepanel1024.xml`](../Sources/hudini-demo/Resources/livepanel1024.xml) for
+See [`chatdialog.uix`](../Sources/hudini-demo/Resources/chatdialog.uix) and
+[`livepanel1024.uix`](../Sources/hudini-demo/Resources/livepanel1024.uix) for
 complete examples.
 
 ## Document rules
@@ -47,8 +66,8 @@ complete examples.
 
 | Attribute | Value |
 | --- | --- |
-| `version` | The format version, which defaults to `1`. |
-| `requires` | Space-separated features a reader must understand. |
+| `version` | The format version, which defaults to `1`. It stays `1` while the format is a draft. |
+| `requires` | Space-separated [modules](#modules) the document uses. |
 
 ## Window
 
@@ -171,22 +190,39 @@ optional:
 
 ## Compatibility
 
-A reader treats newer documents like this:
+The format has two parts:
+
+- **The core** is everything a reader implements. During the draft it grows on
+  `main` without a version change or a `requires` name. Each game ships its
+  documents with its own copy of Hudini, so a document doesn't normally reach a
+  reader older than it.
+- **Modules** are optional parts a host may never implement, such as a menu bar
+  that only some hosts have. A document that uses one names it in `requires`.
+
+To decide where an addition goes, ask whether a reasonable host could leave it
+out entirely. If it could, the addition is a module. If every host should have
+it, it's core, even when some documents never use it.
+
+A reader treats documents it doesn't fully understand like this:
 
 | What the reader finds | What it does |
 | --- | --- |
 | A `version` newer than it supports | Refuses the document with `unsupportedVersion`. |
-| A `requires` feature it does not know | Refuses the document with `unsupportedFeature`. |
+| A `requires` module it does not implement | Refuses the document with `unsupportedFeature`. |
 | An attribute it does not know | Ignores it and lists it in `ignoredAttributes`. |
 | An element it does not know | Refuses the document with `unknownElement`. |
 
-These rules set how the format can grow:
+These rules set how the format grows:
 
-- A new attribute that is safe to ignore needs no version change.
-- A new attribute or element that older readers must understand gets a name in
-  `requires`. New elements always stop older readers, because skipping one could
-  leave an interface silently incomplete.
-- `version` only increases when existing documents or meanings change.
+- A new core attribute must be safe for an older reader to ignore, giving a
+  plainer but still correct interface. If ignoring it would silently change
+  behavior, add an element instead.
+- New elements always stop older readers, because skipping one could leave an
+  interface silently incomplete.
+- A module's elements and attributes refuse the document unless it names the
+  module in `requires`.
+- `version` only increases when existing documents or meanings change, which
+  the draft avoids.
 
 A misspelled attribute also lands in `ignoredAttributes` rather than failing, so
 hosts should log that list during development:
@@ -198,7 +234,12 @@ for ignored in script.ignoredAttributes {
 }
 ```
 
-The current reader supports version 1 and has no `requires` features yet.
+### Modules
+
+No modules are defined yet. Each one will have its own section here saying what
+it adds and what a host that implements it has to do. A host should list the
+modules it implements. Hudini's reader supports version 1 and implements no
+modules.
 
 ## Errors
 
@@ -355,3 +396,11 @@ move to SwiftCST in their own time: create a `UIText` the same way, and call
 
 - Drawing slider images, which `.uis` sliders name and the view replaces with a
   plain track and thumb
+
+## Change log
+
+Newest first. Changes before the draft are in the repository's history.
+
+- **2026-11-12:** Marked the format as a draft that changes on `main`, with
+  `version` frozen at `1`. Documents use `.uix`. `requires` now names optional
+  modules a host may never implement, rather than features newer than the reader.

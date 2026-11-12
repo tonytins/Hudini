@@ -187,10 +187,18 @@ func uiScriptRejectsInvalidVersions(version: String) {
     }
 }
 
-@Test func uiScriptRefusesRequiredFeaturesItDoesNotUnderstand() {
-    #expect(throws: UIScriptError.unsupportedFeature("futureLayout")) {
-        try script("<FutureThing/>", root: "requires='futureLayout'")
+@Test func uiScriptRefusesModulesItDoesNotImplement() {
+    #expect(throws: UIScriptError.unsupportedFeature("menus")) {
+        try script("<Menu/>", root: "requires='menus'")
     }
+}
+
+@Test func unsupportedModuleMessageNamesTheModuleWithoutSuggestingAnUpdate() {
+    // A module is optional, so a newer Hudini may not implement it either.
+    let message = UIScriptError.unsupportedFeature("menus").localizedDescription
+
+    #expect(message.contains("'menus' module"))
+    #expect(!message.contains("Update Hudini"))
 }
 
 @Test func uiScriptIgnoresAndReportsUnknownAttributes() throws {
@@ -514,7 +522,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func viewBuildsControlsAndFindsThemByKind() throws {
-    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.xml")))
+    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
 
     #expect(view.list(named: "chatHistory") != nil)
     #expect(view.textField(named: "chatEntry") != nil)
@@ -523,7 +531,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func viewAppliesDocumentSettingsToTextFields() throws {
-    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.xml")))
+    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
     let entry = try #require(view.textField(named: "chatEntry"))
 
     entry.text = String(repeating: "a", count: 500)
@@ -531,7 +539,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func viewScrollButtonsMoveTheirListWithoutReportingAnEvent() throws {
-    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.xml")))
+    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
     let history = try #require(view.list(named: "chatHistory"))
     let origin = Vector2(x: 1000, y: 1000)
     history.items = (1...20).map { "Message \($0)" }
@@ -581,7 +589,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func chatDialogControlsFitInsideItsWindow() throws {
-    let chat = try UIScript(contentsOf: demoResource("chatdialog.xml"))
+    let chat = try UIScript(contentsOf: demoResource("chatdialog.uix"))
     let view = UIScriptView(script: chat)
 
     for control in chat.controls {
@@ -593,8 +601,8 @@ func controlsWithoutAnImageNeedASize(element: String) {
 
 // Both roadmap examples must work through the same model and view, with different compositions.
 @Test func chatAndLivePanelShareOneModelWithoutSharingALayout() throws {
-    let chat = try UIScript(contentsOf: demoResource("chatdialog.xml"))
-    let panel = try UIScript(contentsOf: demoResource("livepanel1024.xml"))
+    let chat = try UIScript(contentsOf: demoResource("chatdialog.uix"))
+    let panel = try UIScript(contentsOf: demoResource("livepanel1024.uix"))
     let chatView = UIScriptView(script: chat)
     let panelView = UIScriptView(script: panel)
 
@@ -608,13 +616,13 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func demoDocumentsUseNoAttributesTheReaderIgnores() throws {
-    for name in ["chatdialog.xml", "livepanel1024.xml"] {
+    for name in ["chatdialog.uix", "livepanel1024.uix"] {
         #expect(try UIScript(contentsOf: demoResource(name)).ignoredAttributes.isEmpty, "\(name)")
     }
 }
 
 @Test func livePanelReadsWithTheCurrentModel() throws {
-    let panel = try UIScript(contentsOf: demoResource("livepanel1024.xml"))
+    let panel = try UIScript(contentsOf: demoResource("livepanel1024.uix"))
 
     #expect(panel.window.size.width == 1024)
     #expect(panel.controls.count == 14)
@@ -784,7 +792,7 @@ private func row(_ row: Int, of bounds: Rectangle) -> Vector2 {
 }
 
 @Test func demoMoveWindowDeclaresWhatItNeeds() throws {
-    let moveLot = try UIScript(contentsOf: demoResource("movelot.xml"))
+    let moveLot = try UIScript(contentsOf: demoResource("movelot.uix"))
 
     #expect(moveLot.ignoredAttributes.isEmpty)
     #expect(moveLot.control(named: "lotChoices")?.isSelectable == true)
@@ -1920,7 +1928,7 @@ private func tooltipView() throws -> UIScriptView {
 }
 
 @Test func theDemoModePanelsLoadCleanly() throws {
-    for name in ["statspanel.xml", "optionspanel.xml"] {
+    for name in ["statspanel.uix", "optionspanel.uix"] {
         let panel = try UIScript(contentsOf: demoResource(name))
         #expect(panel.ignoredAttributes.isEmpty)
         #expect(panel.window.size.height == 160)
@@ -2132,10 +2140,10 @@ func catalogFindsEitherInstallLayout(path: String) throws {
     let tableIDs = try FileManager.default.contentsOfDirectory(atPath: directory.path)
         .compactMap { name in name.split(separator: "_").first.flatMap { Int($0) } }
     let documents = [
-        try UIScript(contentsOf: demoResource("livepanel1024.xml")),
-        try UIScript(contentsOf: demoResource("statspanel.xml")),
-        try UIScript(contentsOf: demoResource("optionspanel.xml")),
-        try UIScript(contentsOf: demoResource("movelot.xml")),
+        try UIScript(contentsOf: demoResource("livepanel1024.uix")),
+        try UIScript(contentsOf: demoResource("statspanel.uix")),
+        try UIScript(contentsOf: demoResource("optionspanel.uix")),
+        try UIScript(contentsOf: demoResource("movelot.uix")),
         try UIScript(uisContentsOf: demoResource("lemonadestand.uis")),
         try UIScript(uisContentsOf: demoResource("debugbar.uis"))
     ]

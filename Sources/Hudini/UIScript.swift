@@ -706,7 +706,11 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// The document's version is newer than this reader supports.
     case unsupportedVersion(Int)
 
-    /// The document requires a feature this reader does not understand.
+    /// The document names a module in `requires` that this reader doesn't implement.
+    ///
+    /// Modules are optional parts of the format, so a newer Hudini may not
+    /// implement it either. The host needs to support the module, or the
+    /// document needs to stop using it.
     case unsupportedFeature(String)
 
     /// An element is not part of the format.
@@ -802,7 +806,7 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case let .unsupportedVersion(version):
             "UIScript version \(version) is newer than this reader supports (\(UIScript.supportedVersion)). Update Hudini to load this document."
         case let .unsupportedFeature(feature):
-            "UIScript document requires feature '\(feature)', which this reader does not support. Update Hudini to load this document."
+            "UIScript document requires the '\(feature)' module, which this host doesn't implement. Use a host that supports it, or remove it from the document's requires."
         case let .unknownElement(name, line):
             "UIScript line \(line): element '\(name)' is not supported."
         case let .unexpectedNesting(name, line):
