@@ -12,6 +12,7 @@ import Raylib
 /// region's corner, or in a `WindowFrame`, without the document changing.
 public final class UIScriptView {
     private static let defaultMaximumLength = 256
+    private static let defaultTextAreaMaximumLength = 65_536
     private static let textInset = 6
     private static let textLineGap = 4
     private static let missingImageSize: Float = 24
@@ -26,17 +27,23 @@ public final class UIScriptView {
     /// styles still win over it.
     public var theme: InterfaceTheme {
         didSet {
-            for list in lists.values {
-                list.theme = theme
+            for (name, list) in lists {
+                list.theme = theme(for: name)
             }
-            for field in textFields.values {
-                field.theme = theme
+            for (name, field) in textFields {
+                field.theme = theme(for: name)
+            }
+            for (name, area) in textAreas {
+                area.theme = theme(for: name)
             }
         }
     }
     private var labels: [String: String]
     private let lists: [String: TextList]
     private let textFields: [String: TextField]
+    private let textAreas: [String: TextArea]
+    // Controls whose style asks for `font="monospace"`.
+    private let monospaceNames: Set<String>
     private let textures: [String: Texture2D]
     private let sizes: [String: Vector2]
     private let tooltips: [String: String]
@@ -124,9 +131,12 @@ public final class UIScriptView {
         var labels: [String: String] = [:]
         var lists: [String: TextList] = [:]
         var textFields: [String: TextField] = [:]
+        var textAreas: [String: TextArea] = [:]
+        let monospaceNames = Set(script.controls.filter { script.style(for: $0)?.font == .monospace }.map(\.name))
         for control in script.controls {
             let style = script.style(for: control)
             let text = resolved(control.text)
+            let theme = monospaceNames.contains(control.name) ? theme.monospaced : theme
             switch control.type {
             case .text, .formattedText, .button:
                 labels[control.name] = text
@@ -153,6 +163,20 @@ public final class UIScriptView {
                     borderColor: style?.borderColor,
                     isReadOnly: control.isReadOnly,
                     isSecure: control.isSecure
+                )
+            case .textArea:
+                textAreas[control.name] = TextArea(
+                    text: text ?? "",
+                    maximumLength: control.maximumLength ?? Self.defaultTextAreaMaximumLength,
+                    fontSize: style?.fontSize,
+                    themeSize: \.body,
+                    theme: theme,
+                    placeholder: resolved(control.placeholder),
+                    textColor: style?.textColor,
+                    backgroundColor: style?.backgroundColor,
+                    borderColor: style?.borderColor,
+                    isReadOnly: control.isReadOnly,
+                    follows: control.follows
                 )
             case .slider, .progressBar, .region:
                 break
@@ -190,6 +214,8 @@ public final class UIScriptView {
         self.labels = labels
         self.lists = lists
         self.textFields = textFields
+        self.textAreas = textAreas
+        self.monospaceNames = monospaceNames
         self.textures = textures
         self.sizes = sizes
         tooltips = script.controls.reduce(into: [:]) { result, control in
@@ -308,19 +334,32 @@ public final class UIScriptView {
         textFields[name]
     }
 
-    /// Returns the text of a text, formatted text, button, or text field control, or `nil` when
-    /// it has none.
-    public func text(named name: String) -> String? {
-        textFields[name]?.text ?? labels[name]
+    /// Returns the text area with this name, or `nil` when no text area has it.
+    public func textArea(named name: String) -> TextArea? {
+        textAreas[name]
     }
 
-    /// Replaces the text of a text, formatted text, button, or text field control.
+    /// Returns the text of a text, formatted text, button, text field, or text area control, or
+    /// `nil` when it has none.
+    ///
+    /// Typing in a text area reports no event, so read its text here when the host needs it.
+    public func text(named name: String) -> String? {
+        textFields[name]?.text ?? textAreas[name]?.text ?? labels[name]
+    }
+
+    /// Replaces the text of a text, formatted text, button, text field, or text area control.
     ///
     /// This is cheap enough to call every frame, for example for a clock or a
     /// balance. Other controls and unknown names are left alone.
     public func setText(_ text: String, named name: String) {
         if let field = textFields[name] {
             field.text = text
+            return
+        }
+        if let area = textAreas[name] {
+            if area.text != text {
+                area.text = text
+            }
             return
         }
         switch script.control(named: name)?.type {
@@ -356,11 +395,14 @@ public final class UIScriptView {
             / (range.upperBound - range.lowerBound)
     }
 
-    /// Removes keyboard focus from the view's text fields. Call this when a view stops being
-    /// shown, so it does not hold focus while it is away.
+    /// Removes keyboard focus from the view's text fields and text areas. Call this when a view
+    /// stops being shown, so it does not hold focus while it is away.
     public func clearFocus() {
         for field in textFields.values {
             field.setFocused(false)
+        }
+        for area in textAreas.values {
+            area.setFocused(false)
         }
     }
 
@@ -384,6 +426,7 @@ public final class UIScriptView {
         if isHidden {
             hiddenNames.insert(name)
             textFields[name]?.setFocused(false)
+            textAreas[name]?.setFocused(false)
         } else {
             hiddenNames.remove(name)
         }
@@ -433,7 +476,7 @@ public final class UIScriptView {
             if let event = pressButton(at: pointer, origin: origin) {
                 events.append(event)
             }
-            if let event = selectListItem(at: pointer, origin: origin) {
+            if let event = selectListItem(at: pointer, origin: origin, time: GetTime()) {
                 events.append(event)
             }
             _ = beginSliderDrag(at: pointer, origin: origin)
@@ -454,6 +497,7 @@ public final class UIScriptView {
             if case let .submitted(text)? = textFields[control.name]?.update(in: bounds) {
                 events.append(.submitted(control: control.name, text: text))
             }
+            _ = textAreas[control.name]?.update(in: bounds)
         }
         updateTooltip(
             pointer: pointer,
@@ -470,16 +514,33 @@ public final class UIScriptView {
         }
     }
 
-    /// Selects the item under `point` when a selectable list is the topmost control there.
-    func selectListItem(at point: Vector2, origin: Vector2) -> Event? {
+    /// Applies a click at `time`, in seconds, to the item under `point` when a selectable list is
+    /// the topmost control there. A changed selection reports `.selected`, and a double-click
+    /// reports `.submitted` with the item's text.
+    func selectListItem(at point: Vector2, origin: Vector2, time: Double) -> Event? {
         guard let control = topmostControl(at: point, origin: origin), let list = lists[control.name] else {
             return nil
         }
         let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
-        guard case let .selected(index)? = list.select(at: point, in: bounds) else {
+        switch list.select(at: point, in: bounds, time: time) {
+        case let .selected(index)?:
+            return .selected(control: control.name, index: index)
+        case let .submitted(index)?:
+            return .submitted(control: control.name, text: list.items[index])
+        case nil:
             return nil
         }
-        return .selected(control: control.name, index: index)
+    }
+
+    // The list or text area a slider or button scrolls.
+    private func scrollTarget(of binding: UIScript.ScrollBinding) -> (any ScrollableText)? {
+        lists[binding.list] ?? textAreas[binding.list]
+    }
+
+    // The theme a control draws with: the view's, in its monospace font when the control's style
+    // asks for one.
+    private func theme(for name: String) -> InterfaceTheme {
+        monospaceNames.contains(name) ? theme.monospaced : theme
     }
 
     /// Tracks how long the pointer has rested on the topmost control under it. A negative
@@ -535,7 +596,7 @@ public final class UIScriptView {
             grab: dragged.grab
         )
         if let binding = control.scrolls {
-            lists[binding.list]?.scroll(toFraction: fraction)
+            scrollTarget(of: binding)?.scroll(toFraction: fraction)
             return nil
         }
         let range = Self.range(of: control)
@@ -571,11 +632,11 @@ public final class UIScriptView {
     }
 
     private func sliderThumb(of control: UIScript.Control, in track: Rectangle, origin: Vector2) -> Rectangle {
-        if let binding = control.scrolls, let list = lists[binding.list],
+        if let binding = control.scrolls, let scrolled = scrollTarget(of: binding),
            let target = script.control(named: binding.list) {
             // The slider may act before its list, after the host changed the items.
-            list.prepareLines(for: screenRectangle(for: target.frame, named: target.name, at: origin))
-            return list.scrollThumbBounds(in: track)
+            scrolled.prepareLines(for: screenRectangle(for: target.frame, named: target.name, at: origin))
+            return scrolled.scrollThumbBounds(in: track)
         }
         let fraction = fraction(of: control)
         let length = Self.sliderThumbLength
@@ -607,7 +668,7 @@ public final class UIScriptView {
             guard let binding = control.scrolls else {
                 return .pressed(control: control.name)
             }
-            lists[binding.list]?.scroll(byLines: binding.direction == .up ? 1 : -1)
+            scrollTarget(of: binding)?.scroll(byLines: binding.direction == .up ? 1 : -1)
             return nil
         }
         return nil
@@ -640,6 +701,8 @@ public final class UIScriptView {
                 drawButton(control, in: bounds)
             case .textField:
                 textFields[control.name]?.draw(in: bounds)
+            case .textArea:
+                textAreas[control.name]?.draw(in: bounds)
             case .list:
                 lists[control.name]?.draw(in: bounds)
             case .slider:
@@ -711,6 +774,7 @@ public final class UIScriptView {
         guard let label = labels[control.name] else {
             return
         }
+        let theme = self.theme(for: control.name)
         let style = script.style(for: control)
         let fontSize = style?.fontSize ?? theme.textSizes.body
         let left = Int(clamping: bounds.x) + inset
@@ -752,6 +816,7 @@ public final class UIScriptView {
         guard let label = labels[control.name] else {
             return
         }
+        let theme = self.theme(for: control.name)
         let fontSize = style?.fontSize ?? theme.textSizes.body
         theme.drawText(
             label,
@@ -766,7 +831,7 @@ public final class UIScriptView {
         let style = script.style(for: control)
         theme.fillRectangle(bounds, style?.backgroundColor ?? theme.panel)
         theme.outlineRectangle(bounds, style?.borderColor ?? theme.border)
-        if control.scrolls != nil, control.scrolls.flatMap({ lists[$0.list] }) == nil {
+        if let binding = control.scrolls, scrollTarget(of: binding) == nil {
             return
         }
         let color = disabledNames.contains(control.name) ? theme.secondaryText : (style?.fillColor ?? theme.accent)

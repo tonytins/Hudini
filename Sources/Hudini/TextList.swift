@@ -11,12 +11,17 @@ public final class TextList {
     private static let linesPerWheelNotch: Float = 3
     private static let minimumThumbHeight: Float = 6
 
+    /// The most seconds between two clicks on the same item that count as a double-click.
+    public static let doubleClickInterval: Double = 0.5
+
     private var lines: [String] = []
     // The index of the item each line came from.
     private var lineItems: [Int] = []
     private var lineWidth: Int?
     private var visibleLineCount = 1
     private var pendingWheelLines: Float = 0
+    // The item the last click landed on, and when, so a second one can make a double-click.
+    private var lastClick: (index: Int, time: Double)?
 
     /// The colors and size the list draws with. Setting it takes effect from the next draw, and keeps
     /// the list's items, selection, and scroll position. Colors and a size passed when creating the
@@ -78,6 +83,9 @@ public final class TextList {
     public enum Event: Equatable, Sendable {
         /// A click changed the selected item to the one at this index.
         case selected(Int)
+
+        /// The item at this index was double-clicked. The first click selected it.
+        case submitted(Int)
     }
 
     /// How many lines the viewport is scrolled back from the newest content.
@@ -143,7 +151,8 @@ public final class TextList {
     /// Updates wheel and arrow-button scrolling for this frame, and selection on a selectable list.
     ///
     /// Positive values passed to `scroll(byLines:)` move toward older content. Returns an event
-    /// when a click selects a different item.
+    /// when a click selects a different item, or when a second click on the same item within
+    /// `doubleClickInterval` makes a double-click.
     @discardableResult
     public func update(
         in bounds: Rectangle,
@@ -170,7 +179,7 @@ public final class TextList {
         } else if let scrollDownButton, CheckCollisionPointRec(mouse, scrollDownButton) {
             scroll(byLines: -1)
         } else {
-            return select(at: mouse, in: bounds)
+            return select(at: mouse, in: bounds, time: GetTime())
         }
         return nil
     }
@@ -191,9 +200,20 @@ public final class TextList {
         return lineItems[line]
     }
 
-    /// Selects the item at `point`, and reports it when that changes the selection.
-    func select(at point: Vector2, in bounds: Rectangle) -> Event? {
-        guard isSelectable, let index = itemIndex(at: point, in: bounds), index != selectedIndex else {
+    /// Selects the item at `point` for a click at `time`, in seconds. Reports a change to the
+    /// selection, or a double-click when the last click landed on the same item close enough before.
+    func select(at point: Vector2, in bounds: Rectangle, time: Double) -> Event? {
+        guard isSelectable, let index = itemIndex(at: point, in: bounds) else {
+            lastClick = nil
+            return nil
+        }
+        if let lastClick, lastClick.index == index, time - lastClick.time <= Self.doubleClickInterval {
+            // A third click starts over rather than making a second double-click.
+            self.lastClick = nil
+            return .submitted(index)
+        }
+        lastClick = (index, time)
+        guard index != selectedIndex else {
             return nil
         }
         selectedIndex = index
@@ -297,3 +317,14 @@ public final class TextList {
         scrollOffset = isSelectable ? max(0, maximumOffset - previousFirstLine) : min(scrollOffset, maximumOffset)
     }
 }
+
+/// Text a slider or scroll buttons can move through: a list or a text area.
+protocol ScrollableText: AnyObject {
+    func prepareLines(for bounds: Rectangle)
+    func scroll(byLines lineCount: Int)
+    func scroll(toFraction fraction: Float)
+    func scrollThumbBounds(in track: Rectangle) -> Rectangle
+}
+
+extension TextList: ScrollableText {}
+extension TextArea: ScrollableText {}

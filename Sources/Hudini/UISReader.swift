@@ -480,6 +480,7 @@ private struct UISBuilder {
             alignment: .left,
             valueRange: nil,
             orientation: nil,
+            follows: false,
             isInitiallyHidden: true
         )
     }
@@ -609,6 +610,7 @@ private struct UISBuilder {
             alignment: alignment,
             valueRange: makeValueRange(type, reader, tag),
             orientation: makeOrientation(type, reader, tag),
+            follows: false,
             isInitiallyHidden: false
         )
     }
@@ -672,7 +674,8 @@ private struct UISBuilder {
             backgroundColor: background,
             borderColor: border,
             fillColor: nil,
-            fontSize: font
+            fontSize: font,
+            font: nil
         )
         return styleName
     }

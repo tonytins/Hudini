@@ -466,16 +466,20 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   event.
 - Change text at runtime with `setText(_:named:)`, and the value of a slider or
   progress bar with `setValue(_:named:)`. Both are cheap enough to call every frame.
-- Open a window ready for typing with `textField(named:)?.setFocused(true)`, after
-  taking focus from any other view with `clearFocus()`.
+- Open a window ready for typing with `textField(named:)?.setFocused(true)`, or
+  `textArea(named:)?.setFocused(true)`, after taking focus from any other view with
+  `clearFocus()`.
+- Read what was typed in a text area with `text(named:)`, since typing reports no
+  event.
 - Place something the document leaves to the game with `setBounds(_:named:)`.
 - Use `containsPoint(_:origin:)` to keep a click on the interface from also
   reaching the game behind it. It covers visible controls and visuals, so a
   background the host draws itself needs its own check. When views overlap, the
   host decides which one gets the pointer.
 - Draw any window frame or background behind the view.
-- Choose the font, default text sizes, and corners through the `InterfaceTheme` passed
-  to the view. A document sets sizes through `<Style>`, and has no way to name a font.
+- Choose the fonts, default text sizes, and corners through the `InterfaceTheme`
+  passed to the view. A document sets sizes through `<Style>`, and asks for the
+  theme's `monospaceFont` with `font="monospace"`, but can't name a font file.
 
 ### Panels inside panels
 
@@ -579,12 +583,11 @@ move to SwiftCST in their own time: create a `UIText` the same way, and call
 
 ## Not yet supported
 
-Hudini's reader is catching up with this draft. It doesn't yet read:
+Hudini's reader is catching up with this draft. It doesn't yet read
+`<ToolbarItem>` and `<TitleField>`, which refuse the document.
 
-- `<TextArea>`, which refuses the document as an unknown element
-- `font` on `<Style>`, which it ignores
-- double-clicking a selectable list
-- `<ToolbarItem>` and `<TitleField>`, which refuse the document
+A text area's caret stays at the end of its text. Clicking to place it, moving it
+with the arrow keys, selection, and the clipboard aren't supported yet.
 
 It also doesn't draw slider images, which `.uis` sliders name and the view
 replaces with a plain track and thumb.

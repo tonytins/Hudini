@@ -115,6 +115,7 @@ enum UIScriptParser {
         "FormattedText": .formattedText,
         "Button": .button,
         "TextField": .textField,
+        "TextArea": .textArea,
         "List": .list,
         "Slider": .slider,
         "ProgressBar": .progressBar,
@@ -149,7 +150,8 @@ enum UIScriptParser {
             backgroundColor: try reader.color("backgroundColor"),
             borderColor: try reader.color("borderColor"),
             fillColor: try reader.color("fillColor"),
-            fontSize: try reader.integer("fontSize")
+            fontSize: try reader.integer("fontSize"),
+            font: try reader.typeface("font")
         )
     }
 
@@ -193,6 +195,7 @@ enum UIScriptParser {
             alignment: try reader.alignment("alignment") ?? .left,
             valueRange: try makeValueRange(owner: name, reader),
             orientation: try reader.orientation("orientation"),
+            follows: try reader.boolean("follows") ?? false,
             isInitiallyHidden: false
         )
     }
@@ -412,6 +415,16 @@ private final class AttributeReader {
             throw invalid(attribute, value)
         }
         return orientation
+    }
+
+    func typeface(_ attribute: String) throws -> UIScript.Typeface? {
+        guard let value = string(attribute) else {
+            return nil
+        }
+        guard let typeface = UIScript.Typeface(rawValue: value) else {
+            throw invalid(attribute, value)
+        }
+        return typeface
     }
 
     func alignment(_ attribute: String) throws -> UIScript.TextAlignment? {

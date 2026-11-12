@@ -3,13 +3,16 @@
 // debug bar. The options panel opens a window for moving to another lot. The chat, mode panels, and
 // move window are UIScript XML. The stand and the bar are Maxis' .uis format.
 //
-// Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>] [--glossy]
+// Usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>]
+//                    [--monospace-font <file>] [--glossy]
 //
 // Scenes are for checking the interface without input: live, stats, options, stand, standwindow,
 // movelot, and accent, which shows the options panel after its Accent Color button is pressed.
 // --pointer holds the pointer in place, and a screenshot then waits long enough to show a tooltip.
 // --font draws the interface in a font file, such as a .ttf. The demo's own lot art keeps raylib's
 // default font, since the theme only reaches Hudini's controls.
+// --monospace-font draws text whose style asks for `font="monospace"`, such as the options panel's
+// notes, in a fixed-width font file.
 // --glossy gives the theme rounded corners and a title bar that fades, and asks for smoother curves.
 
 import Foundation
@@ -269,6 +272,7 @@ var screenshot: String?
 var scene = "live"
 var heldPointer: Vector2?
 var fontPath: String?
+var monospaceFontPath: String?
 var isGlossy = false
 var arguments = CommandLine.arguments.dropFirst()
 while let argument = arguments.popFirst() {
@@ -293,10 +297,15 @@ while let argument = arguments.popFirst() {
             fail("--font needs a file")
         }
         fontPath = path
+    case "--monospace-font":
+        guard let path = arguments.popFirst() else {
+            fail("--monospace-font needs a file")
+        }
+        monospaceFontPath = path
     case "--glossy":
         isGlossy = true
     default:
-        fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>] [--glossy]")
+        fail("usage: hudini-demo [--screenshot <file.png>] [--scene <name>] [--pointer <x> <y>] [--font <file>] [--monospace-font <file>] [--glossy]")
     }
 }
 guard ["live", "stats", "options", "stand", "standwindow", "movelot", "accent"].contains(scene) else {
@@ -340,8 +349,9 @@ if isGlossy {
 }
 SetConfigFlags(windowFlags)
 InitWindow(1024, 768, "Hudini Live Mode")
-// The host owns the font: it loads after InitWindow and unloads before CloseWindow.
-let font: Font? = fontPath.map { path in
+// The host owns the fonts: they load after InitWindow and unload before CloseWindow.
+@MainActor
+func loadFont(at path: String) -> Font {
     let font = LoadFontEx(path, 32, nil, 0)
     guard IsFontValid(font) else {
         fail("Couldn't load the font at '\(path)'.")
@@ -349,6 +359,8 @@ let font: Font? = fontPath.map { path in
     SetTextureFilter(font.texture, .bilinear)
     return font
 }
+let font: Font? = fontPath.map(loadFont(at:))
+let monospaceFont: Font? = monospaceFontPath.map(loadFont(at:))
 // The accents the options panel's Accent Color button steps through, starting with Hudini's own.
 let accents = [
     InterfaceTheme.standard.accent,
@@ -365,6 +377,7 @@ func makeTheme(accent: Color) -> InterfaceTheme {
         titleBar: isGlossy ? Color(r: 92, g: 112, b: 142, a: 245) : InterfaceTheme.standard.titleBar,
         titleBarBottom: isGlossy ? Color(r: 30, g: 40, b: 58, a: 245) : nil,
         font: font,
+        monospaceFont: monospaceFont,
         cornerRadius: isGlossy ? 8 : 0
     )
 }
@@ -753,7 +766,9 @@ while running && !WindowShouldClose() {
                 moveLot.setDisabled(false, named: "moveConfirm")
             case .pressed(control: "moveCancel"):
                 closeMoveLot()
-            case .pressed(control: "moveConfirm"), .submitted(control: "lotKey", text: _):
+            // Double-clicking a lot moves there, as Move does.
+            case .pressed(control: "moveConfirm"), .submitted(control: "lotKey", text: _),
+                 .submitted(control: "lotChoices", text: _):
                 confirmMoveLot()
             default:
                 break
@@ -960,7 +975,7 @@ while running && !WindowShouldClose() {
 for texture in placeholderTextures {
     UnloadTexture(texture)
 }
-if let font {
+for font in [font, monospaceFont].compactMap({ $0 }) {
     UnloadFont(font)
 }
 CloseWindow()

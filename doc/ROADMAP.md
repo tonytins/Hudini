@@ -198,7 +198,7 @@ and VentureOS proved the design first.
 
 - [x] Bring VentureOS's additions into the [UIScript spec](UISCRIPT.md), with menus
   and the sidebar as modules.
-- [ ] Read `<TextArea>`, `follows`, `font="monospace"`, and double-click `submitted`.
+- [x] Read `<TextArea>`, `follows`, `font="monospace"`, and double-click `submitted`.
 - [ ] Let a `WindowFrame` wrap a view, with `<ToolbarItem>`, `<TitleField>`, and
   minimize.
 - [ ] Add a window manager: stacking, focus, dragging, minimizing, and modal

@@ -41,6 +41,11 @@ public struct InterfaceTheme: Sendable {
     /// Marked unsafe because `Font` holds pointers. The theme never changes them, and raylib
     /// draws from one thread, so only draw with a theme on the thread that owns the window.
     public nonisolated(unsafe) let font: Font?
+    /// A fixed-width font for text a UIScript `<Style>` marks `font="monospace"`, such as code or
+    /// a terminal, or `nil` to draw that text in `font`.
+    ///
+    /// The host owns it the same way as `font`, and it draws with the same `fontSpacing`.
+    public nonisolated(unsafe) let monospaceFont: Font?
     /// The pixels between characters when drawing with `font`. raylib's default font sets its own
     /// spacing, so this has no effect without a `font`.
     public let fontSpacing: Float
@@ -114,6 +119,7 @@ public struct InterfaceTheme: Sendable {
         titleBarBottom: Color? = nil,
         selectedItem: Color = Color(r: 58, g: 66, b: 80, a: 255),
         font: Font? = nil,
+        monospaceFont: Font? = nil,
         fontSpacing: Float = 1,
         textSizes: TextSizes = TextSizes(),
         cornerRadius: Float = 0
@@ -133,6 +139,7 @@ public struct InterfaceTheme: Sendable {
         self.titleBarBottom = titleBarBottom
         self.selectedItem = selectedItem
         self.font = font
+        self.monospaceFont = monospaceFont
         self.fontSpacing = fontSpacing
         self.textSizes = textSizes
         self.cornerRadius = cornerRadius
@@ -140,6 +147,34 @@ public struct InterfaceTheme: Sendable {
 
     /// Hudini's default dark palette with a warm accent.
     public static let standard = InterfaceTheme()
+
+    /// This theme drawing its text in `monospaceFont`, or the theme itself when it has none. A
+    /// monospace font with no texture counts as none, as for `font`, so the text stays in `font`.
+    var monospaced: InterfaceTheme {
+        guard let monospaceFont, monospaceFont.texture.id != 0 else {
+            return self
+        }
+        return InterfaceTheme(
+            accent: accent,
+            inputBackground: inputBackground,
+            closeButton: closeButton,
+            closeMark: closeMark,
+            overlay: overlay,
+            error: error,
+            panel: panel,
+            border: border,
+            text: text,
+            secondaryText: secondaryText,
+            titleBar: titleBar,
+            titleBarBottom: titleBarBottom,
+            selectedItem: selectedItem,
+            font: monospaceFont,
+            monospaceFont: monospaceFont,
+            fontSpacing: fontSpacing,
+            textSizes: textSizes,
+            cornerRadius: cornerRadius
+        )
+    }
 
     /// Draws text in the theme's font, the way every Hudini control does, so a game's own drawing
     /// matches its controls.

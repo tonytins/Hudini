@@ -159,15 +159,18 @@ public struct UIScript: Sendable {
         }
 
         for control in controls {
-            if control.placeholder != nil, control.type != .textField {
+            let takesText = control.type == .textField || control.type == .textArea
+            if control.placeholder != nil, !takesText {
                 throw UIScriptError.invalidPlaceholder(owner: control.name)
             }
-            if let maximumLength = control.maximumLength,
-               maximumLength <= 0 || control.type != .textField {
+            if let maximumLength = control.maximumLength, maximumLength <= 0 || !takesText {
                 throw UIScriptError.invalidMaximumLength(owner: control.name)
             }
-            if control.isReadOnly, control.type != .textField {
+            if control.isReadOnly, !takesText {
                 throw UIScriptError.invalidReadOnly(owner: control.name)
+            }
+            if control.follows, control.type != .textArea {
+                throw UIScriptError.invalidFollows(owner: control.name)
             }
             if control.isSecure, control.type != .textField {
                 throw UIScriptError.invalidSecure(owner: control.name)
@@ -247,7 +250,7 @@ public struct UIScript: Sendable {
         case .button: binding.direction != nil
         default: false
         }
-        guard target.type == .list, hasValidDirection else {
+        guard target.type == .list || target.type == .textArea, hasValidDirection else {
             throw UIScriptError.invalidScrollBinding(owner: control.name)
         }
     }
@@ -486,6 +489,9 @@ public struct UIScript: Sendable {
         /// The font size in pixels. It must be positive.
         public let fontSize: Int?
 
+        /// The kind of typeface the text uses, or `nil` for the interface font.
+        public let font: Typeface?
+
         /// Returns the color for a button label in `state`.
         ///
         /// Pressed and hovered buttons fall back to `textColor`. A disabled button
@@ -502,6 +508,16 @@ public struct UIScript: Sendable {
                 disabledTextColor
             }
         }
+    }
+
+    /// The kind of typeface a style asks for. The host's theme supplies the actual fonts.
+    public enum Typeface: String, Sendable {
+        /// The theme's interface font.
+        case interface
+
+        /// A fixed-width font, for code and terminals. Without one in the theme, text uses the
+        /// interface font.
+        case monospace
     }
 
     /// A rectangle placed in the window's pixel coordinate space.
@@ -574,6 +590,9 @@ public struct UIScript: Sendable {
         /// A one-line text input.
         case textField
 
+        /// A multi-line text input.
+        case textArea
+
         /// A scrollable list of text the host fills.
         case list
 
@@ -614,12 +633,12 @@ public struct UIScript: Sendable {
         case down
     }
 
-    /// Connects a slider or button to the list it scrolls.
+    /// Connects a slider or button to the list or text area it scrolls.
     ///
     /// A slider shows the list's position and has no direction. A button
     /// requires a direction.
     public struct ScrollBinding: Sendable, Equatable {
-        /// The name of the list control.
+        /// The name of the list or text area control.
         public let list: String
 
         /// The direction a button scrolls.
@@ -646,7 +665,7 @@ public struct UIScript: Sendable {
         /// Literal or localized text displayed by the control.
         public let text: Text?
 
-        /// Literal or localized guidance displayed while a text field is empty.
+        /// Literal or localized guidance displayed while a text field or text area is empty.
         public let placeholder: Text?
 
         /// The name of an image in `resources.images`.
@@ -655,13 +674,13 @@ public struct UIScript: Sendable {
         /// The name of a localized string in `resources.strings`.
         public let tooltip: String?
 
-        /// The most characters a text field accepts.
+        /// The most characters a text field or text area accepts.
         public let maximumLength: Int?
 
-        /// The list a slider or button scrolls.
+        /// The list or text area a slider or button scrolls.
         public let scrolls: ScrollBinding?
 
-        /// Whether a text field only displays text.
+        /// Whether a text field or text area only displays text.
         public let isReadOnly: Bool
 
         /// Whether a text field hides its text behind a mask character.
@@ -680,6 +699,9 @@ public struct UIScript: Sendable {
         ///
         /// A slider that scrolls a list always runs top to bottom.
         public let orientation: Orientation?
+
+        /// Whether a text area stays at its last line when its text changes while it shows it.
+        public let follows: Bool
 
         /// Whether the control stays hidden until the host shows it.
         public let isInitiallyHidden: Bool
@@ -767,14 +789,18 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A name refers to a missing resource or style.
     case unknownReference(owner: String, property: String, reference: String)
 
-    /// A placeholder is attached to a control other than a text field.
+    /// A placeholder is attached to a control other than a text field or text area.
     case invalidPlaceholder(owner: String)
 
-    /// A maximum length is not positive or is attached to a control other than a text field.
+    /// A maximum length is not positive or is attached to a control other than a text field or
+    /// text area.
     case invalidMaximumLength(owner: String)
 
-    /// A control other than a text field is marked read-only.
+    /// A control other than a text field or text area is marked read-only.
     case invalidReadOnly(owner: String)
+
+    /// `follows` appears on a control other than a text area.
+    case invalidFollows(owner: String)
 
     /// `secure` appears on a control other than a text field.
     case invalidSecure(owner: String)
@@ -782,7 +808,8 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// `selectable` appears on a control other than a list.
     case invalidSelectable(owner: String)
 
-    /// A scroll binding targets a control other than a list, or does not suit its control.
+    /// A scroll binding targets a control other than a list or text area, or does not suit its
+    /// control.
     case invalidScrollBinding(owner: String)
 
     /// A value range is empty, or is attached to a control other than a slider or progress bar.
@@ -844,17 +871,19 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case let .unknownReference(owner, property, reference):
             "UIScript \(property) for '\(owner)' refers to unknown '\(reference)'."
         case let .invalidPlaceholder(owner):
-            "UIScript placeholder for '\(owner)' requires a text field control."
+            "UIScript placeholder for '\(owner)' requires a text field or text area control."
         case let .invalidMaximumLength(owner):
-            "UIScript maximum length for '\(owner)' must be positive and requires a text field control."
+            "UIScript maximum length for '\(owner)' must be positive and requires a text field or text area control."
         case let .invalidReadOnly(owner):
-            "UIScript readOnly for '\(owner)' requires a text field control."
+            "UIScript readOnly for '\(owner)' requires a text field or text area control."
+        case let .invalidFollows(owner):
+            "UIScript follows for '\(owner)' requires a text area control."
         case let .invalidSecure(owner):
             "UIScript secure for '\(owner)' requires a text field control."
         case let .invalidSelectable(owner):
             "UIScript selectable for '\(owner)' requires a list control."
         case let .invalidScrollBinding(owner):
-            "UIScript scrolls for '\(owner)' must target a list, from a slider without a direction or a button with one."
+            "UIScript scrolls for '\(owner)' must target a list or text area, from a slider without a direction or a button with one."
         case let .invalidValueRange(owner):
             "UIScript value range for '\(owner)' must have minValue below maxValue and requires a slider or progress bar."
         case let .invalidOrientation(owner):

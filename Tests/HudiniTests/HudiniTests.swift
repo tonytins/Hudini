@@ -758,11 +758,11 @@ private func row(_ row: Int, of bounds: Rectangle) -> Vector2 {
 @Test func clicksSelectAndReportOnlyAChange() {
     let (list, bounds) = pickList(itemCount: 3)
 
-    #expect(list.select(at: row(1, of: bounds), in: bounds) == .selected(1))
+    #expect(list.select(at: row(1, of: bounds), in: bounds, time: 0) == .selected(1))
     #expect(list.selectedIndex == 1)
-    #expect(list.select(at: row(1, of: bounds), in: bounds) == nil)
+    #expect(list.select(at: row(1, of: bounds), in: bounds, time: 10) == nil)
     // A click on the empty part of the list keeps the selection.
-    #expect(list.select(at: row(4, of: bounds), in: bounds) == nil)
+    #expect(list.select(at: row(4, of: bounds), in: bounds, time: 20) == nil)
     #expect(list.selectedIndex == 1)
 }
 
@@ -786,7 +786,7 @@ private func row(_ row: Int, of bounds: Rectangle) -> Vector2 {
 @Test func logListsHaveNoSelection() {
     let (list, bounds) = scrollableList(itemCount: 3)
 
-    #expect(list.select(at: row(0, of: bounds), in: bounds) == nil)
+    #expect(list.select(at: row(0, of: bounds), in: bounds, time: 0) == nil)
     list.selectedIndex = 0
     #expect(list.selectedIndex == nil)
 }
@@ -822,9 +822,9 @@ private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' sel
     let list = try #require(view.list(named: "lots"))
     list.items = ["Maple", "Oak"]
 
-    #expect(view.selectListItem(at: Vector2(x: 510, y: 507), origin: origin) == .selected(control: "lots", index: 0))
-    #expect(view.selectListItem(at: Vector2(x: 510, y: 523), origin: origin) == .selected(control: "lots", index: 1))
-    #expect(view.selectListItem(at: Vector2(x: 510, y: 523), origin: origin) == nil)
+    #expect(view.selectListItem(at: Vector2(x: 510, y: 507), origin: origin, time: 0) == .selected(control: "lots", index: 0))
+    #expect(view.selectListItem(at: Vector2(x: 510, y: 523), origin: origin, time: 10) == .selected(control: "lots", index: 1))
+    #expect(view.selectListItem(at: Vector2(x: 510, y: 523), origin: origin, time: 20) == nil)
     #expect(list.selectedIndex == 1)
 }
 
@@ -833,11 +833,11 @@ private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' sel
     let list = try #require(view.list(named: "lots"))
     list.items = ["Maple", "Oak"]
 
-    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero) == nil)
+    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero, time: 0) == nil)
     #expect(list.selectedIndex == nil)
     // Hiding the button uncovers the list.
     view.setHidden(true, named: "over")
-    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero) == .selected(control: "lots", index: 0))
+    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero, time: 10) == .selected(control: "lots", index: 0))
 }
 
 @Test func hiddenListsTakeNoClicks() throws {
@@ -845,7 +845,7 @@ private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' sel
     view.list(named: "lots")?.items = ["Maple"]
     view.setHidden(true, named: "lots")
 
-    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero) == nil)
+    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero, time: 0) == nil)
 }
 
 @Test func formLayoutStacksLabeledControlsAndReservesFooterSpace() {
@@ -2216,4 +2216,183 @@ func catalogReadsEveryLocalVersion(variable: String) throws {
     }
     #expect(brokenReferences.isEmpty)
     #expect(catalog.tableIDs.count > 100)
+}
+
+// MARK: Text areas, monospace styles, and double-clicks
+
+// Three 20-pixel lines, with the area's padding and line gaps.
+private let threeLines = Rectangle(x: 0, y: 0, width: 200, height: 80)
+
+@Test func uiScriptReadsATextArea() throws {
+    let loaded = try script("""
+        <TextArea name='notes' \(tenByTen) text='one&#10;two' placeholder='Notes' \
+        maximumLength='20' readOnly='true' follows='true'/>
+        """)
+
+    #expect(loaded.ignoredAttributes.isEmpty)
+    let control = try #require(loaded.control(named: "notes"))
+    #expect(control.type == .textArea)
+    #expect(control.follows)
+    let view = UIScriptView(script: loaded)
+    let area = try #require(view.textArea(named: "notes"))
+    #expect(area.isReadOnly)
+    #expect(area.follows)
+    #expect(view.text(named: "notes") == "one\ntwo")
+
+    view.setText("three", named: "notes")
+    #expect(area.text == "three")
+}
+
+@Test func uiScriptTextAreasAcceptLongerTextByDefault() throws {
+    let long = String(repeating: "a", count: 70_000)
+    let view = UIScriptView(script: try script("<TextArea name='log' \(tenByTen) text='\(long)'/>"))
+
+    #expect(view.text(named: "log")?.count == 65_536)
+}
+
+@Test func uiScriptRefusesTextAreaAttributesOnOtherControlsAndTheReverse() {
+    #expect(throws: UIScriptError.invalidFollows(owner: "a")) {
+        try script("<TextField name='a' \(tenByTen) follows='true'/>")
+    }
+    #expect(throws: UIScriptError.invalidSecure(owner: "a")) {
+        try script("<TextArea name='a' \(tenByTen) secure='true'/>")
+    }
+    #expect(throws: UIScriptError.invalidSelectable(owner: "a")) {
+        try script("<TextArea name='a' \(tenByTen) selectable='true'/>")
+    }
+}
+
+@Test func scrollButtonsAndSlidersCanScrollATextArea() throws {
+    let view = UIScriptView(script: try script("""
+        <TextArea name='log' x='0' y='0' width='200' height='80'/>
+        <Button name='up' x='300' y='0' width='10' height='10' scrolls='log' direction='up'/>
+        <Slider name='bar' x='300' y='20' width='10' height='60' scrolls='log'/>
+        """))
+    let area = try #require(view.textArea(named: "log"))
+    area.text = (1...10).map(String.init).joined(separator: "\n")
+    // A document's area uses the theme's 14-pixel body size, so four lines fit.
+    area.prepareLines(for: threeLines)
+    area.scroll(toFraction: 1)
+    #expect(area.firstVisibleLine == 6)
+
+    #expect(view.pressButton(at: Vector2(x: 305, y: 5), origin: .zero) == nil)
+    #expect(area.firstVisibleLine == 5)
+
+    // Dragging the slider's thumb to the top of its track shows the first line, reporting nothing.
+    #expect(view.beginSliderDrag(at: Vector2(x: 305, y: 75), origin: .zero))
+    #expect(view.dragSlider(to: Vector2(x: 305, y: 0), origin: .zero) == nil)
+    #expect(area.firstVisibleLine == 0)
+}
+
+@Test func textAreasKeepLineBreaksAndOnlyTheCharactersTheyDraw() {
+    let area = TextArea(text: "one\r\ntwo\rthree\nfour\u{e9}", maximumLength: 100)
+
+    #expect(area.text == "one\ntwo\nthree\nfour")
+    #expect(area.type("\nfive"))
+    #expect(area.text == "one\ntwo\nthree\nfour\nfive")
+}
+
+@Test func aTextAreaThatDoesNotFollowOpensAtItsTopAndStaysPut() {
+    let area = TextArea(text: (1...10).map(String.init).joined(separator: "\n"), maximumLength: 100, fontSize: 20)
+    area.prepareLines(for: threeLines)
+    #expect(area.firstVisibleLine == 0)
+
+    area.scroll(byLines: -2)
+    area.text += "\n11"
+    area.prepareLines(for: threeLines)
+    #expect(area.firstVisibleLine == 2)
+}
+
+@Test func aFollowingTextAreaStaysAtItsLastLineUnlessScrolledBack() {
+    let area = TextArea(text: (1...10).map(String.init).joined(separator: "\n"), maximumLength: 100, fontSize: 20, follows: true)
+    area.prepareLines(for: threeLines)
+    #expect(area.firstVisibleLine == 7)
+
+    area.text += "\n11"
+    area.prepareLines(for: threeLines)
+    #expect(area.firstVisibleLine == 8)
+
+    area.scroll(byLines: 3)
+    area.text += "\n12"
+    area.prepareLines(for: threeLines)
+    #expect(area.firstVisibleLine == 5)
+}
+
+@Test func typingBringsTheCaretBackIntoView() {
+    let area = TextArea(text: (1...10).map(String.init).joined(separator: "\n"), maximumLength: 100, fontSize: 20)
+    area.prepareLines(for: threeLines)
+    #expect(area.firstVisibleLine == 0)
+
+    #expect(area.type("!"))
+    area.prepareLines(for: threeLines)
+    #expect(area.firstVisibleLine == 7)
+}
+
+@Test func readOnlyTextAreasRefuseFocus() {
+    let area = TextArea(maximumLength: 8, isReadOnly: true)
+
+    area.setFocused(true)
+    #expect(!area.isFocused)
+}
+
+@Test func secondClickOnTheSameItemSoonAfterIsADoubleClick() {
+    let (list, bounds) = pickList(itemCount: 3)
+
+    #expect(list.select(at: row(1, of: bounds), in: bounds, time: 0) == .selected(1))
+    #expect(list.select(at: row(1, of: bounds), in: bounds, time: 0.3) == .submitted(1))
+    // A third click starts over.
+    #expect(list.select(at: row(1, of: bounds), in: bounds, time: 0.4) == nil)
+    // Too slow, or on another item, is not a double-click.
+    #expect(list.select(at: row(1, of: bounds), in: bounds, time: 2) == nil)
+    #expect(list.select(at: row(2, of: bounds), in: bounds, time: 2.2) == .selected(2))
+}
+
+@Test func doubleClickingAnAlreadySelectedItemStillSubmits() {
+    let (list, bounds) = pickList(itemCount: 3)
+    list.selectedIndex = 1
+
+    #expect(list.select(at: row(1, of: bounds), in: bounds, time: 0) == nil)
+    #expect(list.select(at: row(1, of: bounds), in: bounds, time: 0.2) == .submitted(1))
+}
+
+@Test func logListsReportNoDoubleClicks() {
+    let (list, bounds) = scrollableList(itemCount: 3)
+
+    #expect(list.select(at: row(0, of: bounds), in: bounds, time: 0) == nil)
+    #expect(list.select(at: row(0, of: bounds), in: bounds, time: 0.1) == nil)
+}
+
+@Test func viewReportsADoubleClickAsSubmittedWithTheItemsText() throws {
+    let view = UIScriptView(script: try script(lotList))
+    let list = try #require(view.list(named: "lots"))
+    list.items = ["Maple", "Oak"]
+
+    #expect(view.selectListItem(at: Vector2(x: 10, y: 23), origin: .zero, time: 0) == .selected(control: "lots", index: 1))
+    #expect(view.selectListItem(at: Vector2(x: 10, y: 23), origin: .zero, time: 0.2) == .submitted(control: "lots", text: "Oak"))
+    #expect(list.selectedIndex == 1)
+}
+
+@Test func uiScriptReadsAStylesFont() throws {
+    let loaded = try script("<Style name='code' font='monospace'/><Style name='plain' font='interface'/><Style name='none'/>")
+
+    #expect(loaded.ignoredAttributes.isEmpty)
+    #expect(loaded.styles["code"]?.font == .monospace)
+    #expect(loaded.styles["plain"]?.font == .interface)
+    #expect(loaded.styles["none"]?.font == nil)
+    #expect(throws: UIScriptError.self) {
+        try script("<Style name='code' font='serif'/>")
+    }
+}
+
+@Test func aMonospacedThemeDrawsInItsMonospaceFontOrKeepsItsOwn() {
+    var monospace = Font()
+    monospace.baseSize = 12
+    monospace.texture.id = 1
+    var unloaded = Font()
+    unloaded.baseSize = 30
+
+    #expect(InterfaceTheme(monospaceFont: monospace).monospaced.font?.baseSize == 12)
+    #expect(InterfaceTheme().monospaced.font == nil)
+    // A font that failed to load counts as none, so text stays in the interface font.
+    #expect(InterfaceTheme(monospaceFont: unloaded).monospaced.font == nil)
 }
