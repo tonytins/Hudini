@@ -113,7 +113,7 @@ import Testing
 private func demoResource(_ name: String) -> URL {
     URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
-        .appendingPathComponent("../../Sources/hudini-demo/Resources/\(name)")
+        .appendingPathComponent("../../Demo/Sources/hudini-demo/Resources/\(name)")
         .standardizedFileURL
 }
 

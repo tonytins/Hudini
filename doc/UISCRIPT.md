@@ -44,8 +44,8 @@ documents named `.xml` still load.
 </UIScript>
 ```
 
-See [`chatdialog.uix`](../Sources/hudini-demo/Resources/chatdialog.uix) and
-[`livepanel1024.uix`](../Sources/hudini-demo/Resources/livepanel1024.uix) for
+See [`chatdialog.uix`](../Demo/Sources/hudini-demo/Resources/chatdialog.uix) and
+[`livepanel1024.uix`](../Demo/Sources/hudini-demo/Resources/livepanel1024.uix) for
 complete examples.
 
 ## Document rules
@@ -518,7 +518,7 @@ bundled.
 
 `UIScript(uisData:)` and `UIScript(uisContentsOf:)` read Maxis' `.uis` format into
 the same model, so `UIScriptView` draws the result like any other document. See
-[`debugbar.uis`](../Sources/hudini-demo/Resources/debugbar.uis) for an original
+[`debugbar.uis`](../Demo/Sources/hudini-demo/Resources/debugbar.uis) for an original
 example.
 
 | `.uis` | Becomes |

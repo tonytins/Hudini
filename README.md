@@ -283,9 +283,10 @@ edge, stay outside the manager.
 
 ### More examples
 
-[`Sources/hudini-demo`](Sources/hudini-demo) opens on a menu with two runnable
-demos. Run it with `swift run hudini-demo`, or skip the menu with `--demo sims` or
-`--demo city`.
+The demo in [`Demo`](Demo) opens on a menu with two runnable demos. It's a package
+of its own, so games that depend on Hudini don't build it. From the repository's
+root, run it with `swift run --package-path Demo hudini-demo`, or skip the menu with
+`--demo sims` or `--demo city`.
 
 - **The Sims Online style:** a property chat window over a control panel with live,
   statistics, and options modes, all loaded from UIScript XML. Click the lemonade

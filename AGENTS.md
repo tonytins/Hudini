@@ -3,19 +3,25 @@
 ## Project structure
 
 Hudini is a Swift library for game interfaces built with raylib-swift. Reusable
-components belong in `Sources/Hudini`; `Sources/hudini-demo` shows how to use
-them, and `Tests/HudiniTests` covers their behavior.
+components belong in `Sources/Hudini`, and `Tests/HudiniTests` covers their
+behavior. The demo that shows how to use them is a package of its own in `Demo`,
+which depends on this checkout by path. Keep it out of the root `Package.swift`, so
+games that depend on Hudini never see or build it.
 
-The demo opens on a menu (`Menu.swift`) with two demos. The Sims Online-style one
-is the rest of `main.swift`, with its documents in `Resources`. The CityLimits-style
-one is `CityDemo.swift`, with its documents in `Resources/city`. It's the reference
-for how a Swift port of CityLimits could use Hudini: HUD panels outside a
-`WindowManager`, and windows as small classes with their own handlers.
+The demo (`Demo/Sources/hudini-demo`) opens on a menu (`Menu.swift`) with two
+demos. The Sims Online-style one is the rest of `main.swift`, with its documents in
+`Resources`. The CityLimits-style one is `CityDemo.swift`, with its documents in
+`Resources/city`. It's the reference for how a Swift port of CityLimits could use
+Hudini: HUD panels outside a `WindowManager`, and windows as small classes with
+their own handlers.
 
 ## Build and test
 
 - Build with `swift build`.
-- Run the test suite with `swift test`.
+- Run the test suite with `swift test`. Some tests read the demo's documents from
+  `Demo/Sources/hudini-demo/Resources`.
+- Build the demo with `swift build --package-path Demo`, and run it with
+  `swift run --package-path Demo hudini-demo`.
 - Keep tests that do not need a graphics context headless. Text measurement and
   drawing that depend on an initialized raylib window need a separate runtime
   check.
