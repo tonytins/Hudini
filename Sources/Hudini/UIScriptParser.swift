@@ -146,11 +146,12 @@ enum UIScriptParser {
         )
         let minWidth = try reader.number("minWidth")
         let minHeight = try reader.number("minHeight")
+        let isResizable = try reader.boolean("resizable") ?? false
         switch (minWidth, minHeight) {
         case (nil, nil):
-            return UIScript.Window(size: size, minSize: nil)
+            return UIScript.Window(size: size, minSize: nil, isResizable: isResizable)
         case let (width?, height?):
-            return UIScript.Window(size: size, minSize: UIScript.Size(width: width, height: height))
+            return UIScript.Window(size: size, minSize: UIScript.Size(width: width, height: height), isResizable: isResizable)
         case (nil, _):
             throw reader.missing("minWidth")
         case (_, nil):

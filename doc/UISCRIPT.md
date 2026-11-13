@@ -78,6 +78,7 @@ Exactly one `<Window>` is required. It gives the interface's size in pixels.
 | --- | --- | --- |
 | `width`, `height` | Yes | The size. Both must be positive. |
 | `minWidth`, `minHeight` | No | The smallest size the view lays out at. Give both or neither. |
+| `resizable` | No | `true` or `false`, which defaults to `false`. The window has a grip in its bottom-right corner that resizes its content, which controls follow by their edge offsets. It never goes below `minWidth` and `minHeight`, or below the window's size without them. A reader that ignores it shows the window at its size. |
 
 ## Resources
 
@@ -347,7 +348,9 @@ list of events, and `draw(in:)` draws the frame and the view. A toolbar item or 
 title field reports as the view's own event, wrapped in `.view`, and the close and
 minimize buttons report `.closeRequested` and `.minimizeRequested`, leaving the host
 to decide what they mean. The minimize button is off until `showsMinimizeButton` is
-set. A `UIScriptView` drawn on its own ignores both elements.
+set. The frame also draws a resizable window's grip and resizes the view by it, and
+`isResizing` says while it's being dragged. A `UIScriptView` drawn on its own ignores
+both elements and the grip.
 
 ## Events
 
@@ -691,6 +694,8 @@ replaces with a plain track and thumb.
 
 Newest first. Changes before the draft are in the repository's history.
 
+- **2026-11-12:** `resizable` on `<Window>`, from VentureOS: a grip in the corner
+  resizes the window within its smallest size.
 - **2026-11-12:** Styles take color roles, size roles, and `dark` twins, from
   VentureOS's draft. Hex colors and pixel sizes work as before.
 

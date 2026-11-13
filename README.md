@@ -7,7 +7,7 @@ form layout.
 
 ## Features
 
-- Draggable windows with merged title bars and selectable toolbar items
+- Draggable and resizable windows with merged title bars and selectable toolbar items
 - A window manager with stacking, modal windows that stack and dim what's behind
   them, minimizing, and a handler for each window
 - Bottom-left icon toolbar with host-owned selection and custom icon drawing

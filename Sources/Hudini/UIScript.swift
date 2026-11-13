@@ -400,6 +400,10 @@ public struct UIScript: Sendable {
 
         /// The smallest user-resizable window size, when specified.
         public let minSize: Size?
+
+        /// Whether the window has a grip that resizes it. It never goes below `minSize`, or
+        /// below `size` without one.
+        public let isResizable: Bool
     }
 
     /// A width and height in pixels.

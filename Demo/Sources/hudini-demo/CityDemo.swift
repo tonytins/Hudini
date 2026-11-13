@@ -12,7 +12,7 @@
 //     One window answers every yes-or-no question: whoever asks passes what to do with the answer,
 //     which is how play and an editor could share a window without mode checks.
 //   - DemandWindow, HelpWindow, and CityPanelWindow stay open beside the map and minimize to a row
-//     of icons the host draws above the status bar. The city panel's title is the city's name,
+//     of icons the host draws above the status bar. The help window resizes by its grip. The city panel's title is the city's name,
 //     edited in place, and its toolbar items are tabs.
 //
 // Scenes for screenshots: city (windows open, help minimized), citybudget (the budget open), and
@@ -393,7 +393,8 @@ final class DemandWindow {
     }
 }
 
-/// How to play, in a read-only text area that scrolls.
+/// How to play, in a read-only text area that scrolls. The window resizes by its grip, and the
+/// area follows its edges.
 @MainActor
 final class HelpWindow {
     let frame: WindowFrame
@@ -413,6 +414,8 @@ final class HelpWindow {
 
             The City, Demand, and Help windows stay open beside the map. Drag them by their title bars, \
             and minimize them with the orange button. They wait as icons above the status bar.
+
+            Drag this window's bottom-right corner to resize it.
 
             Press Escape to leave for the demo menu.
             """,
@@ -593,7 +596,6 @@ final class CityDemo {
             budget.open(in: windows)
             confirm.ask("Reset the Budget", "Put taxes back to 7%, and fund\nroads and parks in full?", in: windows) { _ in }
         default:
-            windows.minimize(help.frame)
         }
     }
 

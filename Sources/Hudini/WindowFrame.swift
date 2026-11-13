@@ -34,6 +34,9 @@ public final class WindowFrame {
 
     private static let ellipsis: String = "..."
 
+    /// The size of the grip that resizes a resizable window, from its bottom-right corner.
+    public static let gripSize: Float = 16
+
     private let placement = WindowPlacement(titleBarHeight: WindowFrame.titleHeight)
 
     private let titleField: TextField
@@ -63,6 +66,9 @@ public final class WindowFrame {
 
     // The document title field's text when its edit began, which a cancelled edit puts back.
     private var savedTitle: String = ""
+
+    // Where a resize's press landed and what size the content had, while the grip is held.
+    private var resizeStart: (pointer: Vector2, size: Vector2)?
 
     /// Creates a frame around the host's own content, with a title and maximum editable title
     /// length.
@@ -164,6 +170,65 @@ public final class WindowFrame {
     /// Whether the user is dragging the window.
     public var isDragging: Bool {
         placement.isDragging
+    }
+
+    /// Whether the document lets the window be resized, by a grip in its bottom-right corner. Only
+    /// a frame around a view can be, when its document's `<Window>` says `resizable="true"`.
+    public var isResizable: Bool {
+        view?.script.window.isResizable == true
+    }
+
+    /// Whether the user is dragging the grip.
+    public var isResizing: Bool {
+        resizeStart != nil
+    }
+
+    /// Returns whether `point` is on the resize grip. This is always false when the window can't
+    /// be resized.
+    public func isResizeGrip(at point: Vector2, in bounds: Rectangle) -> Bool {
+        isResizable && CheckCollisionPointRec(point, Self.gripBounds(bounds))
+    }
+
+    static func gripBounds(_ bounds: Rectangle) -> Rectangle {
+        Rectangle(
+            x: bounds.x + bounds.width - gripSize,
+            y: bounds.y + bounds.height - gripSize,
+            width: gripSize,
+            height: gripSize
+        )
+    }
+
+    /// Starts a resize when `point` is on the grip, and reports whether it did.
+    func beginResizing(at point: Vector2, in bounds: Rectangle) -> Bool {
+        guard let view, isResizeGrip(at: point, in: bounds) else {
+            return false
+        }
+        resizeStart = (point, view.windowSize)
+        return true
+    }
+
+    /// Sizes the content so the grip follows the pointer, no smaller than the document allows and
+    /// no larger than fits on the screen from the window's corner, and ends the resize when the
+    /// button is let go. Controls follow their edge offsets.
+    func resize(
+        to point: Vector2,
+        isHeld: Bool,
+        in bounds: Rectangle,
+        screen: Vector2 = Vector2(x: Float(GetScreenWidth()), y: Float(GetScreenHeight()))
+    ) {
+        guard let view, let start = resizeStart else {
+            return
+        }
+        let smallest = view.script.window.minSize ?? view.script.window.size
+        let width = start.size.x + point.x - start.pointer.x
+        let height = start.size.y + point.y - start.pointer.y
+        view.setWindowSize(Vector2(
+            x: max(smallest.width, min(width, screen.x - bounds.x)),
+            y: max(smallest.height, min(height, screen.y - bounds.y - Float(Self.titleHeight)))
+        ))
+        if !isHeld {
+            resizeStart = nil
+        }
     }
 
     /// The area under the title bar, where the window draws its own content.
@@ -340,11 +405,25 @@ public final class WindowFrame {
         }
         _ = followPointer(in: bounds)
         var events: [Event] = []
+        let pointer = GetMousePosition()
+        var gripHasPointer = false
         if IsMouseButtonPressed(MouseButton.left) {
-            events += press(at: GetMousePosition(), in: bounds)
+            if beginResizing(at: pointer, in: bounds) {
+                gripHasPointer = true
+            } else {
+                events += press(at: pointer, in: bounds)
+            }
+        }
+        if isResizing {
+            resize(to: pointer, isHeld: IsMouseButtonDown(MouseButton.left), in: bounds)
+            gripHasPointer = true
         }
         if isEditingTitle {
             events += takeTitleTyping()
+        }
+        // The grip sits over the content, so while it has the pointer the view sees none of it.
+        guard !gripHasPointer else {
+            return events
         }
         let content = Self.content(in: bounds)
         events += view.update(at: Vector2(x: content.x, y: content.y)).map(Event.view)
@@ -440,6 +519,23 @@ public final class WindowFrame {
         if let view {
             let content = Self.content(in: bounds)
             view.draw(at: Vector2(x: content.x, y: content.y))
+            if isResizable {
+                drawGrip(in: bounds)
+            }
+        }
+    }
+
+    // Six dots in a triangle against the bottom-right corner, as VentureOS draws its grip, in the
+    // accent while the pointer is on it or dragging it.
+    private func drawGrip(in bounds: Rectangle) {
+        let grip = Self.gripBounds(bounds)
+        let color = isResizing || CheckCollisionPointRec(GetMousePosition(), grip) ? theme.accent : theme.secondaryText
+        let right = Int(clamping: grip.x + grip.width) - 4
+        let bottom = Int(clamping: grip.y + grip.height) - 4
+        for row in 0..<3 {
+            for column in 0...row {
+                DrawRectangle(right - (column * 4) - 1, bottom - ((row - column) * 4) - 1, 2, 2, color)
+            }
         }
     }
 

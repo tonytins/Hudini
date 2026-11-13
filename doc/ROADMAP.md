@@ -207,3 +207,5 @@ and VentureOS proved the design first.
   opens on a menu with the TSO-style demo and a CityLimits-style one.
 - [x] Let styles name what a color or size is for, so documents follow the theme:
   color roles, size roles, and `dark` twins, from VentureOS's draft.
+- [x] Resize a window by a grip in its corner when its document says `resizable`,
+  as VentureOS does.

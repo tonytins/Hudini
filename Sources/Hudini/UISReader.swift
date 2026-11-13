@@ -410,11 +410,12 @@ private struct UISBuilder {
             if minimum != nil {
                 note(tag, "This minimum size is unusable, so it was dropped.")
             }
-            return UIScript.Window(size: UIScript.Size(width: size[0], height: size[1]), minSize: nil)
+            return UIScript.Window(size: UIScript.Size(width: size[0], height: size[1]), minSize: nil, isResizable: false)
         }
         return UIScript.Window(
             size: UIScript.Size(width: size[0], height: size[1]),
-            minSize: UIScript.Size(width: minimum[0], height: minimum[1])
+            minSize: UIScript.Size(width: minimum[0], height: minimum[1]),
+            isResizable: false
         )
     }
 
@@ -425,7 +426,7 @@ private struct UISBuilder {
             width = max(width, frame.x + (frame.width ?? 0))
             height = max(height, frame.y + (frame.height ?? 0))
         }
-        return UIScript.Window(size: UIScript.Size(width: width, height: height), minSize: nil)
+        return UIScript.Window(size: UIScript.Size(width: width, height: height), minSize: nil, isResizable: false)
     }
 
     private mutating func uniqueName(for tag: UISTag) -> String? {

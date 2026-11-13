@@ -2795,3 +2795,68 @@ func demoMenuAndCityDocumentsLoadCleanly(name: String) throws {
     #expect(style.colors.textColor?.fixedColor != nil)
     #expect(style.darkColors == UIScript.StyleColors())
 }
+
+// MARK: Resizable windows
+
+private func resizableScript(minimum: Bool) throws -> UIScript {
+    let minSize = minimum ? "minWidth='120' minHeight='60'" : ""
+    return try UIScript(data: Data("<UIScript><Window width='200' height='100' \(minSize) resizable='true'/></UIScript>".utf8))
+}
+
+@Test func uiScriptReadsResizable() throws {
+    #expect(!(try script("").window.isResizable))
+    let loaded = try resizableScript(minimum: true)
+    #expect(loaded.window.isResizable)
+    #expect(loaded.ignoredAttributes.isEmpty)
+}
+
+@Test func onlyAResizableWindowHasAGrip() throws {
+    let fixed = WindowFrame(view: UIScriptView(script: try script("")))
+    let bounds = fixed.place(at: .zero)
+    let corner = Vector2(x: bounds.width - 5, y: bounds.height - 5)
+
+    #expect(!fixed.isResizable)
+    #expect(!fixed.isResizeGrip(at: corner, in: bounds))
+    #expect(!fixed.beginResizing(at: corner, in: bounds))
+
+    let resizable = WindowFrame(view: UIScriptView(script: try resizableScript(minimum: true)))
+    let resizableBounds = resizable.place(at: .zero)
+    #expect(resizable.isResizable)
+    #expect(resizable.isResizeGrip(at: Vector2(x: 195, y: 125), in: resizableBounds))
+    #expect(!resizable.isResizeGrip(at: Vector2(x: 100, y: 60), in: resizableBounds))
+}
+
+@Test func draggingTheGripResizesWithinTheDocumentsSmallestSizeAndTheScreen() throws {
+    let view = UIScriptView(script: try resizableScript(minimum: true))
+    let frame = WindowFrame(view: view)
+    let bounds = frame.place(at: .zero)
+    let screen = Vector2(x: 400, y: 300)
+
+    #expect(frame.beginResizing(at: Vector2(x: 195, y: 125), in: bounds))
+    #expect(frame.isResizing)
+    frame.resize(to: Vector2(x: 245, y: 145), isHeld: true, in: bounds, screen: screen)
+    #expect(view.windowSize.x == 250)
+    #expect(view.windowSize.y == 120)
+    // Smaller than the document allows stops at its minimum.
+    frame.resize(to: Vector2(x: 0, y: 0), isHeld: true, in: bounds, screen: screen)
+    #expect(view.windowSize.x == 120)
+    #expect(view.windowSize.y == 60)
+    // Larger than the screen stops at its edge, with the title bar counted.
+    frame.resize(to: Vector2(x: 900, y: 900), isHeld: false, in: bounds, screen: screen)
+    #expect(view.windowSize.x == 400)
+    #expect(view.windowSize.y == 300 - Float(WindowFrame.titleHeight))
+    #expect(!frame.isResizing)
+    // The frame follows the content.
+    #expect(frame.place(at: .zero).height == 300)
+}
+
+@Test func aResizableWindowWithoutAMinimumStaysAtLeastItsDocumentsSize() throws {
+    let view = UIScriptView(script: try resizableScript(minimum: false))
+    let frame = WindowFrame(view: view)
+    let bounds = frame.place(at: .zero)
+
+    #expect(frame.beginResizing(at: Vector2(x: 195, y: 125), in: bounds))
+    frame.resize(to: Vector2(x: 0, y: 0), isHeld: false, in: bounds, screen: Vector2(x: 400, y: 300))
+    #expect(view.windowSize.x == 200)
+    #expect(view.windowSize.y == 100)
+}
