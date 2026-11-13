@@ -4,9 +4,9 @@
 <UIScript version="1">
   <Window width="1024" height="48" minWidth="640" minHeight="48"/>
 
-  <Style name="status" textColor="#FFF99D" fontSize="14"/>
+  <Style name="status" textColor="accent"/>
   <Style name="funds" textColor="#7EE08A" fontSize="14"/>
-  <Style name="speed" textColor="#E4E8EE" selectedTextColor="#F0BE5A" highlightedTextColor="#FFFFFF" fontSize="14"/>
+  <Style name="speed" textColor="text" selectedTextColor="accent" highlightedTextColor="#FFFFFF"/>
 
   <Button name="pause" x="8" y="4" width="28" height="20" style="speed" text="||"/>
   <Button name="normal" x="38" y="4" width="28" height="20" style="speed" text="&gt;"/>

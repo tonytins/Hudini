@@ -28,16 +28,33 @@ public final class UIScriptView {
     /// styles still win over it.
     public var theme: InterfaceTheme {
         didSet {
-            for (name, list) in lists {
-                list.theme = theme(for: name)
-            }
-            for (name, field) in textFields {
-                field.theme = theme(for: name)
-            }
-            for (name, area) in textAreas {
-                area.theme = theme(for: name)
+            resolvedStyles = Self.resolve(script.styles, in: theme)
+            for control in script.controls {
+                let style = resolvedStyle(for: control)
+                let styled: (any StyledTextControl)? = lists[control.name] ?? textFields[control.name] ?? textAreas[control.name]
+                styled?.applyStyle(
+                    fontSize: style?.fontSize,
+                    textColor: style?.textColor,
+                    backgroundColor: style?.backgroundColor,
+                    borderColor: style?.borderColor
+                )
+                styled?.theme = theme(for: control.name)
             }
         }
+    }
+
+    // The document's styles with their roles and dark twins turned into the theme's colors and
+    // sizes, worked out again whenever the theme changes.
+    private var resolvedStyles: [String: UIScript.Style]
+
+    private static func resolve(_ styles: [String: UIScript.Style], in theme: InterfaceTheme) -> [String: UIScript.Style] {
+        styles.mapValues { $0.resolved(in: theme) }
+    }
+
+    /// Returns a control's style with every role and dark twin resolved against the view's theme,
+    /// or `nil` when it has none.
+    func resolvedStyle(for control: UIScript.Control) -> UIScript.Style? {
+        control.style.flatMap { resolvedStyles[$0] }
     }
     private var labels: [String: String]
     private let lists: [String: TextList]
@@ -106,6 +123,7 @@ public final class UIScriptView {
     ) {
         self.script = script
         self.theme = theme
+        resolvedStyles = Self.resolve(script.styles, in: theme)
         windowSize = Vector2(x: script.window.size.width, y: script.window.size.height)
 
         var strings: [String: String] = [:]
@@ -134,8 +152,9 @@ public final class UIScriptView {
         var textFields: [String: TextField] = [:]
         var textAreas: [String: TextArea] = [:]
         let monospaceNames = Set(script.controls.filter { script.style(for: $0)?.font == .monospace }.map(\.name))
+        let resolvedStyles = self.resolvedStyles
         for control in script.controls {
-            let style = script.style(for: control)
+            let style = control.style.flatMap { resolvedStyles[$0] }
             let text = resolved(control.text)
             let theme = monospaceNames.contains(control.name) ? theme.monospaced : theme
             switch control.type {
@@ -708,7 +727,7 @@ public final class UIScriptView {
             case .text:
                 drawText(of: control, in: bounds, inset: 0)
             case .formattedText:
-                theme.fillRectangle(bounds, script.style(for: control)?.backgroundColor ?? theme.panel)
+                theme.fillRectangle(bounds, resolvedStyle(for: control)?.backgroundColor ?? theme.panel)
                 drawText(of: control, in: bounds, inset: Self.textInset)
             case .button:
                 drawButton(control, in: bounds)
@@ -788,7 +807,7 @@ public final class UIScriptView {
             return
         }
         let theme = self.theme(for: control.name)
-        let style = script.style(for: control)
+        let style = resolvedStyle(for: control)
         let fontSize = style?.fontSize ?? theme.textSizes.body
         let left = Int(clamping: bounds.x) + inset
         let room = Int(clamping: bounds.width) - (inset * 2)
@@ -818,7 +837,7 @@ public final class UIScriptView {
     }
 
     private func drawButton(_ control: UIScript.Control, in bounds: Rectangle) {
-        let style = script.style(for: control)
+        let style = resolvedStyle(for: control)
         let state = buttonState(of: control, in: bounds)
         if let image = control.image {
             drawImage(named: image, state: state, in: bounds)
@@ -841,7 +860,7 @@ public final class UIScriptView {
     }
 
     private func drawSlider(_ control: UIScript.Control, in bounds: Rectangle, origin: Vector2) {
-        let style = script.style(for: control)
+        let style = resolvedStyle(for: control)
         theme.fillRectangle(bounds, style?.backgroundColor ?? theme.panel)
         theme.outlineRectangle(bounds, style?.borderColor ?? theme.border)
         if let binding = control.scrolls, scrollTarget(of: binding) == nil {
@@ -852,7 +871,7 @@ public final class UIScriptView {
     }
 
     private func drawProgressBar(_ control: UIScript.Control, in bounds: Rectangle) {
-        let style = script.style(for: control)
+        let style = resolvedStyle(for: control)
         theme.fillRectangle(bounds, style?.backgroundColor ?? theme.panel)
         var filled = bounds
         filled.width *= fraction(of: control)
@@ -860,3 +879,13 @@ public final class UIScriptView {
         theme.outlineRectangle(bounds, style?.borderColor ?? theme.border)
     }
 }
+
+/// A control a document styles, which its view restyles when the theme changes.
+protocol StyledTextControl: AnyObject {
+    var theme: InterfaceTheme { get set }
+    func applyStyle(fontSize: Int?, textColor: Color?, backgroundColor: Color?, borderColor: Color?)
+}
+
+extension TextList: StyledTextControl {}
+extension TextField: StyledTextControl {}
+extension TextArea: StyledTextControl {}

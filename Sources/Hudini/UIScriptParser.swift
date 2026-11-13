@@ -160,15 +160,26 @@ enum UIScriptParser {
 
     private static func makeStyle(_ reader: AttributeReader) throws -> UIScript.Style {
         UIScript.Style(
-            textColor: try reader.color("textColor"),
-            selectedTextColor: try reader.color("selectedTextColor"),
-            highlightedTextColor: try reader.color("highlightedTextColor"),
-            disabledTextColor: try reader.color("disabledTextColor"),
-            backgroundColor: try reader.color("backgroundColor"),
-            borderColor: try reader.color("borderColor"),
-            fillColor: try reader.color("fillColor"),
-            fontSize: try reader.integer("fontSize"),
+            colors: try makeStyleColors(reader, prefix: ""),
+            darkColors: try makeStyleColors(reader, prefix: "dark"),
+            size: try reader.styleSize("fontSize"),
             font: try reader.typeface("font")
+        )
+    }
+
+    // A dark twin is its color's attribute with `dark` before it, such as `darkTextColor`.
+    private static func makeStyleColors(_ reader: AttributeReader, prefix: String) throws -> UIScript.StyleColors {
+        func named(_ attribute: String) -> String {
+            prefix.isEmpty ? attribute : prefix + attribute.prefix(1).uppercased() + attribute.dropFirst()
+        }
+        return UIScript.StyleColors(
+            textColor: try reader.styleColor(named("textColor")),
+            selectedTextColor: try reader.styleColor(named("selectedTextColor")),
+            highlightedTextColor: try reader.styleColor(named("highlightedTextColor")),
+            disabledTextColor: try reader.styleColor(named("disabledTextColor")),
+            backgroundColor: try reader.styleColor(named("backgroundColor")),
+            borderColor: try reader.styleColor(named("borderColor")),
+            fillColor: try reader.styleColor(named("fillColor"))
         )
     }
 
@@ -412,6 +423,35 @@ private final class AttributeReader {
             throw invalid(attribute, value)
         }
         return color
+    }
+
+    /// Reads a style's color: a role's name, or a hex color.
+    func styleColor(_ attribute: String) throws -> UIScript.StyleColor? {
+        guard let value = string(attribute) else {
+            return nil
+        }
+        if let role = UIScript.ColorRole(rawValue: value) {
+            return .role(role)
+        }
+        guard let color = Self.color(fromHex: value) else {
+            throw invalid(attribute, value)
+        }
+        return .fixed(color)
+    }
+
+    /// Reads a style's font size: a role's name, or a whole number of pixels. Whether the number is
+    /// positive is checked with the rest of the document.
+    func styleSize(_ attribute: String) throws -> UIScript.StyleSize? {
+        guard let value = string(attribute) else {
+            return nil
+        }
+        if let role = UIScript.SizeRole(rawValue: value) {
+            return .role(role)
+        }
+        guard let size = Int(value) else {
+            throw invalid(attribute, value)
+        }
+        return .fixed(size)
     }
 
     func scrollDirection(_ attribute: String) throws -> UIScript.ScrollDirection? {

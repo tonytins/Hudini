@@ -8,8 +8,8 @@
   <ToolbarItem name="statsTab" title="Stats"/>
   <ToolbarItem name="notesTab" title="Notes"/>
 
-  <Style name="label" textColor="#FFF99D" fontSize="14"/>
-  <Style name="figure" textColor="#E4E8EE" fontSize="14"/>
+  <Style name="label" textColor="accent"/>
+  <Style name="figure" textColor="text"/>
 
   <Text name="foundedLabel" x="12" y="14" width="120" height="14" style="label" text="Founded"/>
   <Text name="founded" x="140" y="14" width="148" height="14" style="figure"/>

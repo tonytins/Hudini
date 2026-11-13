@@ -146,7 +146,7 @@ public struct UIScript: Sendable {
             throw UIScriptError.invalidMinimumWindowSize
         }
         for (name, style) in styles {
-            if let fontSize = style.fontSize, fontSize <= 0 {
+            if case let .fixed(fontSize)? = style.size, fontSize <= 0 {
                 throw UIScriptError.invalidFontSize(style: name)
             }
         }
@@ -477,36 +477,60 @@ public struct UIScript: Sendable {
 
     /// A named collection of visual properties.
     ///
-    /// Documents write colors as `#RRGGBB` or `#RRGGBBAA`.
+    /// A document writes each color as a role, such as `accent`, which takes the theme's color for
+    /// that purpose, or as `#RRGGBB` or `#RRGGBBAA` for a color that must be exactly that. Each
+    /// color can have a `dark` twin, used in its place on a dark theme. A font size is a role, such
+    /// as `title`, or a size in pixels.
+    ///
+    /// `textColor`, `fontSize`, and the other plain properties give what the document wrote when it
+    /// wrote a fixed value, which is what a game reading its own document's colors wants. They are
+    /// `nil` for a role. `resolved(in:)` gives a color or size either way, for a theme.
     public struct Style: Sendable {
-        /// The primary text color.
-        public let textColor: Color?
+        /// The colors as written, used on any theme unless a dark twin replaces them.
+        public let colors: StyleColors
 
-        /// The selected text color.
-        public let selectedTextColor: Color?
+        /// The `dark` twins as written, each used in place of its color on a dark theme.
+        public let darkColors: StyleColors
 
-        /// The highlighted text color.
-        public let highlightedTextColor: Color?
-
-        /// The disabled text color.
-        public let disabledTextColor: Color?
-
-        /// The background color.
-        public let backgroundColor: Color?
-
-        /// The border color.
-        public let borderColor: Color?
-
-        /// The color of a progress bar's filled part and a slider's thumb.
-        public let fillColor: Color?
-
-        /// The font size in pixels. It must be positive.
-        public let fontSize: Int?
+        /// The font size as written: a role or a size in pixels.
+        public let size: StyleSize?
 
         /// The kind of typeface the text uses, or `nil` for the interface font.
         public let font: Typeface?
 
-        /// Returns the color for a button label in `state`.
+        init(colors: StyleColors, darkColors: StyleColors = StyleColors(), size: StyleSize?, font: Typeface?) {
+            self.colors = colors
+            self.darkColors = darkColors
+            self.size = size
+            self.font = font
+        }
+
+        /// The primary text color, when written as a fixed color.
+        public var textColor: Color? { colors.textColor?.fixedColor }
+
+        /// The selected text color, when written as a fixed color.
+        public var selectedTextColor: Color? { colors.selectedTextColor?.fixedColor }
+
+        /// The highlighted text color, when written as a fixed color.
+        public var highlightedTextColor: Color? { colors.highlightedTextColor?.fixedColor }
+
+        /// The disabled text color, when written as a fixed color.
+        public var disabledTextColor: Color? { colors.disabledTextColor?.fixedColor }
+
+        /// The background color, when written as a fixed color.
+        public var backgroundColor: Color? { colors.backgroundColor?.fixedColor }
+
+        /// The border color, when written as a fixed color.
+        public var borderColor: Color? { colors.borderColor?.fixedColor }
+
+        /// The color of a progress bar's filled part and a slider's thumb, when written as a fixed
+        /// color.
+        public var fillColor: Color? { colors.fillColor?.fixedColor }
+
+        /// The font size in pixels, when written as one. It is positive in a loaded document.
+        public var fontSize: Int? { size?.fixedSize }
+
+        /// Returns the color for a button label in `state`, from the fixed colors.
         ///
         /// Pressed and hovered buttons fall back to `textColor`. A disabled button
         /// has no fallback, so it does not look enabled by accident.
@@ -520,6 +544,218 @@ public struct UIScript: Sendable {
                 highlightedTextColor ?? textColor
             case .disabled:
                 disabledTextColor
+            }
+        }
+
+        /// Returns this style with every role and dark twin turned into the color or size `theme`
+        /// gives it, so the plain properties hold everything the document asked for.
+        ///
+        /// On a dark theme, each dark twin that is set replaces its color. Roles take the theme's
+        /// colors and sizes: `text`, `secondaryText`, `accent`, `panel`, `inputBackground`, and
+        /// `border` are the theme's properties of those names, `disabledText` is `secondaryText`,
+        /// `highlightedText` is `text`, and `selection` is `selectedItem`. The size roles `caption`,
+        /// `body`, `title`, and `largeTitle` are the theme's `tooltip`, `body`, `title`, and
+        /// `largeTitle` sizes. Resolve again when the theme changes.
+        public func resolved(in theme: InterfaceTheme) -> Style {
+            let shown = theme.isDark ? colors.replacing(with: darkColors) : colors
+            return Style(
+                colors: shown.resolved(in: theme),
+                darkColors: StyleColors(),
+                size: size.map { .fixed($0.resolved(in: theme)) },
+                font: font
+            )
+        }
+    }
+
+    /// A style's colors, each written as a role or a fixed color, or left out.
+    public struct StyleColors: Sendable, Equatable {
+        /// The primary text color.
+        public let textColor: StyleColor?
+
+        /// The selected text color.
+        public let selectedTextColor: StyleColor?
+
+        /// The highlighted text color.
+        public let highlightedTextColor: StyleColor?
+
+        /// The disabled text color.
+        public let disabledTextColor: StyleColor?
+
+        /// The background color.
+        public let backgroundColor: StyleColor?
+
+        /// The border color.
+        public let borderColor: StyleColor?
+
+        /// The color of a progress bar's filled part and a slider's thumb.
+        public let fillColor: StyleColor?
+
+        /// Creates a set of colors, all left out unless given.
+        public init(
+            textColor: StyleColor? = nil,
+            selectedTextColor: StyleColor? = nil,
+            highlightedTextColor: StyleColor? = nil,
+            disabledTextColor: StyleColor? = nil,
+            backgroundColor: StyleColor? = nil,
+            borderColor: StyleColor? = nil,
+            fillColor: StyleColor? = nil
+        ) {
+            self.textColor = textColor
+            self.selectedTextColor = selectedTextColor
+            self.highlightedTextColor = highlightedTextColor
+            self.disabledTextColor = disabledTextColor
+            self.backgroundColor = backgroundColor
+            self.borderColor = borderColor
+            self.fillColor = fillColor
+        }
+
+        /// These colors with each one `twins` sets in its place.
+        func replacing(with twins: StyleColors) -> StyleColors {
+            StyleColors(
+                textColor: twins.textColor ?? textColor,
+                selectedTextColor: twins.selectedTextColor ?? selectedTextColor,
+                highlightedTextColor: twins.highlightedTextColor ?? highlightedTextColor,
+                disabledTextColor: twins.disabledTextColor ?? disabledTextColor,
+                backgroundColor: twins.backgroundColor ?? backgroundColor,
+                borderColor: twins.borderColor ?? borderColor,
+                fillColor: twins.fillColor ?? fillColor
+            )
+        }
+
+        /// These colors with every role turned into the theme's color.
+        func resolved(in theme: InterfaceTheme) -> StyleColors {
+            StyleColors(
+                textColor: textColor.map { .fixed($0.resolved(in: theme)) },
+                selectedTextColor: selectedTextColor.map { .fixed($0.resolved(in: theme)) },
+                highlightedTextColor: highlightedTextColor.map { .fixed($0.resolved(in: theme)) },
+                disabledTextColor: disabledTextColor.map { .fixed($0.resolved(in: theme)) },
+                backgroundColor: backgroundColor.map { .fixed($0.resolved(in: theme)) },
+                borderColor: borderColor.map { .fixed($0.resolved(in: theme)) },
+                fillColor: fillColor.map { .fixed($0.resolved(in: theme)) }
+            )
+        }
+    }
+
+    /// A color in a style: the theme's color for a purpose, or exactly the color written.
+    public enum StyleColor: Sendable, Equatable {
+        /// The theme's color for this purpose.
+        case role(ColorRole)
+
+        /// Exactly this color, on every theme.
+        case fixed(Color)
+
+        /// The color, when it is a fixed one.
+        public var fixedColor: Color? {
+            if case let .fixed(color) = self {
+                return color
+            }
+            return nil
+        }
+
+        /// Returns the color this stands for in `theme`.
+        public func resolved(in theme: InterfaceTheme) -> Color {
+            switch self {
+            case let .fixed(color):
+                color
+            case let .role(role):
+                role.color(in: theme)
+            }
+        }
+    }
+
+    /// What a style's color is for, which a theme gives a color.
+    public enum ColorRole: String, Sendable, CaseIterable {
+        /// Ordinary text.
+        case text
+
+        /// Quieter text, such as a status line.
+        case secondaryText
+
+        /// Text on something turned off.
+        case disabledText
+
+        /// Text on the accent color.
+        case highlightedText
+
+        /// The accent: focus, selection marks, and fills.
+        case accent
+
+        /// A window's background.
+        case panel
+
+        /// The inside of text fields and lists.
+        case inputBackground
+
+        /// Lines around controls.
+        case border
+
+        /// A selected item's background.
+        case selection
+
+        /// Returns the color `theme` gives this role.
+        public func color(in theme: InterfaceTheme) -> Color {
+            switch self {
+            case .text: theme.text
+            case .secondaryText: theme.secondaryText
+            case .disabledText: theme.secondaryText
+            case .highlightedText: theme.text
+            case .accent: theme.accent
+            case .panel: theme.panel
+            case .inputBackground: theme.inputBackground
+            case .border: theme.border
+            case .selection: theme.selectedItem
+            }
+        }
+    }
+
+    /// A font size in a style: the theme's size for a kind of text, or a size in pixels.
+    public enum StyleSize: Sendable, Equatable {
+        /// The theme's size for this kind of text.
+        case role(SizeRole)
+
+        /// This many pixels. A loaded document only holds positive sizes.
+        case fixed(Int)
+
+        /// The size in pixels, when it is a fixed one.
+        public var fixedSize: Int? {
+            if case let .fixed(size) = self {
+                return size
+            }
+            return nil
+        }
+
+        /// Returns the size in pixels this stands for in `theme`.
+        public func resolved(in theme: InterfaceTheme) -> Int {
+            switch self {
+            case let .fixed(size):
+                size
+            case let .role(role):
+                role.size(in: theme)
+            }
+        }
+    }
+
+    /// What a style's text is, which a theme gives a size.
+    public enum SizeRole: String, Sendable, CaseIterable {
+        /// Small text, such as a hint.
+        case caption
+
+        /// Ordinary text, and the size text has without a style.
+        case body
+
+        /// A heading.
+        case title
+
+        /// A large heading.
+        case largeTitle
+
+        /// Returns the size `theme` gives this role.
+        public func size(in theme: InterfaceTheme) -> Int {
+            switch self {
+            case .caption: theme.textSizes.tooltip
+            case .body: theme.textSizes.body
+            case .title: theme.textSizes.title
+            case .largeTitle: theme.textSizes.largeTitle
             }
         }
     }

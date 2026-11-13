@@ -4,8 +4,8 @@
 <UIScript version="1">
   <Window width="320" height="214"/>
 
-  <Style name="label" textColor="#FFF99D" fontSize="14"/>
-  <Style name="figure" textColor="#E4E8EE" fontSize="14"/>
+  <Style name="label" textColor="accent"/>
+  <Style name="figure" textColor="text"/>
 
   <Text name="taxLabel" x="12" y="14" width="90" height="14" style="label" text="Tax rate"/>
   <Slider name="tax" x="110" y="14" width="150" height="14" maxValue="20"/>

@@ -667,14 +667,15 @@ private struct UISBuilder {
         }
         let styleName = "\(name)Style"
         styles[styleName] = UIScript.Style(
-            textColor: textColor,
-            selectedTextColor: selected,
-            highlightedTextColor: highlighted,
-            disabledTextColor: disabled,
-            backgroundColor: background,
-            borderColor: border,
-            fillColor: nil,
-            fontSize: font,
+            colors: UIScript.StyleColors(
+                textColor: textColor.map { .fixed($0) },
+                selectedTextColor: selected.map { .fixed($0) },
+                highlightedTextColor: highlighted.map { .fixed($0) },
+                disabledTextColor: disabled.map { .fixed($0) },
+                backgroundColor: background.map { .fixed($0) },
+                borderColor: border.map { .fixed($0) }
+            ),
+            size: font.map { .fixed($0) },
             font: nil
         )
         return styleName

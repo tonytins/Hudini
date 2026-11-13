@@ -155,7 +155,12 @@ CloseWindow()
 A theme given a font that failed to load draws in the default font instead, so check
 it with `IsFontValid` as above. Pass a fixed-width font as `monospaceFont` too, and
 text whose UIScript style says `font="monospace"`, such as a terminal or code, draws
-in it. Without one, that text uses `font`. A different font changes text widths, so check your
+in it. Without one, that text uses `font`.
+
+A UIScript document can ask for the theme's colors and sizes by role, such as
+`textColor="accent"` or `fontSize="title"`, rather than fixing them. A theme is
+dark, which makes a style's `dark` color twins apply, when its `panel` is dark or
+`isDark` says so, and its `largeTitle` size is there for the role of that name. A different font changes text widths, so check your
 layouts after switching. Use one theme for every component in a screen.
 
 ### Corners and title bars

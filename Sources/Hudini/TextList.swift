@@ -33,25 +33,35 @@ public final class TextList {
     }
 
     // What the caller asked for. Anything left out comes from the theme when drawing.
-    private let fontSizeOverride: Int?
-    private let textColorOverride: Color?
-    private let backgroundColorOverride: Color?
-    private let borderColorOverride: Color?
+    private var fontSizeOverride: Int?
+    private var textColorOverride: Color?
+    private var backgroundColorOverride: Color?
+    private var borderColorOverride: Color?
 
-    private var fontSize: Int {
+    var fontSize: Int {
         fontSizeOverride ?? theme.textSizes.body
     }
 
-    private var textColor: Color {
+    var textColor: Color {
         textColorOverride ?? theme.text
     }
 
-    private var backgroundColor: Color {
+    var backgroundColor: Color {
         backgroundColorOverride ?? theme.panel
     }
 
-    private var borderColor: Color {
+    var borderColor: Color {
         borderColorOverride ?? theme.border
+    }
+
+    /// Replaces the colors and size the document's style gave this control, after its view resolved
+    /// them against a new theme.
+    func applyStyle(fontSize: Int?, textColor: Color?, backgroundColor: Color?, borderColor: Color?) {
+        fontSizeOverride = fontSize
+        textColorOverride = textColor
+        backgroundColorOverride = backgroundColor
+        borderColorOverride = borderColor
+        lineWidth = nil
     }
 
     /// The plain-text items supplied by the host.

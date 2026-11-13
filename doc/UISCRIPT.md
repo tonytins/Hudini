@@ -106,8 +106,20 @@ state. Some Maxis images hold six slices, and Hudini uses the first four.
 
 ## Styles
 
-`<Style>` is a named set of visual properties that controls refer to. Colors are
-`#RRGGBB` or `#RRGGBBAA`.
+`<Style>` is a named set of visual properties that controls refer to.
+
+A style should say what a color or size is *for*, not what it is, so a document
+follows the host's look: light or dark, any accent, and whatever the host's theme
+becomes later. The same idea let Mac apps that used semantic colors take on Dark
+Mode with no changes. Colors written as hex still work, and each has a `dark` twin
+for a dark theme.
+
+```xml
+<Style name="heading" fontSize="title"/>
+<Style name="quiet" textColor="secondaryText"/>
+<Style name="display" fontSize="24" backgroundColor="inputBackground"/>
+<Style name="brand" textColor="#1E5AA0" darkTextColor="#8CB8F0"/>
+```
 
 | Attribute | Value |
 | --- | --- |
@@ -115,11 +127,78 @@ state. Some Maxis images hold six slices, and Hudini uses the first four.
 | `textColor`, `backgroundColor`, `borderColor` | Colors used when drawing. |
 | `selectedTextColor`, `highlightedTextColor`, `disabledTextColor` | Button label colors while pressed, hovered, and disabled. |
 | `fillColor` | The filled part of a progress bar and the thumb of a slider. |
-| `fontSize` | A positive size in pixels. Without one, text uses the theme's `body` size. |
+| `darkTextColor`, `darkBackgroundColor`, and the rest | A color's `dark` twin: the same attribute with `dark` before it, used in place of it on a dark theme. |
+| `fontSize` | A size role, or a positive size in pixels. Without one, text uses the `body` size. |
 | `font` | `interface` (the default) or `monospace`, a fixed-width typeface for code and terminals. The host picks the actual fonts. Any other value refuses the document. |
 
 A reader that ignores `font` draws the text in the interface font, which is
 plainer but still correct.
+
+### Colors
+
+A color is one of:
+
+- **A role**, the color the host's theme gives that purpose. Prefer roles: they
+  follow light and dark, the accent, and later themes.
+- **`#RRGGBB` or `#RRGGBBAA`**, for a color that must be exactly that, such as a
+  brand's. It's the same on every theme unless a `dark` twin replaces it.
+
+| Role | For |
+| --- | --- |
+| `text` | Ordinary text. |
+| `secondaryText` | Quieter text, such as a status line. |
+| `disabledText` | Text on something turned off. |
+| `highlightedText` | Text on the accent color. |
+| `accent` | The accent: focus, selection marks, and fills. |
+| `panel` | A window's background. |
+| `inputBackground` | The inside of text fields and lists. |
+| `border` | Lines around controls. |
+| `selection` | A selected item's background. |
+
+### Sizes
+
+| Role | For | Hudini | VentureOS |
+| --- | --- | --- | --- |
+| `caption` | Small text, such as a hint | 12 | 11 |
+| `body` | Ordinary text, and the size text has without a style | 14 | 13 |
+| `title` | A heading | 16 | 17 |
+| `largeTitle` | A large heading | 22 | 22 |
+
+A host chooses its own sizes for the roles; the table shows each host's defaults.
+
+### Rules
+
+- A color that's neither a role nor `#` and six or eight hex digits refuses the
+  document, as does a `fontSize` that's neither a role nor a positive whole number.
+- A `dark` twin may name a role or a hex color. It's optional, and may be given
+  without its light color, in which case a light theme uses the host's default.
+- On a light theme, `dark` twins are ignored. On a dark one, each twin that is set
+  replaces its color; the others apply as written.
+- Roles are part of the color and size grammar, not a module. A reader from before
+  them refuses a document that uses one as an invalid color or size, which says
+  plainly that it needs a newer reader.
+
+A host that implements styles:
+
+- Resolves roles against the theme in use each time it draws, or again when the
+  theme changes, so switching light, dark, or the accent reaches every open window
+  without the document changing.
+- Keeps the shipped roles readable together: each text role against each
+  background role it's used on, on every theme the host offers. VentureOS tests
+  every interface it ships for a contrast of at least 3 to 1 on every palette.
+- Uses a document's hex colors exactly as written, `dark` twins included; the
+  document has asked for that color.
+
+In Hudini, roles resolve against the `InterfaceTheme` a view draws with: `text`,
+`secondaryText`, `accent`, `panel`, `inputBackground`, and `border` are the theme's
+properties of those names, `disabledText` is `secondaryText`, `highlightedText` is
+`text`, and `selection` is `selectedItem`. The size roles are the theme's `tooltip`,
+`body`, `title`, and `largeTitle` sizes. A theme is dark when its `isDark` says so,
+or, unless told, when its `panel` is dark; Hudini's standard theme is dark. A
+`UIScriptView` resolves its document's styles again whenever its theme changes. A
+game reading colors out of its own document gets what was written as hex from
+`Style`'s plain properties, and everything, roles included, from
+`Style.resolved(in:)`.
 
 ## Position and size
 
@@ -611,6 +690,9 @@ replaces with a plain track and thumb.
 ## Change log
 
 Newest first. Changes before the draft are in the repository's history.
+
+- **2026-11-12:** Styles take color roles, size roles, and `dark` twins, from
+  VentureOS's draft. Hex colors and pixel sizes work as before.
 
 - **2026-11-12:** A toolbar item's click follows the host's buttons, on the press
   or the release, rather than always on the release. The title bar's `title` and

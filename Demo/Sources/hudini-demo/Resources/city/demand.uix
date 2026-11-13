@@ -3,7 +3,7 @@
 <UIScript version="1">
   <Window width="200" height="102"/>
 
-  <Style name="label" textColor="#FFF99D" fontSize="14"/>
+  <Style name="label" textColor="accent"/>
   <Style name="residential" fillColor="#5FC46A" backgroundColor="#17212A"/>
   <Style name="commercial" fillColor="#5B9BE0" backgroundColor="#17212A"/>
   <Style name="industrial" fillColor="#E0C25B" backgroundColor="#17212A"/>

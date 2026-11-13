@@ -4,9 +4,9 @@
 <UIScript version="1">
   <Window width="104" height="170"/>
 
-  <Style name="heading" textColor="#FFF99D" fontSize="14"/>
-  <Style name="note" textColor="#A8B0BC" fontSize="12"/>
-  <Style name="tool" textColor="#E4E8EE" selectedTextColor="#F0BE5A" highlightedTextColor="#FFFFFF" fontSize="14"/>
+  <Style name="heading" textColor="accent"/>
+  <Style name="note" textColor="secondaryText" fontSize="caption"/>
+  <Style name="tool" textColor="text" selectedTextColor="accent" highlightedTextColor="#FFFFFF"/>
 
   <Text name="heading" x="8" y="6" width="88" height="16" style="heading" text="Tools"/>
   <Button name="residential" x="8" y="28" width="42" height="30" style="tool" text="R"/>

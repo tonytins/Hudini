@@ -61,6 +61,9 @@ public struct InterfaceTheme: Sendable {
     /// Clicks still land on the whole rectangle, including just outside a rounded corner. raylib
     /// leaves curves jagged unless the host sets `.msaa4xHint` before `InitWindow`.
     public let cornerRadius: Float
+    /// Whether this is a dark look, with light text on a dark `panel`. A UIScript style's `dark`
+    /// color twins apply on a dark theme. Unless the theme is told, it goes by how dark `panel` is.
+    public let isDark: Bool
 
     /// The sizes components draw their text at, in pixels.
     ///
@@ -78,10 +81,12 @@ public struct InterfaceTheme: Sendable {
         public let button: Int
         /// `TextField` and `TextArea`.
         public let input: Int
-        /// UIScript tooltips.
+        /// UIScript tooltips, and text in the `caption` size role.
         public let tooltip: Int
         /// The message shown when a window title fails validation.
         public let problem: Int
+        /// Text in the UIScript `largeTitle` size role.
+        public let largeTitle: Int
 
         /// Creates a set of sizes, all positive. Unspecified sizes use Hudini's standard ones.
         public init(
@@ -91,10 +96,11 @@ public struct InterfaceTheme: Sendable {
             button: Int = 20,
             input: Int = 20,
             tooltip: Int = 12,
-            problem: Int = 10
+            problem: Int = 10,
+            largeTitle: Int = 22
         ) {
             precondition(
-                [title, label, body, button, input, tooltip, problem].allSatisfy { $0 > 0 },
+                [title, label, body, button, input, tooltip, problem, largeTitle].allSatisfy { $0 > 0 },
                 "text sizes must be positive"
             )
             self.title = title
@@ -104,6 +110,7 @@ public struct InterfaceTheme: Sendable {
             self.input = input
             self.tooltip = tooltip
             self.problem = problem
+            self.largeTitle = largeTitle
         }
     }
 
@@ -128,7 +135,8 @@ public struct InterfaceTheme: Sendable {
         monospaceFont: Font? = nil,
         fontSpacing: Float = 1,
         textSizes: TextSizes = TextSizes(),
-        cornerRadius: Float = 0
+        cornerRadius: Float = 0,
+        isDark: Bool? = nil
     ) {
         precondition(cornerRadius.isFinite && cornerRadius >= 0, "cornerRadius must not be negative")
         self.accent = accent
@@ -151,6 +159,14 @@ public struct InterfaceTheme: Sendable {
         self.fontSpacing = fontSpacing
         self.textSizes = textSizes
         self.cornerRadius = cornerRadius
+        self.isDark = isDark ?? Self.isDark(panel)
+    }
+
+    // Whether a background reads as dark: its brightness, weighted the way the eye sees each
+    // channel, is below the middle.
+    static func isDark(_ background: Color) -> Bool {
+        let brightness = (0.299 * Float(background.r)) + (0.587 * Float(background.g)) + (0.114 * Float(background.b))
+        return brightness < 128
     }
 
     /// Hudini's default dark palette with a warm accent.
@@ -182,7 +198,8 @@ public struct InterfaceTheme: Sendable {
             monospaceFont: monospaceFont,
             fontSpacing: fontSpacing,
             textSizes: textSizes,
-            cornerRadius: cornerRadius
+            cornerRadius: cornerRadius,
+            isDark: isDark
         )
     }
 

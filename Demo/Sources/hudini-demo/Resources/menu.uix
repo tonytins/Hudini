@@ -3,8 +3,8 @@
 <UIScript version="1">
   <Window width="520" height="300"/>
 
-  <Style name="heading" textColor="#FFF99D" fontSize="22"/>
-  <Style name="note" textColor="#A8B0BC" fontSize="12"/>
+  <Style name="heading" textColor="accent" fontSize="largeTitle"/>
+  <Style name="note" textColor="secondaryText" fontSize="caption"/>
 
   <Text name="heading" x="20" y="18" width="480" height="24" style="heading" text="Hudini demos"/>
   <Text name="intro" x="20" y="48" width="480" height="14" style="note"

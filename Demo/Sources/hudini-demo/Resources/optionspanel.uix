@@ -12,8 +12,9 @@
   <String name="accentTip" table="DemoText:3" index="7"/>
   <String name="notesPrompt" table="DemoText:3" index="8"/>
 
-  <Style name="heading" textColor="#FFF99D" fontSize="14"/>
-  <Style name="label" textColor="#FFF99D" fontSize="12"/>
+  <!-- Roles follow the theme, so the Accent Color button recolors these. -->
+  <Style name="heading" textColor="accent" fontSize="title"/>
+  <Style name="label" textColor="accent" fontSize="caption"/>
   <Style name="notes" font="monospace" fontSize="12"/>
 
   <Text name="titleLabel" x="180" y="14" width="300" height="18" style="heading" string="title"/>

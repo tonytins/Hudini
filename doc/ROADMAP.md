@@ -205,3 +205,5 @@ and VentureOS proved the design first.
   windows that block what's behind them.
 - [x] Show it in the demo: windows that stay open, and a modal one. The demo now
   opens on a menu with the TSO-style demo and a CityLimits-style one.
+- [x] Let styles name what a color or size is for, so documents follow the theme:
+  color roles, size roles, and `dark` twins, from VentureOS's draft.

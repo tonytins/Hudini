@@ -25,10 +25,10 @@ public final class TextArea: FormLayoutControl {
     private let placeholder: String?
 
     // What the caller asked for. Anything left out comes from the theme when drawing.
-    private let fontSizeOverride: Int?
-    private let textColorOverride: Color?
-    private let backgroundColorOverride: Color?
-    private let borderColorOverride: Color?
+    private var fontSizeOverride: Int?
+    private var textColorOverride: Color?
+    private var backgroundColorOverride: Color?
+    private var borderColorOverride: Color?
 
     // The theme's size this area uses without a fontSize: `input`, or another for an area that a
     // document owns.
@@ -48,6 +48,16 @@ public final class TextArea: FormLayoutControl {
 
     private var borderColor: Color {
         borderColorOverride ?? theme.border
+    }
+
+    /// Replaces the colors and size the document's style gave this control, after its view resolved
+    /// them against a new theme.
+    func applyStyle(fontSize: Int?, textColor: Color?, backgroundColor: Color?, borderColor: Color?) {
+        fontSizeOverride = fontSize
+        textColorOverride = textColor
+        backgroundColorOverride = backgroundColor
+        borderColorOverride = borderColor
+        wrappedWidth = nil
     }
 
     private var lines: [String] = []

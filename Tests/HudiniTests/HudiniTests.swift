@@ -2692,3 +2692,106 @@ func demoMenuAndCityDocumentsLoadCleanly(name: String) throws {
 
     #expect(loaded.ignoredAttributes.isEmpty)
 }
+
+// MARK: Style roles and dark twins
+
+@Test func stylesTakeColorRolesAndKeepFixedColorsApart() throws {
+    let loaded = try script("<Style name='quiet' textColor='secondaryText' fillColor='accent' borderColor='#102030'/>")
+    let quiet = try #require(loaded.styles["quiet"])
+
+    #expect(loaded.ignoredAttributes.isEmpty)
+    #expect(quiet.colors.textColor == .role(.secondaryText))
+    #expect(quiet.colors.fillColor == .role(.accent))
+    #expect(quiet.colors.borderColor == .fixed(Color(r: 16, g: 32, b: 48, a: 255)))
+    // The plain properties hold only what was written as a fixed color.
+    #expect(quiet.textColor == nil)
+    #expect(quiet.borderColor == Color(r: 16, g: 32, b: 48, a: 255))
+
+    let resolved = quiet.resolved(in: .standard)
+    #expect(resolved.textColor == InterfaceTheme.standard.secondaryText)
+    #expect(resolved.fillColor == InterfaceTheme.standard.accent)
+    #expect(resolved.borderColor == Color(r: 16, g: 32, b: 48, a: 255))
+    #expect(resolved.backgroundColor == nil)
+}
+
+@Test func everyColorRoleResolvesToTheThemeItNames() {
+    let theme = InterfaceTheme.standard
+
+    #expect(UIScript.ColorRole.text.color(in: theme) == theme.text)
+    #expect(UIScript.ColorRole.disabledText.color(in: theme) == theme.secondaryText)
+    #expect(UIScript.ColorRole.highlightedText.color(in: theme) == theme.text)
+    #expect(UIScript.ColorRole.panel.color(in: theme) == theme.panel)
+    #expect(UIScript.ColorRole.inputBackground.color(in: theme) == theme.inputBackground)
+    #expect(UIScript.ColorRole.border.color(in: theme) == theme.border)
+    #expect(UIScript.ColorRole.selection.color(in: theme) == theme.selectedItem)
+}
+
+@Test func stylesTakeSizeRoles() throws {
+    let loaded = try script("<Style name='heading' fontSize='largeTitle'/><Style name='fine' fontSize='caption'/>")
+    let theme = InterfaceTheme(textSizes: .init(tooltip: 9, largeTitle: 30))
+
+    #expect(loaded.styles["heading"]?.size == .role(.largeTitle))
+    #expect(loaded.styles["heading"]?.fontSize == nil)
+    #expect(loaded.styles["heading"]?.resolved(in: theme).fontSize == 30)
+    #expect(loaded.styles["fine"]?.resolved(in: theme).fontSize == 9)
+    #expect(UIScript.SizeRole.body.size(in: theme) == theme.textSizes.body)
+    #expect(UIScript.SizeRole.title.size(in: theme) == theme.textSizes.title)
+    #expect(throws: UIScriptError.invalidAttribute(element: "Style", attribute: "fontSize", value: "huge", line: 1)) {
+        try script("<Style name='bad' fontSize='huge'/>")
+    }
+}
+
+@Test func darkTwinsReplaceTheirColorsOnlyOnADarkTheme() throws {
+    let loaded = try script("""
+        <Style name='brand' textColor='#1E5AA0' darkTextColor='#8CB8F0' darkBorderColor='accent'/>
+        """)
+    let brand = try #require(loaded.styles["brand"])
+    let light = InterfaceTheme(panel: .white, isDark: false)
+    let dark = InterfaceTheme(panel: .white, isDark: true)
+
+    #expect(brand.darkColors.textColor == .fixed(Color(r: 140, g: 184, b: 240, a: 255)))
+    #expect(brand.resolved(in: light).textColor == Color(r: 30, g: 90, b: 160, a: 255))
+    #expect(brand.resolved(in: dark).textColor == Color(r: 140, g: 184, b: 240, a: 255))
+    // A twin with no light color leaves the light theme to the host's default.
+    #expect(brand.resolved(in: light).borderColor == nil)
+    #expect(brand.resolved(in: dark).borderColor == dark.accent)
+    #expect(throws: UIScriptError.self) {
+        try script("<Style name='bad' darkTextColor='reddish'/>")
+    }
+}
+
+@Test func aThemeKnowsWhetherItIsDark() {
+    #expect(InterfaceTheme.standard.isDark)
+    #expect(!InterfaceTheme(panel: Color(r: 240, g: 240, b: 245, a: 255)).isDark)
+    #expect(InterfaceTheme(panel: Color(r: 240, g: 240, b: 245, a: 255), isDark: true).isDark)
+    #expect(!InterfaceTheme(panel: .black, isDark: false).isDark)
+    #expect(InterfaceTheme.standard.monospaced.isDark)
+}
+
+@Test func aViewResolvesRolesAgainWhenItsThemeChanges() throws {
+    let view = UIScriptView(script: try script("""
+        <Style name='s' textColor='accent' fontSize='title'/>
+        <List name='l' \(tenByTen) style='s'/>
+        <Button name='b' \(tenByTen) style='s'/>
+        """))
+    let list = try #require(view.list(named: "l"))
+    #expect(list.textColor == InterfaceTheme.standard.accent)
+    #expect(list.fontSize == InterfaceTheme.standard.textSizes.title)
+
+    let blue = Color(r: 110, g: 180, b: 240, a: 255)
+    view.theme = InterfaceTheme(accent: blue, textSizes: .init(title: 24))
+
+    #expect(list.textColor == blue)
+    #expect(list.fontSize == 24)
+    let button = try #require(view.script.control(named: "b"))
+    #expect(view.resolvedStyle(for: button)?.textColor == blue)
+}
+
+@Test func uisStylesAreFixedColors() throws {
+    let bar = try UIScript(uisContentsOf: demoResource("debugbar.uis"))
+    let styled = try #require(bar.controls.first { bar.style(for: $0)?.colors.textColor != nil })
+    let style = try #require(bar.style(for: styled))
+
+    #expect(style.colors.textColor?.fixedColor != nil)
+    #expect(style.darkColors == UIScript.StyleColors())
+}
