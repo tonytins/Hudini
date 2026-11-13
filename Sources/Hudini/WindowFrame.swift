@@ -151,6 +151,14 @@ public final class WindowFrame {
     /// Whether the user can edit the title in place, for a frame around the host's own content.
     public var allowsTitleEditing: Bool = false
 
+    /// Draws into the view's regions, for a frame around a view. `draw(in:)` calls it with each
+    /// visible region's name and screen bounds, in its place among the view's controls, as
+    /// `UIScriptView.draw(at:drawRegion:)` does. Without it, regions draw nothing.
+    ///
+    /// Set it once, such as where the window's handler is made, so the window draws its regions
+    /// wherever it's drawn, including by a `WindowManager`.
+    public var drawRegion: ((_ name: String, _ bounds: Rectangle) -> Void)?
+
     /// Returns a validation message for an invalid edited title, or `nil` when it is valid.
     public var validateTitle: ((String) -> String?)?
 
@@ -512,13 +520,13 @@ public final class WindowFrame {
     // MARK: Drawing
 
     /// Draws the window's background, border, and title bar, and for a frame around a view, the
-    /// view in the content area. A frame around the host's own content leaves the host to draw
+    /// view in the content area, with `drawRegion` drawing into its regions. A frame around the host's own content leaves the host to draw
     /// over the area `content(in:)` returns.
     public func draw(in bounds: Rectangle) {
         drawBar(in: bounds)
         if let view {
             let content = Self.content(in: bounds)
-            view.draw(at: Vector2(x: content.x, y: content.y))
+            view.draw(at: Vector2(x: content.x, y: content.y), drawRegion: drawRegion ?? { _, _ in })
             if isResizable {
                 drawGrip(in: bounds)
             }

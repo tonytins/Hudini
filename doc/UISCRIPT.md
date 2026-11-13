@@ -348,9 +348,10 @@ list of events, and `draw(in:)` draws the frame and the view. A toolbar item or 
 title field reports as the view's own event, wrapped in `.view`, and the close and
 minimize buttons report `.closeRequested` and `.minimizeRequested`, leaving the host
 to decide what they mean. The minimize button is off until `showsMinimizeButton` is
-set. The frame also draws a resizable window's grip and resizes the view by it, and
-`isResizing` says while it's being dragged. A `UIScriptView` drawn on its own ignores
-both elements and the grip.
+set. Set the frame's `drawRegion` to draw into the view's regions, since the frame,
+not the host, calls `draw(at:drawRegion:)`. The frame also draws a resizable
+window's grip and resizes the view by it, and `isResizing` says while it's being
+dragged. A `UIScriptView` drawn on its own ignores both elements and the grip.
 
 ## Events
 

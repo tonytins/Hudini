@@ -12,8 +12,9 @@
 //     One window answers every yes-or-no question: whoever asks passes what to do with the answer,
 //     which is how play and an editor could share a window without mode checks.
 //   - DemandWindow, HelpWindow, and CityPanelWindow stay open beside the map and minimize to a row
-//     of icons the host draws above the status bar. The help window resizes by its grip. The city panel's title is the city's name,
-//     edited in place, and its toolbar items are tabs.
+//     of icons the host draws above the status bar. The help window resizes by its grip. The city
+//     panel's title is the city's name, edited in place, and its toolbar items are tabs. The demand
+//     window draws its chart into a region, through its frame's drawRegion.
 //
 // Scenes for screenshots: city (windows open, help minimized), citybudget (the budget open), and
 // cityconfirm (a confirm stacked over the budget).
@@ -373,11 +374,20 @@ final class BudgetWindow {
 final class DemandWindow {
     let frame: WindowFrame
     private let view: UIScriptView
+    private let script: UIScript
+    private var demand: (residential: Float, commercial: Float, industrial: Float) = (0.5, 0.5, 0.5)
 
     init(theme: InterfaceTheme) {
-        view = UIScriptView(script: loadCityScript(named: "demand"), theme: theme)
+        script = loadCityScript(named: "demand")
+        view = UIScriptView(script: script, theme: theme)
         frame = WindowFrame(view: view, title: "Demand")
         frame.showsMinimizeButton = true
+        // The chart is a region in the document, which the window draws itself wherever it's drawn.
+        frame.drawRegion = { [unowned self] name, bounds in
+            if name == "chart" {
+                drawChart(in: bounds)
+            }
+        }
     }
 
     func open(in windows: WindowManager, at start: Vector2? = nil) {
@@ -387,9 +397,33 @@ final class DemandWindow {
     }
 
     func show(_ city: City) {
-        view.setValue(city.demand.residential, named: "residential")
-        view.setValue(city.demand.commercial, named: "commercial")
-        view.setValue(city.demand.industrial, named: "industrial")
+        demand = city.demand
+    }
+
+    // Three bars from a middle line: up for demand, down for too much of a zone. The colors come
+    // from the document's styles, so the look stays in the document.
+    private func drawChart(in bounds: Rectangle) {
+        let theme = view.theme
+        let chart = script.styles["chart"]?.resolved(in: theme)
+        theme.fillRectangle(bounds, chart?.backgroundColor ?? theme.inputBackground)
+        let middle = bounds.y + (bounds.height / 2)
+        DrawLine(Int32(bounds.x), Int32(middle), Int32(bounds.x + bounds.width), Int32(middle), theme.border)
+        let bars: [(style: String, value: Float)] = [
+            ("residential", demand.residential),
+            ("commercial", demand.commercial),
+            ("industrial", demand.industrial),
+        ]
+        let slot = bounds.width / Float(bars.count)
+        let barWidth: Float = 28
+        for (index, bar) in bars.enumerated() {
+            let height = (bar.value - 0.5) * (bounds.height - 8)
+            let x = bounds.x + (slot * Float(index)) + ((slot - barWidth) / 2)
+            DrawRectangleRec(
+                Rectangle(x: x, y: height > 0 ? middle - height : middle, width: barWidth, height: abs(height)),
+                script.styles[bar.style]?.fillColor ?? theme.accent
+            )
+        }
+        theme.outlineRectangle(bounds, chart?.borderColor ?? theme.border)
     }
 }
 
@@ -596,6 +630,7 @@ final class CityDemo {
             budget.open(in: windows)
             confirm.ask("Reset the Budget", "Put taxes back to 7%, and fund\nroads and parks in full?", in: windows) { _ in }
         default:
+            windows.minimize(help.frame)
         }
     }
 
