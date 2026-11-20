@@ -84,6 +84,67 @@ Exactly one `<Window>` is required, unless the document describes a
 | `minWidth`, `minHeight` | No | The smallest size the view lays out at. Give both or neither. |
 | `resizable` | No | `true` or `false`, which defaults to `false`. The window has a grip in its bottom-right corner that resizes its content, which controls follow by their edge offsets. It never goes below `minWidth` and `minHeight`, or below the window's size without them. A reader that ignores it shows the window at its size. |
 
+## Panel
+
+A document can describe a panel in place of a window: a strip pinned to the top or
+bottom edge of the screen, with no title bar. A game's HUD bars are panels, such as
+the control panel along the bottom of The Sims Online's screen and the status bar
+along CityLimits'. So are a desktop's dock and menu bar.
+
+```xml
+<UIScript version="1">
+  <Panel width="1024" height="40" edge="bottom"/>
+
+  <Button name="home" x="8" y="6" width="80" height="28" text="Home"/>
+  <Text name="clock" x="956" y="12" width="60" height="16" edgeOffsetRight="8"
+        text="12:00" alignment="right"/>
+</UIScript>
+```
+
+`<Panel>` takes the place of `<Window>`: a document has exactly one of the two.
+
+| Attribute | Required | Value |
+| --- | --- | --- |
+| `width`, `height` | Yes | The panel's size, as a window's. Both must be positive. |
+| `edge` | Yes | `top` or `bottom`: the edge of the screen the panel is pinned to. |
+
+Controls lay out in a panel as they do in a window, and edge offsets measure from
+the panel's size, or the size the host gives it with `setWindowSize(_:)`, such as
+the screen's width.
+
+Rules:
+
+- An `edge` other than `top` or `bottom` refuses the document, so a panel never
+  lands somewhere it wasn't meant to. Another edge needs a reader that knows it.
+- A panel has no title bar and isn't resized by hand, so `resizable`, `minWidth`,
+  and `minHeight` mean nothing on it. Written anyway, they're ignored and listed
+  in `ignoredAttributes`, as unknown attributes are.
+- A panel can't have toolbar items, a title field, or a sidebar. Any of these
+  refuses the document.
+- A panel may have menus. How the host shows them is the host's choice.
+- A document with both a `<Window>` and a `<Panel>`, or with two panels, refuses
+  the document.
+- `<Panel>` holds nothing. Its controls sit in `<UIScript>`, as a window's do, so
+  the rest of a document reads the same whichever it has.
+
+A reader from before panels refuses `<Panel>` as an unknown element. That's the
+right failure: a HUD bar or a dock shown as an ordinary, movable window isn't a
+working fallback.
+
+A host that shows panels:
+
+- Draws a panel along its edge, above the game or the windows it manages, and
+  doesn't let it be dragged or framed as a window.
+- Keeps windows clear of the edge a panel is on, or, in a game, keeps the panel
+  above whatever the game draws there.
+- Decides where along its edge a panel sits, and how many it allows on each edge.
+  VentureOS allows one top panel, its menu bar, and centres a bottom panel, its
+  dock, which can hide itself.
+
+A panel isn't the same as composing views inside each other, described in
+[Panels inside panels](#panels-inside-panels). A panel is where a document's
+interface goes on the screen; the views a host draws inside it are up to the host.
+
 ## Resources
 
 `<Image>` refers to an image the host loads. It needs a `path`, an `assetID`, or
@@ -428,11 +489,10 @@ for ignored in script.ignoredAttributes {
 | --- | --- |
 | [`menus`](#menus) | Menus for a global menu bar, with submenus |
 | [`sidebar`](#sidebar) | A list of places down the window's left |
-| [`panel`](#panel) | A panel pinned to an edge of the screen, in place of a window |
 
 A host should list the modules it implements. Hudini's reader supports version 1
 and implements no modules yet. VentureOS implements `menus` and `sidebar`, menus'
-nesting aside, and reads panels from its own draft of `panel`.
+nesting aside.
 
 ### Menus
 
@@ -569,63 +629,6 @@ A host that implements sidebars:
   selects a row, and reports `selected`, as for `<List selectable="true">`.
 - Sets it apart from the content, such as with its own shade, and marks the
   selected row.
-
-### Panel
-
-A document can describe a panel in place of a window: pinned to an edge of the
-screen, with no title bar, such as a dock or a menu bar. It's a module because
-plenty of hosts, such as a game showing one dialog at a time, have no screen
-edges to pin anything to.
-
-```xml
-<UIScript version="1" requires="panel">
-  <Panel width="400" height="40" edge="bottom"/>
-
-  <Button name="home" x="8" y="6" width="80" height="28" text="Home"/>
-  <Text name="clock" x="332" y="12" width="60" height="16" edgeOffsetRight="8"
-        text="12:00" alignment="right"/>
-</UIScript>
-```
-
-This is a different thing from composing views inside each other, described in
-[Panels inside panels](#panels-inside-panels), which needs no module.
-
-`<Panel>` takes the place of `<Window>`: a document has exactly one of the two.
-
-| Attribute | Required | Value |
-| --- | --- | --- |
-| `width`, `height` | Yes | The panel's size, as a window's. Both must be positive. |
-| `edge` | Yes | `top` or `bottom`: the edge of the screen the panel is pinned to. |
-
-Controls lay out in a panel as they do in a window, and edge offsets measure from
-the panel's size.
-
-Rules:
-
-- An `edge` other than `top` or `bottom` refuses the document, so a panel never
-  lands somewhere it wasn't meant to. Another edge needs a reader that knows it.
-- A panel has no title bar and isn't resized by hand, so `resizable`, `minWidth`,
-  and `minHeight` mean nothing on it. Written anyway, they're ignored and listed
-  in `ignoredAttributes`, as unknown attributes are.
-- A panel can't have toolbar items, a title field, or a sidebar. Any of these
-  refuses the document.
-- A panel may have menus. How the host shows them is the host's choice.
-- A `<Panel>` in a document without `requires="panel"`, a document with both a
-  `<Window>` and a `<Panel>`, or one with two panels, refuses the document.
-- `<Panel>` holds nothing. Its controls sit in `<UIScript>`, as a window's do, so
-  the rest of a document reads the same whichever it has.
-
-A reader without this module refuses a panel by design: a dock or a menu bar shown
-as an ordinary, movable window isn't a working fallback.
-
-A host that implements panels:
-
-- Keeps a panel above ordinary windows and doesn't let it be moved or focused as
-  a window.
-- Keeps other windows clear of the edge a panel is on.
-- Decides where along its edge a panel sits, and how many it allows on each edge.
-  VentureOS allows one top panel, its menu bar, and centres a bottom panel, its
-  dock, which can hide itself.
 
 ## Errors
 
@@ -785,8 +788,8 @@ move to SwiftCST in their own time: create a `UIText` the same way, and call
 
 ## Not yet supported
 
-Hudini's reader reads everything in this draft's core. It implements no modules
-yet.
+Hudini's reader reads everything in this draft's core except `<Panel>`, which it
+refuses as an unknown element. It implements no modules yet.
 
 A text area's caret stays at the end of its text. Clicking to place it, moving it
 with the arrow keys, selection, and the clipboard aren't supported yet.
@@ -802,9 +805,9 @@ Newest first. Changes before the draft are in the repository's history.
   flat, so nesting needs no new `version`. `menus` nests first: a `<Menu>` holds
   its items, separators, and submenus, and the flat form with `menu` still reads
   the same. Submenus are new, and nest only.
-- **2026-11-20:** The `panel` module, from VentureOS: `<Panel>` in place of
-  `<Window>`, pinned to the top or bottom of the screen. VentureOS wrote it as a
-  core element, with no `requires`.
+- **2026-11-20:** `<Panel>` in place of `<Window>`, from VentureOS: a strip
+  pinned to the top or bottom of the screen, such as a HUD bar, a dock, or a menu
+  bar. It's core, needing no `requires`, as VentureOS wrote it.
 
 - **2026-11-12:** `resizable` on `<Window>`, from VentureOS: a grip in the corner
   resizes the window within its smallest size.
