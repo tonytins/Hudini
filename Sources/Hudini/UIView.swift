@@ -1,5 +1,9 @@
 import Raylib
 
+/// The name `UIView` had before. It's the same class, so code using it keeps working.
+@available(*, deprecated, renamed: "UIView")
+public typealias UIScriptView = UIView
+
 /// Builds, updates, and draws the controls and visuals a `UIScript` document describes.
 ///
 /// The view owns the controls and their interaction state. The host owns game
@@ -10,7 +14,7 @@ import Raylib
 /// Create it once and keep it. The host draws any window frame or background
 /// behind the view, and it can place one view inside another by drawing it at a
 /// region's corner, or in a `WindowFrame`, without the document changing.
-public final class UIScriptView {
+public final class UIView {
     private static let defaultMaximumLength = 256
     private static let defaultTextAreaMaximumLength = 65_536
     private static let textInset = 6

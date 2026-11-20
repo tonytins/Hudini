@@ -444,8 +444,8 @@ SetWindowTitle("Hudini Demo - The Sims Online Style")
 
 var placeholderTextures: [Texture2D] = []
 @MainActor
-func makeView(_ script: UIScript) -> UIScriptView {
-    let view = UIScriptView(
+func makeView(_ script: UIScript) -> UIView {
+    let view = UIView(
         script: script,
         theme: theme,
         resolveString: demoString,

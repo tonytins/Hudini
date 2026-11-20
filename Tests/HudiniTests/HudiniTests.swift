@@ -354,7 +354,7 @@ private func panelDocument(_ panel: String, _ body: String = "") throws -> UIScr
 }
 
 @Test func panelViewStretchesToTheScreenAboveItsMinimum() throws {
-    let view = UIScriptView(script: try panelDocument(
+    let view = UIView(script: try panelDocument(
         "<Panel width='1024' height='48' minWidth='640' minHeight='48' edge='bottom'/>",
         "<Region name='ticker' x='8' y='4' width='1008' height='16' edgeOffsetLeft='8' edgeOffsetRight='8'/>"
     ))
@@ -367,8 +367,8 @@ private func panelDocument(_ panel: String, _ body: String = "") throws -> UIScr
 
 @Test func panelOriginSitsAgainstItsEdge() throws {
     let screen = Vector2(x: 1280, y: 720)
-    let bottom = UIScriptView(script: try panelDocument("<Panel width='1024' height='160' edge='bottom'/>"))
-    let top = UIScriptView(script: try panelDocument("<Panel width='1024' height='26' edge='top'/>"))
+    let bottom = UIView(script: try panelDocument("<Panel width='1024' height='160' edge='bottom'/>"))
+    let top = UIView(script: try panelDocument("<Panel width='1024' height='26' edge='top'/>"))
 
     #expect(bottom.panelOrigin(onScreen: screen) == Vector2(x: 0, y: 560))
     #expect(bottom.panelOrigin(onScreen: screen, x: 128) == Vector2(x: 128, y: 560))
@@ -376,7 +376,7 @@ private func panelDocument(_ panel: String, _ body: String = "") throws -> UIScr
     // The height follows a stretched panel's size.
     bottom.setWindowSize(Vector2(x: 1280, y: 200))
     #expect(bottom.panelOrigin(onScreen: screen) == Vector2(x: 0, y: 520))
-    #expect(UIScriptView(script: try script("")).panelOrigin(onScreen: screen) == nil)
+    #expect(UIView(script: try script("")).panelOrigin(onScreen: screen) == nil)
 }
 
 @Test func uiScriptReportsMissingAndUnusableAttributes() {
@@ -604,7 +604,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
     <Button name='wider' x='5' y='6' width='70' image='strip'/>
     <Visual name='fromPlain' x='1' y='2' image='plain'/>
     """)
-    let view = UIScriptView(script: loaded, loadImage: { resource in
+    let view = UIView(script: loaded, loadImage: { resource in
         resource.stateCount == 4 ? stubTexture(width: 100, height: 25) : stubTexture(width: 40, height: 20)
     })
     let origin = Vector2(x: 10, y: 20)
@@ -617,7 +617,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func viewFallsBackToASmallSizeForMissingImages() throws {
-    let view = UIScriptView(script: try script(imageDocument(stateCount: 4)))
+    let view = UIView(script: try script(imageDocument(stateCount: 4)))
 
     #expect(view.missingImages == ["art"])
     #expect(view.bounds(named: "owner", at: .zero) == Rectangle(x: 5, y: 6, width: 24, height: 24))
@@ -625,7 +625,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 
 @Test func viewAsksTheHostForEachImageOnce() throws {
     var requestedPaths: [String?] = []
-    let view = UIScriptView(script: try script(imageDocument(stateCount: 4)), loadImage: { resource in
+    let view = UIView(script: try script(imageDocument(stateCount: 4)), loadImage: { resource in
         requestedPaths.append(resource.path)
         return Texture2D()
     })
@@ -635,7 +635,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func viewBuildsControlsAndFindsThemByKind() throws {
-    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
+    let view = UIView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
 
     #expect(view.list(named: "chatHistory") != nil)
     #expect(view.textField(named: "chatEntry") != nil)
@@ -644,7 +644,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func viewAppliesDocumentSettingsToTextFields() throws {
-    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
+    let view = UIView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
     let entry = try #require(view.textField(named: "chatEntry"))
 
     entry.text = String(repeating: "a", count: 500)
@@ -652,7 +652,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func viewScrollButtonsMoveTheirListWithoutReportingAnEvent() throws {
-    let view = UIScriptView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
+    let view = UIView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
     let history = try #require(view.list(named: "chatHistory"))
     let origin = Vector2(x: 1000, y: 1000)
     history.items = (1...20).map { "Message \($0)" }
@@ -665,7 +665,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func viewReportsOtherButtonsAndSkipsHiddenOnes() throws {
-    let view = UIScriptView(script: try script("<Button name='lower' \(tenByTen)/><Button name='upper' \(tenByTen)/>"))
+    let view = UIView(script: try script("<Button name='lower' \(tenByTen)/><Button name='upper' \(tenByTen)/>"))
     let point = Vector2(x: 5, y: 5)
 
     #expect(view.pressButton(at: point, origin: .zero) == .pressed(control: "upper"))
@@ -680,7 +680,7 @@ func controlsWithoutAnImageNeedASize(element: String) {
 }
 
 @Test func disabledButtonsAbsorbPressesWithoutReporting() throws {
-    let view = UIScriptView(script: try script("<Button name='lower' \(tenByTen)/><Button name='upper' \(tenByTen)/>"))
+    let view = UIView(script: try script("<Button name='lower' \(tenByTen)/><Button name='upper' \(tenByTen)/>"))
     let point = Vector2(x: 5, y: 5)
 
     view.setDisabled(true, named: "upper")
@@ -694,16 +694,16 @@ func controlsWithoutAnImageNeedASize(element: String) {
 @Test func viewResolvesStringReferencesThroughTheHost() throws {
     let parsed = try script("<String name='hint' table='UIText' index='7'/><TextField name='entry' \(tenByTen) string='hint'/>")
 
-    let resolved = UIScriptView(script: parsed, resolveString: { "\($0.table) string \($0.index)" })
+    let resolved = UIView(script: parsed, resolveString: { "\($0.table) string \($0.index)" })
     #expect(resolved.textField(named: "entry")?.text == "UIText string 7")
 
-    let unresolved = UIScriptView(script: parsed)
+    let unresolved = UIView(script: parsed)
     #expect(unresolved.textField(named: "entry")?.text == "UIText#7")
 }
 
 @Test func chatDialogControlsFitInsideItsWindow() throws {
     let chat = try UIScript(contentsOf: demoResource("chatdialog.uix"))
-    let view = UIScriptView(script: chat)
+    let view = UIView(script: chat)
 
     for control in chat.controls {
         let bounds = try #require(view.bounds(named: control.name, at: .zero))
@@ -716,8 +716,8 @@ func controlsWithoutAnImageNeedASize(element: String) {
 @Test func chatAndLivePanelShareOneModelWithoutSharingALayout() throws {
     let chat = try UIScript(contentsOf: demoResource("chatdialog.uix"))
     let panel = try UIScript(contentsOf: demoResource("livepanel1024.uix"))
-    let chatView = UIScriptView(script: chat)
-    let panelView = UIScriptView(script: panel)
+    let chatView = UIView(script: chat)
+    let panelView = UIView(script: panel)
 
     #expect(chat.controls.contains { $0.scrolls != nil })
     #expect(!panel.controls.contains { $0.scrolls != nil })
@@ -918,7 +918,7 @@ private func row(_ row: Int, of bounds: Rectangle) -> Vector2 {
     let loaded = try script("<List name='a' \(tenByTen) selectable='true'/><List name='b' \(tenByTen)/>")
 
     #expect(loaded.ignoredAttributes.isEmpty)
-    let view = UIScriptView(script: loaded)
+    let view = UIView(script: loaded)
     #expect(view.list(named: "a")?.isSelectable == true)
     #expect(view.list(named: "b")?.isSelectable == false)
 }
@@ -932,7 +932,7 @@ private func row(_ row: Int, of bounds: Rectangle) -> Vector2 {
 private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' selectable='true'/>"
 
 @Test func viewReportsSelectionOnTheListUnderThePointer() throws {
-    let view = UIScriptView(script: try script(lotList))
+    let view = UIView(script: try script(lotList))
     let origin = Vector2(x: 500, y: 500)
     let list = try #require(view.list(named: "lots"))
     list.items = ["Maple", "Oak"]
@@ -944,7 +944,7 @@ private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' sel
 }
 
 @Test func controlsOverAListKeepItsClicks() throws {
-    let view = UIScriptView(script: try script(lotList + "<Button name='over' x='0' y='0' width='100' height='20'/>"))
+    let view = UIView(script: try script(lotList + "<Button name='over' x='0' y='0' width='100' height='20'/>"))
     let list = try #require(view.list(named: "lots"))
     list.items = ["Maple", "Oak"]
 
@@ -956,7 +956,7 @@ private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' sel
 }
 
 @Test func hiddenListsTakeNoClicks() throws {
-    let view = UIScriptView(script: try script(lotList))
+    let view = UIView(script: try script(lotList))
     view.list(named: "lots")?.items = ["Maple"]
     view.setHidden(true, named: "lots")
 
@@ -1166,8 +1166,8 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
 
 @Test func uiScriptFieldsUseTheThemesBodySizeUnlessStyled() throws {
     let theme = InterfaceTheme(textSizes: .init(body: 30))
-    let plain = UIScriptView(script: try script("<TextField name='entry' \(tenByTen)/>"), theme: theme)
-    let styled = UIScriptView(
+    let plain = UIView(script: try script("<TextField name='entry' \(tenByTen)/>"), theme: theme)
+    let styled = UIView(
         script: try script("<Style name='s' fontSize='18'/><TextField name='entry' style='s' \(tenByTen)/>"),
         theme: theme
     )
@@ -1252,7 +1252,7 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
 }
 
 @Test func settingAViewsThemeReachesItsControlsAndKeepsTheirState() throws {
-    let view = UIScriptView(script: try script("""
+    let view = UIView(script: try script("""
     <Style name='fixed' fontSize='18'/>
     <TextField name='entry' \(tenByTen)/>
     <TextField name='styled' style='fixed' \(tenByTen)/>
@@ -1325,7 +1325,7 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
 }
 
 @Test func viewFieldsTakeFocusByNameAndLoseItWhenHidden() throws {
-    let view = UIScriptView(script: try script("<TextField name='entry' \(tenByTen)/>"))
+    let view = UIView(script: try script("<TextField name='entry' \(tenByTen)/>"))
     let field = try #require(view.textField(named: "entry"))
 
     field.setFocused(true)
@@ -1367,7 +1367,7 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
     #expect(loaded.ignoredAttributes.isEmpty)
     #expect(loaded.control(named: "a")?.isSecure == true)
     #expect(loaded.control(named: "b")?.isSecure == false)
-    #expect(UIScriptView(script: loaded).textField(named: "a")?.isSecure == true)
+    #expect(UIView(script: loaded).textField(named: "a")?.isSecure == true)
 }
 
 @Test func uiScriptRejectsInvalidSecure() {
@@ -1384,7 +1384,7 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
 
     #expect(loaded.control(named: "a")?.isReadOnly == true)
     #expect(loaded.control(named: "b")?.isReadOnly == false)
-    #expect(UIScriptView(script: loaded).textField(named: "a")?.isReadOnly == true)
+    #expect(UIView(script: loaded).textField(named: "a")?.isReadOnly == true)
 }
 
 @Test func uiScriptRejectsInvalidReadOnly() {
@@ -1416,7 +1416,7 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
 }
 
 @Test func viewChangesTextAtRuntime() throws {
-    let view = UIScriptView(script: try script("""
+    let view = UIView(script: try script("""
     <Text name='label' \(tenByTen) text='Funds'/>
     <Button name='button' \(tenByTen)/>
     <TextField name='field' \(tenByTen) maximumLength='3'/>
@@ -1441,7 +1441,7 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
 }
 
 @Test func viewReportsWhenAPointIsOverItsVisibleParts() throws {
-    let view = UIScriptView(script: try script("""
+    let view = UIView(script: try script("""
     <Image name='art' path='a.bmp'/>
     <Visual name='backdrop' image='art' x='100' y='100' width='10' height='10'/>
     <Region name='area' x='0' y='0' width='10' height='10'/>
@@ -1593,7 +1593,7 @@ private func uis(_ text: String) throws -> UIScript {
     <SetControlProperties "Spot" position=(50,60) size=(10,10)>
     <AddText "Plain" position=(0,0) size=(1,1)>
     """)
-    let view = UIScriptView(script: loaded)
+    let view = UIView(script: loaded)
     let inFrame = Vector2(x: 5, y: 5)
     let inSpot = Vector2(x: 55, y: 65)
 
@@ -1744,7 +1744,7 @@ func uisReadsEveryLocalFile() throws {
 // MARK: Tiger view features
 
 @Test func edgeOffsetsAnchorAndStretchAgainstTheWindowSize() throws {
-    let view = UIScriptView(script: try script("""
+    let view = UIView(script: try script("""
     <Region name='anchored' x='0' y='0' width='20' height='10' edgeOffsetRight='5' edgeOffsetBottom='7'/>
     <Region name='stretched' x='0' y='0' width='20' height='10' edgeOffsetLeft='3' edgeOffsetRight='5'/>
     <Region name='overshoot' x='0' y='0' width='20' height='10' edgeOffsetLeft='300' edgeOffsetRight='5'/>
@@ -1763,7 +1763,7 @@ func uisReadsEveryLocalFile() throws {
 }
 
 @Test func windowSizeStopsAtTheDocumentsMinimum() throws {
-    let view = UIScriptView(script: try UIScript(data: Data("""
+    let view = UIView(script: try UIScript(data: Data("""
     <UIScript>
       <Window width="400" height="255" minWidth="350" minHeight="196"/>
       <Region name="anchored" x="0" y="0" width="20" height="10" edgeOffsetRight="5" edgeOffsetBottom="7"/>
@@ -1782,7 +1782,7 @@ func uisReadsEveryLocalFile() throws {
 }
 
 @Test func windowSizeWithoutAMinimumTakesAnySize() throws {
-    let view = UIScriptView(script: try script("<Region name='r' x='0' y='0' width='20' height='10'/>"))
+    let view = UIView(script: try script("<Region name='r' x='0' y='0' width='20' height='10'/>"))
 
     view.setWindowSize(Vector2(x: 10, y: 4))
     #expect(view.windowSize == Vector2(x: 10, y: 4))
@@ -1790,13 +1790,13 @@ func uisReadsEveryLocalFile() throws {
 
 @Test func anchoringUsesASizeTakenFromTheImage() throws {
     let loaded = try script("<Image name='art' path='a.bmp'/><Button name='b' x='0' y='0' image='art' edgeOffsetRight='8'/>")
-    let view = UIScriptView(script: loaded, loadImage: { _ in stubTexture(width: 20, height: 20) })
+    let view = UIView(script: loaded, loadImage: { _ in stubTexture(width: 20, height: 20) })
 
     #expect(view.bounds(named: "b", at: .zero) == Rectangle(x: 72, y: 0, width: 20, height: 20))
 }
 
 @Test func selectedButtonsStayOnAndStillReportPresses() throws {
-    let view = UIScriptView(script: try script("<Button name='a' \(tenByTen)/>"))
+    let view = UIView(script: try script("<Button name='a' \(tenByTen)/>"))
 
     #expect(!view.isSelected(named: "a"))
     view.setSelected(true, named: "a")
@@ -1858,7 +1858,7 @@ private let sliders = """
 }
 
 @Test func valuesStartAtTheLowestAndStayInRange() throws {
-    let view = UIScriptView(script: try script(sliders))
+    let view = UIView(script: try script(sliders))
 
     #expect(view.value(named: "across") == 10)
     #expect(view.value(named: "score") == 0)
@@ -1878,7 +1878,7 @@ private let sliders = """
 
 @Test func sliderFractionStaysInsideTheTrack() {
     func fraction(_ pointer: Float) -> Float {
-        UIScriptView.sliderFraction(pointer: pointer, trackStart: 100, trackLength: 102, thumbLength: 10, grab: 5)
+        UIView.sliderFraction(pointer: pointer, trackStart: 100, trackLength: 102, thumbLength: 10, grab: 5)
     }
 
     #expect(fraction(0) == 0)
@@ -1886,11 +1886,11 @@ private let sliders = """
     #expect(fraction(151) == 0.5)
     #expect(fraction(196) == 1)
     #expect(fraction(999) == 1)
-    #expect(UIScriptView.sliderFraction(pointer: 5, trackStart: 0, trackLength: 10, thumbLength: 10, grab: 0) == 0)
+    #expect(UIView.sliderFraction(pointer: 5, trackStart: 0, trackLength: 10, thumbLength: 10, grab: 0) == 0)
 }
 
 @Test func draggingAHorizontalSliderReportsItsNewValue() throws {
-    let view = UIScriptView(script: try script(sliders))
+    let view = UIView(script: try script(sliders))
     let origin = Vector2(x: 1000, y: 1000)
 
     // The track's middle: a press away from the thumb centers it on the pointer.
@@ -1906,7 +1906,7 @@ private let sliders = """
 }
 
 @Test func slidersFollowTheirOrientationOrShape() throws {
-    let view = UIScriptView(script: try script(sliders))
+    let view = UIView(script: try script(sliders))
 
     #expect(view.beginSliderDrag(at: Vector2(x: 205, y: 51), origin: .zero))
     #expect(view.dragSlider(to: Vector2(x: 205, y: 51), origin: .zero) == .changed(control: "down", value: 0.5))
@@ -1918,7 +1918,7 @@ private let sliders = """
 }
 
 @Test func hiddenAndDisabledSlidersCannotBeDragged() throws {
-    let view = UIScriptView(script: try script(sliders))
+    let view = UIView(script: try script(sliders))
     let point = Vector2(x: 51, y: 5)
 
     #expect(!view.beginSliderDrag(at: Vector2(x: 500, y: 500), origin: .zero))
@@ -1936,7 +1936,7 @@ private let sliders = """
 }
 
 @Test func setBoundsReplacesADocumentPositionAndOffsets() throws {
-    let view = UIScriptView(script: try script("""
+    let view = UIView(script: try script("""
     <Region name='r' x='0' y='0' width='20' height='10' edgeOffsetRight='5'/>
     """))
 
@@ -1953,8 +1953,8 @@ private let tooltipBody = """
 <Text name='cover' x='0' y='0' width='10' height='10'/>
 """
 
-private func tooltipView() throws -> UIScriptView {
-    UIScriptView(script: try script(tooltipBody), resolveString: { $0.index == 1 ? "Hello" : "" })
+private func tooltipView() throws -> UIView {
+    UIView(script: try script(tooltipBody), resolveString: { $0.index == 1 ? "Hello" : "" })
 }
 
 @Test func tooltipsWaitForThePointerToRest() throws {
@@ -2001,20 +2001,20 @@ private func tooltipView() throws -> UIScriptView {
     let screen = Vector2(x: 200, y: 200)
     let control = Rectangle(x: 10, y: 10, width: 20, height: 20)
 
-    let below = UIScriptView.tooltipBounds(textWidth: 50, textHeight: 12, below: control, screen: screen)
+    let below = UIView.tooltipBounds(textWidth: 50, textHeight: 12, below: control, screen: screen)
     #expect(below == Rectangle(x: 10, y: 34, width: 58, height: 20))
 
     let nearBottom = Rectangle(x: 10, y: 180, width: 20, height: 20)
-    let above = UIScriptView.tooltipBounds(textWidth: 50, textHeight: 12, below: nearBottom, screen: screen)
+    let above = UIView.tooltipBounds(textWidth: 50, textHeight: 12, below: nearBottom, screen: screen)
     #expect(above.y == 156)
 
     let nearRight = Rectangle(x: 190, y: 10, width: 10, height: 10)
-    #expect(UIScriptView.tooltipBounds(textWidth: 50, textHeight: 12, below: nearRight, screen: screen).x == 142)
-    #expect(UIScriptView.tooltipBounds(textWidth: 500, textHeight: 12, below: nearRight, screen: screen).x == 0)
+    #expect(UIView.tooltipBounds(textWidth: 50, textHeight: 12, below: nearRight, screen: screen).x == 142)
+    #expect(UIView.tooltipBounds(textWidth: 500, textHeight: 12, below: nearRight, screen: screen).x == 0)
 }
 
 @Test func clearFocusRemovesFocusFromTextFields() throws {
-    let view = UIScriptView(script: try script("<TextField name='a' \(tenByTen)/>"))
+    let view = UIView(script: try script("<TextField name='a' \(tenByTen)/>"))
     let field = try #require(view.textField(named: "a"))
 
     field.setFocused(true)
@@ -2025,7 +2025,7 @@ private func tooltipView() throws -> UIScriptView {
 
 @Test func theDemoStandWorksFromItsSettingsInEitherPlace() throws {
     let stand = try UIScript(uisContentsOf: demoResource("lemonadestand.uis"))
-    let view = UIScriptView(script: stand)
+    let view = UIView(script: stand)
 
     #expect(stand.conversionNotes.isEmpty)
     #expect(stand.ignoredAttributes.isEmpty)
@@ -2197,12 +2197,12 @@ private func temporaryTextDirectory(_ files: [String: String], under path: Strin
     <AddText "A" position=(0,0) size=(1,1) text="Found">
     <AddText "B" position=(0,0) size=(1,1) text="Absent">
     """)
-    let view = UIScriptView(script: loaded, resolveString: catalog.text(for:))
+    let view = UIView(script: loaded, resolveString: catalog.text(for:))
 
     #expect(view.text(named: "A") == "One")
     #expect(view.text(named: "B") == "UIText:174#2")
     #expect(view.missingStrings == ["Absent", "NoTable"])
-    #expect(UIScriptView(script: loaded).missingStrings.count == 3)
+    #expect(UIView(script: loaded).missingStrings.count == 3)
 }
 
 @Test func catalogFollowsReferencesBetweenTables() throws {
@@ -2268,7 +2268,7 @@ func catalogFindsEitherInstallLayout(path: String) throws {
         #expect(try text.table(for: id)?.problems == [])
     }
     for document in documents {
-        let view = UIScriptView(script: document) { resource in
+        let view = UIView(script: document) { resource in
             resource.table.split(separator: ":").last.flatMap { Int($0) }
                 .flatMap { try? text.textIfPresent(for: $0, key: resource.index) }
         }
@@ -2348,7 +2348,7 @@ private let threeLines = Rectangle(x: 0, y: 0, width: 200, height: 80)
     let control = try #require(loaded.control(named: "notes"))
     #expect(control.type == .textArea)
     #expect(control.follows)
-    let view = UIScriptView(script: loaded)
+    let view = UIView(script: loaded)
     let area = try #require(view.textArea(named: "notes"))
     #expect(area.isReadOnly)
     #expect(area.follows)
@@ -2360,7 +2360,7 @@ private let threeLines = Rectangle(x: 0, y: 0, width: 200, height: 80)
 
 @Test func uiScriptTextAreasAcceptLongerTextByDefault() throws {
     let long = String(repeating: "a", count: 70_000)
-    let view = UIScriptView(script: try script("<TextArea name='log' \(tenByTen) text='\(long)'/>"))
+    let view = UIView(script: try script("<TextArea name='log' \(tenByTen) text='\(long)'/>"))
 
     #expect(view.text(named: "log")?.count == 65_536)
 }
@@ -2378,7 +2378,7 @@ private let threeLines = Rectangle(x: 0, y: 0, width: 200, height: 80)
 }
 
 @Test func scrollButtonsAndSlidersCanScrollATextArea() throws {
-    let view = UIScriptView(script: try script("""
+    let view = UIView(script: try script("""
         <TextArea name='log' x='0' y='0' width='200' height='80'/>
         <Button name='up' x='300' y='0' width='10' height='10' scrolls='log' direction='up'/>
         <Slider name='bar' x='300' y='20' width='10' height='60' scrolls='log'/>
@@ -2478,7 +2478,7 @@ private let threeLines = Rectangle(x: 0, y: 0, width: 200, height: 80)
 }
 
 @Test func viewReportsADoubleClickAsSubmittedWithTheItemsText() throws {
-    let view = UIScriptView(script: try script(lotList))
+    let view = UIView(script: try script(lotList))
     let list = try #require(view.list(named: "lots"))
     list.items = ["Maple", "Oak"]
 
@@ -2524,8 +2524,8 @@ private let titleBarDocument = """
     <TitleField name='address' placeholder='Path'/>
     """
 
-private func documentFrame(_ body: String = titleBarDocument) throws -> (WindowFrame, UIScriptView) {
-    let view = UIScriptView(script: try script(body))
+private func documentFrame(_ body: String = titleBarDocument) throws -> (WindowFrame, UIView) {
+    let view = UIView(script: try script(body))
     return (WindowFrame(view: view), view)
 }
 
@@ -2551,7 +2551,7 @@ private func documentFrame(_ body: String = titleBarDocument) throws -> (WindowF
 }
 
 @Test func aViewHoldsItsTitleFieldsTextByName() throws {
-    let view = UIScriptView(script: try script(titleBarDocument))
+    let view = UIView(script: try script(titleBarDocument))
 
     #expect(view.text(named: "address") == "")
     view.setText("/home", named: "address")
@@ -2658,7 +2658,7 @@ private func documentFrame(_ body: String = titleBarDocument) throws -> (WindowF
 
 // Without a window, the screen measures as empty, so every window sits at the corner, 100 by 110.
 private func managedFrame(_ body: String = "<TextField name='entry' x='0' y='0' width='50' height='20'/>") throws -> WindowFrame {
-    WindowFrame(view: UIScriptView(script: try script(body)))
+    WindowFrame(view: UIView(script: try script(body)))
 }
 
 @Test func windowsOpenInFrontAndAPressBringsOneForward() throws {
@@ -2882,7 +2882,7 @@ func demoMenuAndCityDocumentsLoadCleanly(name: String) throws {
 }
 
 @Test func aViewResolvesRolesAgainWhenItsThemeChanges() throws {
-    let view = UIScriptView(script: try script("""
+    let view = UIView(script: try script("""
         <Style name='s' textColor='accent' fontSize='title'/>
         <List name='l' \(tenByTen) style='s'/>
         <Button name='b' \(tenByTen) style='s'/>
@@ -2924,7 +2924,7 @@ private func resizableScript(minimum: Bool) throws -> UIScript {
 }
 
 @Test func onlyAResizableWindowHasAGrip() throws {
-    let fixed = WindowFrame(view: UIScriptView(script: try script("")))
+    let fixed = WindowFrame(view: UIView(script: try script("")))
     let bounds = fixed.place(at: .zero)
     let corner = Vector2(x: bounds.width - 5, y: bounds.height - 5)
 
@@ -2932,7 +2932,7 @@ private func resizableScript(minimum: Bool) throws -> UIScript {
     #expect(!fixed.isResizeGrip(at: corner, in: bounds))
     #expect(!fixed.beginResizing(at: corner, in: bounds))
 
-    let resizable = WindowFrame(view: UIScriptView(script: try resizableScript(minimum: true)))
+    let resizable = WindowFrame(view: UIView(script: try resizableScript(minimum: true)))
     let resizableBounds = resizable.place(at: .zero)
     #expect(resizable.isResizable)
     #expect(resizable.isResizeGrip(at: Vector2(x: 195, y: 125), in: resizableBounds))
@@ -2940,7 +2940,7 @@ private func resizableScript(minimum: Bool) throws -> UIScript {
 }
 
 @Test func draggingTheGripResizesWithinTheDocumentsSmallestSizeAndTheScreen() throws {
-    let view = UIScriptView(script: try resizableScript(minimum: true))
+    let view = UIView(script: try resizableScript(minimum: true))
     let frame = WindowFrame(view: view)
     let bounds = frame.place(at: .zero)
     let screen = Vector2(x: 400, y: 300)
@@ -2964,7 +2964,7 @@ private func resizableScript(minimum: Bool) throws -> UIScript {
 }
 
 @Test func aResizableWindowWithoutAMinimumStaysAtLeastItsDocumentsSize() throws {
-    let view = UIScriptView(script: try resizableScript(minimum: false))
+    let view = UIView(script: try resizableScript(minimum: false))
     let frame = WindowFrame(view: view)
     let bounds = frame.place(at: .zero)
 

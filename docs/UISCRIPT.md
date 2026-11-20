@@ -2,7 +2,7 @@
 
 A UIScript document is an XML file describing one interface: its window size,
 resources, styles, decorative images, and controls. `UIScript` reads it and
-`UIScriptView` builds, updates, and draws it.
+`UIView` builds, updates, and draws it.
 
 UIScript describes presentation. The host game owns live data, actions, images,
 and localized text. The format is inspired by The Sims Online's `.uis` files.
@@ -269,7 +269,7 @@ properties of those names, `disabledText` is `secondaryText`, `highlightedText` 
 `text`, and `selection` is `selectedItem`. The size roles are the theme's `tooltip`,
 `body`, `title`, and `largeTitle` sizes. A theme is dark when its `isDark` says so,
 or, unless told, when its `panel` is dark; Hudini's standard theme is dark. A
-`UIScriptView` resolves its document's styles again whenever its theme changes. A
+`UIView` resolves its document's styles again whenever its theme changes. A
 game reading colors out of its own document gets what was written as hex from
 `Style`'s plain properties, and everything, roles included, from
 `Style.resolved(in:)`.
@@ -424,7 +424,7 @@ to decide what they mean. The minimize button is off until `showsMinimizeButton`
 set. Set the frame's `drawRegion` to draw into the view's regions, since the frame,
 not the host, calls `draw(at:drawRegion:)`. The frame also draws a resizable
 window's grip and resizes the view by it, and `isResizing` says while it's being
-dragged. A `UIScriptView` drawn on its own ignores both elements and the grip.
+dragged. A `UIView` drawn on its own ignores both elements and the grip.
 
 ## Events
 
@@ -648,7 +648,7 @@ throws. There is no partial result.
 ## Host responsibilities
 
 ```swift
-let view = UIScriptView(
+let view = UIView(
     script: script,
     resolveString: { resource in text(for: resource) }, // See "Reading CST text".
     loadImage: { loadTexture(for: $0) }
@@ -714,7 +714,7 @@ bundled.
 ## Reading `.uis` files
 
 `UIScript(uisData:)` and `UIScript(uisContentsOf:)` read Maxis' `.uis` format into
-the same model, so `UIScriptView` draws the result like any other document. See
+the same model, so `UIView` draws the result like any other document. See
 [`debugbar.uis`](../Demo/Sources/hudini-demo/Resources/debugbar.uis) for an original
 example.
 
@@ -775,7 +775,7 @@ game, and pass its lookup to the view:
 import SwiftCST
 
 let text = UIText(gameData: installURL.appendingPathComponent("gamedata"))
-let view = UIScriptView(script: script, resolveString: { resource in
+let view = UIView(script: script, resolveString: { resource in
     // The table ID is the number at the end, so `UIText:174` and `174` mean the same table.
     guard let id = resource.table.split(separator: ":").last.flatMap({ Int($0) }) else {
         return nil

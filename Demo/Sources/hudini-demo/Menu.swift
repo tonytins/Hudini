@@ -19,7 +19,7 @@ enum DemoChoice: String, CaseIterable {
 func showMenu(theme: InterfaceTheme, screenshot: String?) -> DemoChoice? {
     SetWindowTitle("Hudini Demos")
     let script = loadUIScript(named: "menu")
-    let view = UIScriptView(script: script, theme: theme)
+    let view = UIView(script: script, theme: theme)
     let size = Vector2(x: script.window.size.width, y: script.window.size.height)
     var frameCount = 0
     while !WindowShouldClose() {

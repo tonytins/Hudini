@@ -74,7 +74,7 @@ public struct CSTFile: Sendable {
 /// stores its interface text.
 ///
 /// Every table loads once, during creation, so lookups never touch the disk. Pass `text(for:)`
-/// to `UIScriptView`'s `resolveString`, and missing text appears in its `missingStrings`.
+/// to `UIView`'s `resolveString`, and missing text appears in its `missingStrings`.
 ///
 /// To move to SwiftCST, create a `UIText` with `init(gameData:language:)` or `init(directory:)`,
 /// and use `textIfPresent` where this used `text`. It returns `nil` for missing text in the same

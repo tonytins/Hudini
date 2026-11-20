@@ -6,7 +6,7 @@ import Raylib
 ///
 /// A frame works in one of two ways:
 ///
-/// - **Around a `UIScriptView`**, made with `init(view:title:maximumTitleLength:)`. The frame
+/// - **Around a `UIView`**, made with `init(view:title:maximumTitleLength:)`. The frame
 ///   drives the view: `updateWindow(in:)` handles the bar and the view and returns one list of
 ///   events, and `draw(in:)` draws both. The document describes the bar's toolbar items and
 ///   editable title, which the host reaches by name as it does the view's controls.
@@ -42,7 +42,7 @@ public final class WindowFrame {
     private let titleField: TextField
 
     /// The view the frame wraps, or `nil` for a frame around the host's own content.
-    public let view: UIScriptView?
+    public let view: UIView?
 
     /// The look the frame draws with, including its title field. Setting it takes effect from the
     /// next draw, and keeps the window's position, title, and toolbar selection. A frame around a
@@ -86,11 +86,11 @@ public final class WindowFrame {
     /// title editable, with `maximumTitleLength` characters at most. Without a title field, the bar
     /// shows `title`, which only the host changes. `allowsTitleEditing` and `toolbarItems` don't
     /// apply to a frame around a view.
-    public convenience init(view: UIScriptView, title: String = "", maximumTitleLength: Int = 256) {
+    public convenience init(view: UIView, title: String = "", maximumTitleLength: Int = 256) {
         self.init(title: title, maximumTitleLength: maximumTitleLength, theme: view.theme, view: view)
     }
 
-    private init(title: String, maximumTitleLength: Int, theme: InterfaceTheme, view: UIScriptView?) {
+    private init(title: String, maximumTitleLength: Int, theme: InterfaceTheme, view: UIView?) {
         precondition(maximumTitleLength > 0, "maximumTitleLength must be positive")
         _title = title
         self.theme = theme
@@ -118,7 +118,7 @@ public final class WindowFrame {
     public enum Event: Equatable, Sendable {
         /// The view, its toolbar items, or its title field reported this. A toolbar item reports
         /// `.pressed` with its name, and a submitted title `.submitted` with the title field's name.
-        case view(UIScriptView.Event)
+        case view(UIView.Event)
         /// The close button was clicked. The host decides what closing means.
         case closeRequested
         /// The minimize button was clicked. The host decides where a minimized window goes.
@@ -153,7 +153,7 @@ public final class WindowFrame {
 
     /// Draws into the view's regions, for a frame around a view. `draw(in:)` calls it with each
     /// visible region's name and screen bounds, in its place among the view's controls, as
-    /// `UIScriptView.draw(at:drawRegion:)` does. Without it, regions draw nothing.
+    /// `UIView.draw(at:drawRegion:)` does. Without it, regions draw nothing.
     ///
     /// Set it once, such as where the window's handler is made, so the window draws its regions
     /// wherever it's drawn, including by a `WindowManager`.

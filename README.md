@@ -21,8 +21,10 @@ form layout.
 - A 2D camera with pointer-centered zoom and coordinate conversion
 - Declarative, vertically stacked form layout
 - Per-interface themes with colors, a font, text sizes, rounded corners, and glossy title bars
-- [UIScript](doc/UISCRIPT.md), a draft XML format (`.uix`) describing resources, styles, visuals, and controls
-- `UIScriptView`, which builds, updates, and draws a document's controls
+- [UIScript](docs/UISCRIPT.md), a draft XML format (`.uix`) describing resources, styles, visuals, and controls
+- `UIView`, which builds, updates, and draws a document's controls. It was called
+  `UIScriptView`, a name that still works but is deprecated. A game that also imports
+  UIKit writes `Hudini.UIView`.
 - A reader for Maxis' `.uis` interface files, whose `.cst` text tables
   [SwiftCST](https://github.com/tonytins/swift-cst) reads
 
@@ -64,7 +66,7 @@ tracking the `main` branch.
 
 ## Example
 
-Prefer describing screens in [UIScript](doc/UISCRIPT.md) over hardcoding them. The
+Prefer describing screens in [UIScript](docs/UISCRIPT.md) over hardcoding them. The
 layout stays out of your game code, so moving a control means changing one
 attribute in one file, and your code only deals with what the controls mean.
 
@@ -98,7 +100,7 @@ let theme = InterfaceTheme(
     accent: Color(r: 120, g: 180, b: 240, a: 255)
 )
 let script = try UIScript(contentsOf: URL(fileURLWithPath: "settings.uix"))
-let view = UIScriptView(script: script, theme: theme)
+let view = UIView(script: script, theme: theme)
 // The frame wraps the view: it drags, draws its title bar, and drives the view below it.
 let window = WindowFrame(view: view, title: "Settings")
 
@@ -307,7 +309,7 @@ root, run it with `swift run --package-path Demo hudini-demo`, or skip the menu 
 The demo hosts own all the game state and images, and they generate placeholder art
 because Hudini ships no game assets.
 
-See [the documentation](doc/README.md) for the format, roadmap, and where Hudini
+See [the documentation](docs/README.md) for the format, roadmap, and where Hudini
 came from.
 
 ## Supported Versions

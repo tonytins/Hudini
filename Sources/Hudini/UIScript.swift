@@ -5,7 +5,7 @@ import Raylib
 ///
 /// UIScript documents describe presentation. The host game remains responsible
 /// for control state, actions, and resolving image and localized-string data.
-/// See `doc/UISCRIPT.md` for the XML format.
+/// See `docs/UISCRIPT.md` for the XML format.
 public struct UIScript: Sendable {
     /// The newest document version this reader understands.
     public static let supportedVersion = 1
@@ -335,7 +335,7 @@ public struct UIScript: Sendable {
     ///
     /// Maxis' files use these for alternate art, positions, and sizes that code applies when it
     /// needs them. An entry with an image and position also becomes a hidden visual, and one
-    /// with a position and size also becomes a hidden region, which `UIScriptView` shows on
+    /// with a position and size also becomes a hidden region, which `UIView` shows on
     /// request.
     public struct Setting: Sendable {
         /// The name as the file writes it.
@@ -793,7 +793,7 @@ public struct UIScript: Sendable {
     /// A rectangle placed in the window's pixel coordinate space.
     ///
     /// A button or visual with an image may leave out its size to use the image's.
-    /// `UIScriptView.bounds(named:at:)` reports the final bounds.
+    /// `UIView.bounds(named:at:)` reports the final bounds.
     public struct Frame: Sendable {
         /// The horizontal position.
         public let x: Float
@@ -815,7 +815,7 @@ public struct UIScript: Sendable {
     ///
     /// An offset replaces the frame's position on its axis. A right offset alone
     /// anchors the frame to the right edge, and left and right together stretch it
-    /// between them. Top and bottom work the same way. `UIScriptView` applies these
+    /// between them. Top and bottom work the same way. `UIView` applies these
     /// using the size from `setWindowSize(_:)`.
     public struct EdgeOffsets: Sendable {
         /// The distance from the left edge.

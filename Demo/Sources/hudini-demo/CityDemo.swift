@@ -272,11 +272,11 @@ func handleCloseAndMinimize(_ event: WindowFrame.Event, of frame: WindowFrame, i
 @MainActor
 final class ConfirmWindow {
     let frame: WindowFrame
-    private let view: UIScriptView
+    private let view: UIView
     private var answer: ((Bool) -> Void)?
 
     init(theme: InterfaceTheme) {
-        view = UIScriptView(script: loadCityScript(named: "confirm"), theme: theme)
+        view = UIView(script: loadCityScript(named: "confirm"), theme: theme)
         frame = WindowFrame(view: view)
         // A question needs an answer, so the window closes only through Yes or No.
         frame.showsCloseButton = false
@@ -310,12 +310,12 @@ final class ConfirmWindow {
 @MainActor
 final class BudgetWindow {
     let frame: WindowFrame
-    private let view: UIScriptView
+    private let view: UIView
     private let city: City
     private let confirm: ConfirmWindow
 
     init(theme: InterfaceTheme, city: City, confirm: ConfirmWindow) {
-        view = UIScriptView(script: loadCityScript(named: "budget"), theme: theme)
+        view = UIView(script: loadCityScript(named: "budget"), theme: theme)
         frame = WindowFrame(view: view, title: "Budget")
         self.city = city
         self.confirm = confirm
@@ -374,13 +374,13 @@ final class BudgetWindow {
 @MainActor
 final class DemandWindow {
     let frame: WindowFrame
-    private let view: UIScriptView
+    private let view: UIView
     private let script: UIScript
     private var demand: (residential: Float, commercial: Float, industrial: Float) = (0.5, 0.5, 0.5)
 
     init(theme: InterfaceTheme) {
         script = loadCityScript(named: "demand")
-        view = UIScriptView(script: script, theme: theme)
+        view = UIView(script: script, theme: theme)
         frame = WindowFrame(view: view, title: "Demand")
         frame.showsMinimizeButton = true
         // The chart is a region in the document, which the window draws itself wherever it's drawn.
@@ -435,7 +435,7 @@ final class HelpWindow {
     let frame: WindowFrame
 
     init(theme: InterfaceTheme) {
-        let view = UIScriptView(script: loadCityScript(named: "help"), theme: theme)
+        let view = UIView(script: loadCityScript(named: "help"), theme: theme)
         view.setText(
             """
             Pick a tool on the left, then click or drag on the map to build. Zones need roads before \
@@ -476,11 +476,11 @@ final class CityPanelWindow {
     ]
 
     let frame: WindowFrame
-    private let view: UIScriptView
+    private let view: UIView
     private let city: City
 
     init(theme: InterfaceTheme, city: City) {
-        view = UIScriptView(script: loadCityScript(named: "citypanel"), theme: theme)
+        view = UIView(script: loadCityScript(named: "citypanel"), theme: theme)
         frame = WindowFrame(view: view)
         frame.showsMinimizeButton = true
         self.city = city
@@ -555,9 +555,9 @@ final class CityDemo {
     private let theme: InterfaceTheme
     private let city = City()
     private let windows = WindowManager()
-    private let tools: UIScriptView
-    private let overview: UIScriptView
-    private let status: UIScriptView
+    private let tools: UIView
+    private let overview: UIView
+    private let status: UIView
     private let confirm: ConfirmWindow
     private let budget: BudgetWindow
     private let demand: DemandWindow
@@ -585,9 +585,9 @@ final class CityDemo {
             cornerRadius: demoTheme.cornerRadius
         )
         self.theme = theme
-        tools = UIScriptView(script: loadCityScript(named: "tools"), theme: theme)
-        overview = UIScriptView(script: loadCityScript(named: "overview"), theme: theme)
-        status = UIScriptView(script: loadCityScript(named: "status"), theme: theme)
+        tools = UIView(script: loadCityScript(named: "tools"), theme: theme)
+        overview = UIView(script: loadCityScript(named: "overview"), theme: theme)
+        status = UIView(script: loadCityScript(named: "status"), theme: theme)
         confirm = ConfirmWindow(theme: theme)
         budget = BudgetWindow(theme: theme, city: city, confirm: confirm)
         demand = DemandWindow(theme: theme)
@@ -655,7 +655,7 @@ final class CityDemo {
         return origin
     }
 
-    private func panelBounds(_ view: UIScriptView, at origin: Vector2) -> Rectangle {
+    private func panelBounds(_ view: UIView, at origin: Vector2) -> Rectangle {
         Rectangle(x: origin.x, y: origin.y, width: view.windowSize.x, height: view.windowSize.y)
     }
 
