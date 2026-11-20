@@ -187,18 +187,26 @@ func uiScriptRejectsInvalidVersions(version: String) {
     }
 }
 
-@Test func uiScriptRefusesModulesItDoesNotImplement() {
-    #expect(throws: UIScriptError.unsupportedFeature("menus")) {
-        try script("<Menu/>", root: "requires='menus'")
+@Test func uiScriptRefusesUnknownRequiresNames() {
+    #expect(throws: UIScriptError.unsupportedFeature("teleport")) {
+        try script("", root: "requires='teleport'")
     }
 }
 
-@Test func unsupportedModuleMessageNamesTheModuleWithoutSuggestingAnUpdate() {
-    // A module is optional, so a newer Hudini may not implement it either.
-    let message = UIScriptError.unsupportedFeature("menus").localizedDescription
+@Test func uiScriptAcceptsTheRetiredModuleNames() throws {
+    // Menus, sidebars, shelves, and panes were modules until 2026-11-20.
+    let loaded = try script("", root: "requires='menus sidebar shelf panes'")
 
-    #expect(message.contains("'menus' module"))
-    #expect(!message.contains("Update Hudini"))
+    #expect(loaded.requiredFeatures == ["menus", "sidebar", "shelf", "panes"])
+}
+
+@Test(arguments: ["Menu", "MenuItem", "MenuSeparator", "Sidebar", "Pane", "Shelf"])
+func uiScriptRefusesElementsOutsideItsSubset(element: String) {
+    #expect(throws: UIScriptError.unknownElement(element, line: 1)) {
+        try script("<\(element)/>", root: "requires='menus sidebar shelf panes'")
+    }
+    let message = UIScriptError.unknownElement(element, line: 1).localizedDescription
+    #expect(message.contains("outside the subset Hudini reads"))
 }
 
 @Test func uiScriptIgnoresAndReportsUnknownAttributes() throws {

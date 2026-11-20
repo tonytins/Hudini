@@ -5,13 +5,28 @@ import Raylib
 ///
 /// UIScript documents describe presentation. The host game remains responsible
 /// for control state, actions, and resolving image and localized-string data.
-/// See `docs/UISCRIPT.md` for the XML format.
+/// Hudini reads a subset of the UIScript format, whose spec VentureOS keeps:
+/// <https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md>.
+/// See `docs/UISCRIPT.md` for what the subset covers and how a host uses it.
 public struct UIScript: Sendable {
     /// The newest document version this reader understands.
     public static let supportedVersion = 1
 
     /// The named features this reader understands in a document's `requires` list.
     public static let supportedFeatures: Set<String> = []
+
+    /// `requires` names that are accepted and mean nothing.
+    ///
+    /// Menus, sidebars, shelves, and panes were modules with these names until
+    /// 2026-11-20, when they became ordinary elements. Documents written before
+    /// still name them, so they read as before; the elements themselves are
+    /// outside Hudini's subset, and refuse a document as unknown elements.
+    public static let retiredFeatures: Set<String> = ["menus", "sidebar", "shelf", "panes"]
+
+    /// Elements in the UIScript spec that Hudini's subset leaves out.
+    public static let elementsOutsideSubset: Set<String> = [
+        "Menu", "MenuItem", "MenuSeparator", "Sidebar", "Pane", "Shelf",
+    ]
 
     /// The document's format version.
     public let version: Int
@@ -1016,11 +1031,10 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// The document's version is newer than this reader supports.
     case unsupportedVersion(Int)
 
-    /// The document names a module in `requires` that this reader doesn't implement.
+    /// The document names something in `requires` that this reader doesn't know.
     ///
-    /// Modules are optional parts of the format, so a newer Hudini may not
-    /// implement it either. The host needs to support the module, or the
-    /// document needs to stop using it.
+    /// No `requires` names are defined today besides the retired ones, so an
+    /// unknown one comes from a newer spec or a mistake.
     case unsupportedFeature(String)
 
     /// An element is not part of the format.
@@ -1127,9 +1141,11 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case let .unsupportedVersion(version):
             "UIScript version \(version) is newer than this reader supports (\(UIScript.supportedVersion)). Update Hudini to load this document."
         case let .unsupportedFeature(feature):
-            "UIScript document requires the '\(feature)' module, which this host doesn't implement. Use a host that supports it, or remove it from the document's requires."
+            "UIScript document requires '\(feature)', which this reader doesn't know. Remove it from the document's requires, or use a reader that knows it."
         case let .unknownElement(name, line):
-            "UIScript line \(line): element '\(name)' is not supported."
+            UIScript.elementsOutsideSubset.contains(name)
+                ? "UIScript line \(line): element '\(name)' is part of UIScript, but outside the subset Hudini reads."
+                : "UIScript line \(line): element '\(name)' is not supported."
         case let .unexpectedNesting(name, line):
             "UIScript line \(line): element '\(name)' must be a direct child of 'UIScript'."
         case let .unexpectedText(line):

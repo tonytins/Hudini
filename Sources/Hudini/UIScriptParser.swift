@@ -374,7 +374,9 @@ private final class ElementCollector: NSObject, XMLParserDelegate {
         }
         let features = attributes["requires"]?.split(whereSeparator: \.isWhitespace) ?? []
         return features
-            .first { !UIScript.supportedFeatures.contains(String($0)) }
+            .first {
+                !UIScript.supportedFeatures.contains(String($0)) && !UIScript.retiredFeatures.contains(String($0))
+            }
             .map { .unsupportedFeature(String($0)) }
     }
 }

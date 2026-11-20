@@ -1,488 +1,48 @@
-# UIScript Format
+# UIScript in Hudini
 
-A UIScript document is an XML file describing one interface: its window size,
-resources, styles, decorative images, and controls. `UIScript` reads it and
-`UIView` builds, updates, and draws it.
+A UIScript document is an XML file (`.uix`) describing one interface: its window
+size, resources, styles, decorative images, and controls. `UIScript` reads it and
+`UIView` builds, updates, and draws it. The host game owns live data, actions,
+images, and localized text.
 
-UIScript describes presentation. The host game owns live data, actions, images,
-and localized text. The format is inspired by The Sims Online's `.uis` files.
-Those are not valid XML, so Hudini has a [separate reader](#reading-uis-files) for
-them that produces the same model.
+**The format's spec is
+[VentureOS's](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md).**
+Hudini kept it until 2026-11-20, then handed it over: VentureOS is an operating
+system and needs more from its interfaces than a game does, such as menus a global
+menu bar merges, sidebars, and panes. Hudini reads a **subset** of the format, the
+parts a game needs, and follows the spec's rules for everything else, so a document
+it can't draw is refused rather than drawn wrong.
 
-## Status
+This page says what that subset is, and how a Swift host uses it. Hudini also reads
+Maxis' `.uis` files into the same model; see [Reading `.uis` files](#reading-uis-files).
 
-**Draft.** This spec changes on Hudini's `main` branch as games need it, rather
-than in numbered releases. Additions land here once a host has built and tested
-them, and the [change log](#change-log) dates each one so other readers can catch
-up. Hudini's reader follows this document, and other readers, such as VentureOS's,
-treat it as the reference.
+## What Hudini reads
 
-While the format is a draft, `version` stays at `1`. Optional parts of the format
-are [modules](#modules) that a document names in `requires`, so a host can leave
-one out entirely and still refuse documents that need it.
-
-## Files
-
-UIScript documents use the `.uix` extension. The contents are XML, so `.uix` only
-says which format it is, and keeps documents apart from Maxis' `.uis` files. A
-reader must not depend on the extension: Hudini's reads any file it is given, and
-documents named `.xml` still load.
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!-- Comments are welcome anywhere. -->
-<UIScript version="1">
-  <Window width="400" height="255"/>
-
-  <Image name="send" path="ui/send.bmp" stateCount="4"/>
-  <Style name="entry" textColor="#FFF99D" backgroundColor="#000000" fontSize="14"/>
-
-  <List name="history" x="40" y="45" width="310" height="150"/>
-  <TextField name="message" x="40" y="216" width="299" height="22"
-             style="entry" placeholder="Type a message..." maximumLength="120"/>
-  <Button name="sendButton" x="345" y="212" image="send"/>
-</UIScript>
-```
-
-See [`chatdialog.uix`](../Demo/Sources/hudini-demo/Resources/chatdialog.uix) and
-[`livepanel1024.uix`](../Demo/Sources/hudini-demo/Resources/livepanel1024.uix) for
-complete examples.
-
-## Document rules
-
-- Documents must be UTF-8 and well-formed XML.
-- `DOCTYPE` declarations are not allowed, which also rules out custom entities.
-  The five standard entities, such as `&lt;`, work as usual.
-- Every core element is a direct child of `<UIScript>`, in any order, and holds
-  no children. Only a [module](#modules) can let its elements hold others, as
-  [menus](#menus) do, and only where its section says. An element anywhere else
-  refuses the document.
-- No element holds text. Text goes in attributes.
-- Controls draw in document order, with later controls on top. Visuals draw
-  before all controls.
-- Names are unique among controls, visuals, title bar elements, and module
-  elements such as menus, and within each kind of resource. A control and an
-  image may share a name.
-
-## Root
-
-`<UIScript>` takes two optional attributes:
-
-| Attribute | Value |
+| Part of the spec | Hudini |
 | --- | --- |
-| `version` | The format version, which defaults to `1`. It stays `1` while the format is a draft. |
-| `requires` | Space-separated [modules](#modules) the document uses. |
-
-## Window
-
-Exactly one `<Window>` is required, unless the document describes a
-[panel](#panel) instead. It gives the interface's size in pixels.
-
-| Attribute | Required | Value |
-| --- | --- | --- |
-| `width`, `height` | Yes | The size. Both must be positive. |
-| `minWidth`, `minHeight` | No | The smallest size the view lays out at. Give both or neither. |
-| `resizable` | No | `true` or `false`, which defaults to `false`. The window has a grip in its bottom-right corner that resizes its content, which controls follow by their edge offsets. It never goes below `minWidth` and `minHeight`, or below the window's size without them. A reader that ignores it shows the window at its size. |
-
-## Panel
-
-A document can describe a panel in place of a window: a strip pinned to the top or
-bottom edge of the screen, with no title bar. A game's HUD bars are panels, such as
-the control panel along the bottom of The Sims Online's screen and the status bar
-along CityLimits'. So are a desktop's dock and menu bar.
-
-```xml
-<UIScript version="1">
-  <Panel width="1024" height="40" edge="bottom"/>
-
-  <Button name="home" x="8" y="6" width="80" height="28" text="Home"/>
-  <Text name="clock" x="956" y="12" width="60" height="16" edgeOffsetRight="8"
-        text="12:00" alignment="right"/>
-</UIScript>
-```
-
-`<Panel>` takes the place of `<Window>`: a document has exactly one of the two.
-
-| Attribute | Required | Value |
-| --- | --- | --- |
-| `width`, `height` | Yes | The panel's size, as a window's. Both must be positive. |
-| `minWidth`, `minHeight` | No | The smallest size the panel lays out at, as a window's. Give both or neither. |
-| `edge` | Yes | `top` or `bottom`, in lowercase: the edge of the screen the panel is pinned to. |
-
-Controls lay out in a panel as they do in a window, and edge offsets measure from
-the panel's size, or the size the host gives it, such as the screen's width. A
-panel stretched across the screen uses `minWidth` so its anchored controls don't
-run into each other on a narrow one. A reader that ignores `minWidth` and
-`minHeight` lays the panel out at any size, which is plainer but still shows it.
-
-Rules:
-
-- An `edge` other than `top` or `bottom` refuses the document, so a panel never
-  lands somewhere it wasn't meant to. Another edge needs a reader that knows it.
-- A panel has no title bar and isn't resized by a grip, so `resizable` means
-  nothing on it. Written anyway, it's ignored and listed in `ignoredAttributes`,
-  as unknown attributes are.
-- A panel can't have toolbar items, a title field, or a sidebar. Any of these
-  refuses the document.
-- A panel may have menus. How the host shows them is the host's choice.
-- A document with both a `<Window>` and a `<Panel>`, or with two panels, refuses
-  the document.
-- `<Panel>` holds nothing. Its controls sit in `<UIScript>`, as a window's do, so
-  the rest of a document reads the same whichever it has.
-
-A reader from before panels refuses `<Panel>` as an unknown element. That's the
-right failure: a HUD bar or a dock shown as an ordinary, movable window isn't a
-working fallback.
-
-A host that shows panels:
-
-- Draws a panel along its edge, above the game or the windows it manages, and
-  doesn't let it be dragged or framed as a window.
-- Keeps windows clear of the edge a panel is on, or, in a game, keeps the panel
-  above whatever the game draws there.
-- Decides where along its edge a panel sits, and how many it allows on each edge.
-  VentureOS allows one top panel, its menu bar, and centres a bottom panel, its
-  dock, which can hide itself.
-
-In Hudini, a panel's `UIScript` has a `panelEdge`, which is `nil` for a window,
-and its size is in `window`. Stretch the view with `setWindowSize(_:)`, then
-`panelOrigin(onScreen:x:)` gives where to update and draw it against its edge. A
-panel's view isn't wrapped in a `WindowFrame`.
-
-A panel isn't the same as composing views inside each other, described in
-[Panels inside panels](#panels-inside-panels). A panel is where a document's
-interface goes on the screen; the views a host draws inside it are up to the host.
-
-## Resources
-
-`<Image>` refers to an image the host loads. It needs a `path`, an `assetID`, or
-both. The host's `loadImage` closure receives the resource and decides which to
-use. An asset ID stays exactly as written.
-
-| Attribute | Required | Value |
-| --- | --- | --- |
-| `name` | Yes | The name other elements use. |
-| `path` | One of these | A host-defined path. |
-| `assetID` | One of these | A host-defined identifier. |
-| `stateCount` | No | `1` (the default), `4`, or `6`. |
-
-A four-state image holds four equal-width slices, left to right: normal, pressed,
-hovered, and disabled. An image with one state shows it whatever the button's
-state. Some Maxis images hold six slices, and Hudini uses the first four.
-
-`<String>` refers to localized text the host supplies through `resolveString`.
-
-| Attribute | Required | Value |
-| --- | --- | --- |
-| `name` | Yes | The name other elements use. |
-| `table` | Yes | A host-defined string table. |
-| `index` | Yes | The string's index in that table. |
-
-## Styles
-
-`<Style>` is a named set of visual properties that controls refer to.
-
-A style should say what a color or size is *for*, not what it is, so a document
-follows the host's look: light or dark, any accent, and whatever the host's theme
-becomes later. The same idea let Mac apps that used semantic colors take on Dark
-Mode with no changes. Colors written as hex still work, and each has a `dark` twin
-for a dark theme.
-
-```xml
-<Style name="heading" fontSize="title"/>
-<Style name="quiet" textColor="secondaryText"/>
-<Style name="display" fontSize="24" backgroundColor="inputBackground"/>
-<Style name="brand" textColor="#1E5AA0" darkTextColor="#8CB8F0"/>
-```
-
-| Attribute | Value |
-| --- | --- |
-| `name` | Required. The name controls use. |
-| `textColor`, `backgroundColor`, `borderColor` | Colors used when drawing. |
-| `selectedTextColor`, `highlightedTextColor`, `disabledTextColor` | Button label colors while pressed, hovered, and disabled. |
-| `fillColor` | The filled part of a progress bar and the thumb of a slider. |
-| `darkTextColor`, `darkBackgroundColor`, and the rest | A color's `dark` twin: the same attribute with `dark` before it, used in place of it on a dark theme. |
-| `fontSize` | A size role, or a positive size in pixels. Without one, text uses the `body` size. |
-| `font` | `interface` (the default) or `monospace`, a fixed-width typeface for code and terminals. The host picks the actual fonts. Any other value refuses the document. |
-
-A reader that ignores `font` draws the text in the interface font, which is
-plainer but still correct.
-
-### Colors
-
-A color is one of:
-
-- **A role**, the color the host's theme gives that purpose. Prefer roles: they
-  follow light and dark, the accent, and later themes.
-- **`#RRGGBB` or `#RRGGBBAA`**, for a color that must be exactly that, such as a
-  brand's. It's the same on every theme unless a `dark` twin replaces it.
-
-| Role | For |
-| --- | --- |
-| `text` | Ordinary text. |
-| `secondaryText` | Quieter text, such as a status line. |
-| `disabledText` | Text on something turned off. |
-| `highlightedText` | Text on the accent color. |
-| `accent` | The accent: focus, selection marks, and fills. |
-| `panel` | A window's background. |
-| `inputBackground` | The inside of text fields and lists. |
-| `border` | Lines around controls. |
-| `selection` | A selected item's background. |
-
-### Sizes
-
-| Role | For | Hudini | VentureOS |
-| --- | --- | --- | --- |
-| `caption` | Small text, such as a hint | 12 | 11 |
-| `body` | Ordinary text, and the size text has without a style | 14 | 13 |
-| `title` | A heading | 16 | 17 |
-| `largeTitle` | A large heading | 22 | 22 |
-
-A host chooses its own sizes for the roles; the table shows each host's defaults.
-
-### Rules
-
-- A color that's neither a role nor `#` and six or eight hex digits refuses the
-  document, as does a `fontSize` that's neither a role nor a positive whole number.
-- A `dark` twin may name a role or a hex color. It's optional, and may be given
-  without its light color, in which case a light theme uses the host's default.
-- On a light theme, `dark` twins are ignored. On a dark one, each twin that is set
-  replaces its color; the others apply as written.
-- Roles are part of the color and size grammar, not a module. A reader from before
-  them refuses a document that uses one as an invalid color or size, which says
-  plainly that it needs a newer reader.
-
-A host that implements styles:
-
-- Resolves roles against the theme in use each time it draws, or again when the
-  theme changes, so switching light, dark, or the accent reaches every open window
-  without the document changing.
-- Keeps the shipped roles readable together: each text role against each
-  background role it's used on, on every theme the host offers. VentureOS tests
-  every interface it ships for a contrast of at least 3 to 1 on every palette.
-- Uses a document's hex colors exactly as written, `dark` twins included; the
-  document has asked for that color.
-
-In Hudini, roles resolve against the `InterfaceTheme` a view draws with: `text`,
-`secondaryText`, `accent`, `panel`, `inputBackground`, and `border` are the theme's
-properties of those names, `disabledText` is `secondaryText`, `highlightedText` is
-`text`, and `selection` is `selectedItem`. The size roles are the theme's `tooltip`,
-`body`, `title`, and `largeTitle` sizes. A theme is dark when its `isDark` says so,
-or, unless told, when its `panel` is dark; Hudini's standard theme is dark. A
-`UIView` resolves its document's styles again whenever its theme changes. A
-game reading colors out of its own document gets what was written as hex from
-`Style`'s plain properties, and everything, roles included, from
-`Style.resolved(in:)`.
-
-## Position and size
-
-Visuals and controls share these attributes:
-
-| Attribute | Required | Value |
-| --- | --- | --- |
-| `x`, `y` | Yes | The position within the window, which may be negative. |
-| `width`, `height` | See below | The size, which must not be negative. |
-| `edgeOffsetLeft`, `edgeOffsetRight`, `edgeOffsetTop`, `edgeOffsetBottom` | No | Distances to the window edges. |
-
-An edge offset replaces the position on its axis. `edgeOffsetRight` alone anchors
-a control to the right edge, and `edgeOffsetLeft` with `edgeOffsetRight` stretches
-it between both. Top and bottom work the same way. Offsets measure from the
-document's window size until the host calls `setWindowSize(_:)`, and never from less
-than `minWidth` and `minHeight`.
-
-A button or visual with an image may leave out `width`, `height`, or both to take
-them from one slice of the image. Any other control needs both. If the host cannot
-supply the image, the view uses a 24-pixel fallback and draws a red outline.
-
-## Visuals
-
-`<Visual>` is a decorative image. It takes `name` and `image`, which names an
-`<Image>`, plus the position and size attributes.
-
-## Controls
-
-Every control takes `name` and the position and size attributes. All of these are
-optional:
-
-| Attribute | Value |
-| --- | --- |
-| `style` | The name of a `<Style>`. |
-| `legacyID` | An integer identifier for host use or for `.uis` conversion. |
-| `tooltip` | The name of a `<String>`, shown when the pointer rests on the control. |
-
-| Element | What it is | Extra attributes |
-| --- | --- | --- |
-| `<Text>` | Text at its position | `text` or `string`, `alignment` |
-| `<FormattedText>` | Text on a background, with an inset | `text` or `string`, `alignment` |
-| `<Button>` | A clickable button | `text` or `string`, `image`, `scrolls`, `direction` |
-| `<TextField>` | A one-line text entry | `text` or `string`, `placeholder` or `placeholderString`, `maximumLength`, `readOnly`, `secure` |
-| `<TextArea>` | A multi-line text entry | `text` or `string`, `placeholder` or `placeholderString`, `maximumLength`, `readOnly`, `follows` |
-| `<List>` | A scrollable list the host fills | `text` or `string`, shown as its first item, `selectable` |
-| `<Slider>` | A draggable thumb on a track | `scrolls`, `minValue`, `maxValue`, `orientation` |
-| `<ProgressBar>` | A bar filled in proportion to a value | `minValue`, `maxValue` |
-| `<Region>` | A rectangle the host draws into | None |
-
-- **`text` and `string`:** `text` is literal, and `string` names a `<String>`. A
-  control takes one or the other, and `placeholder` and `placeholderString` work
-  the same way.
-- **`alignment`:** `left`, `center`, or `right`, which defaults to `left`.
-- **`maximumLength`:** the most characters a text field or text area accepts,
-  which defaults to 256 for a field and 65,536 for an area.
-- **`readOnly`:** `true` or `false`, which defaults to `false`. A read-only text
-  field or text area never takes focus or typing, and the host can still set its
-  text.
-- **`secure`:** `true` or `false`, which defaults to `false`. A secure text field
-  draws `*` in place of each character, as a password field does. The host still
-  reads the real text from it.
-- **`selectable`:** `true` or `false`, which defaults to `false`. A list without it
-  is a log: it opens on its newest items and stays at the end as items arrive. A
-  selectable list is a pick list: it opens on its first items, stays where it is
-  when items change, highlights one item, and reports a click on a different item
-  as `selected`. Double-clicking an item reports `submitted` with the item's
-  text, after the first click has selected it, so a host reads the index from the
-  list's selection. Two presses on the same item count as a double-click when
-  they come close enough together; the host picks the time, and 500 ms matches
-  common desktops. A reader that ignored this attribute would still show the
-  items.
-- **`follows`:** `true` or `false`, which defaults to `false`, and only on a
-  `<TextArea>`. When its text changes while it's scrolled to its last line, it
-  stays at the last line, as a log list does. Scrolled back, it stays put. A
-  terminal uses it.
-- **`scrolls`:** names the `<List>` or `<TextArea>` a slider or button scrolls. A
-  slider with `scrolls` always runs top to bottom and has no value of its own.
-- **`minValue` and `maxValue`:** the values a slider or progress bar covers, which
-  default to `0` and `1`. It starts at the lowest.
-- **`orientation`:** `horizontal` or `vertical`. Without it, a slider runs along
-  its longer side.
-- **`direction`:** `up` or `down`. A button with `scrolls` needs it, and a slider
-  must not have it.
-
-### Text areas
-
-A `<TextArea>` takes typing across several lines. Enter adds a line break rather
-than submitting, and the starting `text` may hold line breaks, written `&#10;`.
-It wraps at spaces, scrolls with the wheel and with a bound slider or buttons, and
-keeps the caret in view. `secure` and `selectable` refuse the document on it.
-
-The host reads and sets an area's text by name. A reader may also report typing,
-such as with `changed` and the text, but hosts shouldn't rely on it: Hudini
-doesn't report it.
-
-It's an element rather than a `multiline` attribute on `<TextField>` because an
-older reader ignores unknown attributes. It would show a one-line field where
-Enter submits, which silently changes behavior. An unknown element refuses the
-document instead.
-
-## Title bar
-
-A document can describe what goes in its window's title bar. The host's window
-frame draws the bar: its height, its close and minimize buttons, the title, and
-dragging. Positions in the document are still the content's, below the bar, so
-adding these moves nothing.
-
-```xml
-<UIScript version="1">
-  <Window width="480" height="300"/>
-  <ToolbarItem name="back" title="Back"/>
-  <ToolbarItem name="go" title="Go"/>
-  <TitleField name="address" placeholder="Path"/>
-  ...
-</UIScript>
-```
-
-`<ToolbarItem>` is a button on the bar. It takes `name` and `title`, both
-required. Items run along the bar's right end in document order, the last at the
-right edge. A click reports `pressed` with its name, as a button does. A host
-decides whether that happens on the press or the release, as it does for its
-buttons: Hudini reports both on the press, and VentureOS on the release. `setDisabled(_:named:)` dims an item, and
-`setSelected(_:named:)` shows it held down, so items can work as tabs.
-
-`<TitleField>` makes the title editable, as an address bar is. It takes `name`,
-which is required, and `placeholder`. A document has at most one. While the title
-field is empty, the bar shows the placeholder in place of a title.
-
-The `title` and `placeholder` of these elements are literal text. They don't take
-string references yet.
-
-- A click starts an edit. Enter reports `submitted` with the text, and Esc or a
-  click elsewhere puts the old text back.
-- A click on one of the same window's toolbar items keeps the edit, so an item
-  such as Go acts on what was typed.
-- The host reads and sets it by name, as it does a text field. While an edit is
-  under way, reading it gives what has been typed so far.
-- `setDisabled(_:named:)` stops it being edited.
-
-A host that shows a document without a title bar doesn't draw either element.
-They aren't errors there.
-
-In Hudini, a `WindowFrame` made with `WindowFrame(view:)` draws them. It wraps the
-view: `updateWindow(in:)` handles dragging, the bar, and the view, and returns one
-list of events, and `draw(in:)` draws the frame and the view. A toolbar item or the
-title field reports as the view's own event, wrapped in `.view`, and the close and
-minimize buttons report `.closeRequested` and `.minimizeRequested`, leaving the host
-to decide what they mean. The minimize button is off until `showsMinimizeButton` is
-set. Set the frame's `drawRegion` to draw into the view's regions, since the frame,
-not the host, calls `draw(at:drawRegion:)`. The frame also draws a resizable
-window's grip and resizes the view by it, and `isResizing` says while it's being
-dragged. A `UIView` drawn on its own ignores both elements and the grip.
-
-## Events
-
-Controls report what the player does as events carrying the control's name.
-
-| Event | Reported when |
-| --- | --- |
-| `pressed` | A button, toolbar item, or menu item is chosen. Opening a menu or submenu reports nothing. |
-| `submitted` | Enter is pressed in a text field or title field, with its text, or an item in a selectable list is double-clicked, with the item's text. |
-| `changed` | A slider without a scroll binding moves, with its value. |
-| `selected` | A click on a selectable list or sidebar picks a different row, with its index. |
-
-A handler checks the kind, so `submitted` from a list and from a field are told
-apart by name.
-
-## Compatibility
-
-The format has two parts:
-
-- **The core** is everything a reader implements. During the draft it grows on
-  `main` without a version change or a `requires` name. Each game ships its
-  documents with its own copy of Hudini, so a document doesn't normally reach a
-  reader older than it.
-- **Modules** are optional parts a host may never implement, such as a menu bar
-  that only some hosts have. A document that uses one names it in `requires`.
-
-To decide where an addition goes, ask whether a reasonable host could leave it
-out entirely. If it could, the addition is a module. If every host should have
-it, it's core, even when some documents never use it.
-
-A reader treats documents it doesn't fully understand like this:
-
-| What the reader finds | What it does |
-| --- | --- |
-| A `version` newer than it supports | Refuses the document with `unsupportedVersion`. |
-| A `requires` module it does not implement | Refuses the document with `unsupportedFeature`. |
-| An attribute it does not know | Ignores it and lists it in `ignoredAttributes`. |
-| An element it does not know | Refuses the document with `unknownElement`. |
-
-These rules set how the format grows:
-
-- A new core attribute must be safe for an older reader to ignore, giving a
-  plainer but still correct interface. If ignoring it would silently change
-  behavior, add an element instead.
-- New elements always stop older readers, because skipping one could leave an
-  interface silently incomplete.
-- A module's elements and attributes refuse the document unless it names the
-  module in `requires`.
-- A module may let its elements hold other elements, its own or core ones, and
-  its section says which. A reader checks `requires` before anything else, so a
-  reader without the module refuses the document before it meets the nesting.
-  That's why nesting can be added module by module with no change to `version`.
-  Core elements stay flat, since every reader reads them.
-- `version` only increases when existing documents or meanings change, which
-  the draft avoids.
-
-A misspelled attribute also lands in `ignoredAttributes` rather than failing, so
-hosts should log that list during development:
+| Document rules, the root, `version` | Yes. Version 1. |
+| `<Window>`, with `minWidth`, `minHeight`, and `resizable` | Yes |
+| `<Panel>` | Yes |
+| `<Image>`, `<String>` | Yes |
+| `<Style>`, with color roles, size roles, `dark` twins, and `font` | Yes |
+| `<Visual>` | Yes |
+| Controls: `<Text>`, `<FormattedText>`, `<Button>`, `<TextField>`, `<TextArea>`, `<List>`, `<Slider>`, `<ProgressBar>`, `<Region>` | Yes |
+| `<Shelf>` | No: refused as an unknown element |
+| Title bar: `<ToolbarItem>` and `<TitleField>` | Yes |
+| A window's `subtitle`, and toolbar items' `image` and `placement` | Skipped and listed, as unknown attributes: no subtitle, and every item is a text item at the right end |
+| Menus: `<Menu>`, `<MenuItem>`, `<MenuSeparator>` | No: refused as unknown elements |
+| `<Sidebar>` | No: refused as an unknown element |
+| `<Pane>`, and `pane` on controls | No: `<Pane>` is refused as an unknown element |
+| `requires` | Accepts `menus`, `sidebar`, `shelf`, and `panes`, the names of the old modules, which mean nothing (`UIScript.retiredFeatures`). Any other name refuses the document. |
+
+An element outside the subset throws `UIScriptError.unknownElement`, whose message
+says it's part of UIScript but outside what Hudini reads
+(`UIScript.elementsOutsideSubset` lists them). Everything else, from the document
+rules to which values refuse a document, is as the spec says.
+
+An unknown attribute, such as a misspelled one or one outside the subset, lands in
+`ignoredAttributes` rather than failing, so hosts should log that list during
+development:
 
 ```swift
 let script = try UIScript(contentsOf: url)
@@ -491,161 +51,12 @@ for ignored in script.ignoredAttributes {
 }
 ```
 
-### Modules
+See [`chatdialog.uix`](../Demo/Sources/hudini-demo/Resources/chatdialog.uix) and
+[`livepanel1024.uix`](../Demo/Sources/hudini-demo/Resources/livepanel1024.uix) for
+complete examples. VentureOS's tests read the demo's documents, so every document
+Hudini reads reads the same there.
 
-| Module | What it adds |
-| --- | --- |
-| [`menus`](#menus) | Menus for a global menu bar, with submenus |
-| [`sidebar`](#sidebar) | A list of places down the window's left |
-
-A host should list the modules it implements. Hudini's reader supports version 1
-and implements no modules yet. VentureOS implements `menus` and `sidebar`, menus'
-nesting aside.
-
-### Menus
-
-A document can describe the menus its interface puts in a global menu bar, as a
-desktop shows the focused app's menus along the top of the screen.
-
-```xml
-<UIScript version="1" requires="menus">
-  <Window width="400" height="300"/>
-
-  <Menu name="notesMenu" title="Notes" hotkey="N">
-    <MenuItem name="newNote" title="New Note" hotkey="N" shortcut="Ctrl+N"/>
-    <Menu name="sortMenu" title="Sort By" hotkey="S">
-      <MenuItem name="sortByDate" title="Date" hotkey="D"/>
-      <MenuItem name="sortByTitle" title="Title" hotkey="T"/>
-    </Menu>
-    <MenuSeparator/>
-    <MenuItem name="clearAll" title="Clear All Notes" hotkey="C"/>
-  </Menu>
-
-  <List name="notes" x="10" y="10" width="380" height="250" selectable="true"/>
-</UIScript>
-```
-
-A menu holds its items, separators, and submenus. A `<Menu>` directly inside
-`<UIScript>` goes in the menu bar, and a `<Menu>` inside another is a submenu: an
-entry in its parent that opens another menu beside it. Submenus nest to any depth.
-Menus appear in the bar in document order, and everything in a menu appears in
-the order it's written.
-
-A menu's items and separators may instead sit directly in `<UIScript>`, each
-naming its menu with `menu`, as a slider names the list it scrolls. This is the
-form the module had before it nested, and it still reads the same:
-
-```xml
-<Menu name="notesMenu" title="Notes" hotkey="N"/>
-<MenuItem menu="notesMenu" name="newNote" title="New Note" hotkey="N" shortcut="Ctrl+N"/>
-<MenuSeparator menu="notesMenu"/>
-<MenuItem menu="notesMenu" name="clearAll" title="Clear All Notes" hotkey="C"/>
-```
-
-A menu uses one form or the other. One that holds anything can't also be named by
-a `menu` attribute, and a submenu only nests, so a menu with submenus holds all of
-its contents.
-
-`<Menu>` is one drop-down menu, or a submenu.
-
-| Attribute | Required | Value |
-| --- | --- | --- |
-| `name` | Yes | The name a flat item uses to join it. |
-| `title` | Yes | The text in the menu bar, or a submenu's entry in its parent. |
-| `hotkey` | No | One letter or digit. With Alt held, it opens a menu in the bar. On a submenu, it opens the submenu while its parent is open. |
-| `role` | No | `file`, `edit`, `view`, or `help`: the host's standard menu this one adds to. Only a menu in the bar takes it. |
-
-`<MenuItem>` is a choice in a menu.
-
-| Attribute | Required | Value |
-| --- | --- | --- |
-| `menu` | Only when flat | The name of the `<Menu>` it joins. An item inside a menu must not have it. |
-| `name` | Yes | The name the host uses for it, as for a control. |
-| `title` | Yes | The text in the menu. |
-| `hotkey` | No | One letter or digit that picks it while its menu is open. |
-| `shortcut` | No | A key combination that picks it from anywhere, such as `Ctrl+N` or `Ctrl+Shift+S`. |
-
-`<MenuSeparator>` is a line between groups of items. It takes `menu` when flat,
-and nothing when nested.
-
-Rules:
-
-- A menu may be empty, and so may a submenu.
-- Menus in the bar use different `hotkey`s from each other. Within one menu, its
-  items and submenus use different `hotkey`s from each other. Both ignore case.
-- A `<MenuItem>` or `<MenuSeparator>` inside a menu that also has a `menu`
-  attribute, a `role` on a submenu, a flat item naming a menu that holds
-  anything, or a menu element inside anything other than `<UIScript>` or a
-  `<Menu>`, refuses the document.
-- `name`s stay unique across the whole document, however deep they nest.
-- A `shortcut` is `Ctrl`, `Alt`, and `Shift` in any combination, each at most
-  once and joined with `+`, then one letter or digit. It needs `Ctrl` or `Alt`,
-  so typing into a text field never triggers it. No two items in a document use
-  the same shortcut, ignoring case.
-- An item that names an undeclared menu, or a menu element in a document without
-  `requires="menus"`, refuses the document.
-- A `role` the reader doesn't know is ignored and listed in `ignoredAttributes`,
-  so the menu shows as the document's own.
-
-A host that implements menus:
-
-- Shows the focused interface's menus in the bar, after any menus of its own.
-- Reports a chosen item as `pressed` with the item's name, however deep its
-  submenu. Opening a menu or submenu reports nothing.
-- Opens a submenu from its entry, such as on hover or with the right arrow, and
-  marks the entry so it reads as a submenu rather than an item. A host that can't
-  show a submenu beside its parent may show it in place of the parent, with a way
-  back.
-- Treats a disabled submenu's entry as `setDisabled(_:named:)` does an item: it
-  can't be opened, and nothing in it can be picked, shortcuts included.
-- Disables items with `setDisabled(_:named:)` and checks them with
-  `setSelected(_:named:)`, as for controls.
-- Draws `hotkey` and `shortcut` in the menu so people can learn them.
-- May keep shortcuts for its own menus, such as Ctrl+Q to quit. Those win over a
-  document's, so a host should list the ones it keeps.
-- If it has standard menus, merges a document's menu into the one its `role`
-  names, the document's items first. A menu without a `role` whose title is
-  exactly `File`, `Edit`, `View`, or `Help` merges the same way. A standard item
-  yields to a document's item with the same shortcut.
-
-### Sidebar
-
-A document can give its window a sidebar: a list of places down the left, such as
-a file manager's bookmarks.
-
-```xml
-<UIScript version="1" requires="sidebar">
-  <Window width="360" height="300"/>
-
-  <Sidebar name="places" width="130"/>
-
-  <List name="entries" x="10" y="10" width="340" height="280" selectable="true"/>
-</UIScript>
-```
-
-`<Sidebar>` takes `name` and `width`, both required, and a document has at most
-one. It has no position: it sits beside the content rather than in it, so
-`<Window>`'s size and every control's position are the content's, and adding a
-sidebar moves nothing. A `<Sidebar>` in a document without `requires="sidebar"`,
-a second one, or a width that isn't positive refuses the document.
-
-A host that implements sidebars:
-
-- Draws it at the window's left, the window's full height, and makes the window
-  wider by its width.
-- Treats it as a selectable list of one-line rows under its name: it fills it,
-  selects a row, and reports `selected`, as for `<List selectable="true">`.
-- Sets it apart from the content, such as with its own shade, and marks the
-  selected row.
-
-## Errors
-
-`UIScript(data:)` and `UIScript(contentsOf:)` throw `UIScriptError`, whose
-`localizedDescription` explains the problem and includes the line number when it
-relates to one element. Loading either returns a complete, valid document or
-throws. There is no partial result.
-
-## Host responsibilities
+## Using a document
 
 ```swift
 let view = UIView(
@@ -662,15 +73,19 @@ view.draw(at: origin) { name, bounds in /* draw into regions */ }
 view.drawTooltip(at: origin) // After every view, so nothing covers it.
 ```
 
-- Create the view after `InitWindow` when passing `loadImage`, and keep it.
+- Create the view after `InitWindow` when passing `loadImage`, and keep it. The
+  `loadImage` closure receives each `<Image>` and decides whether to use its `path`
+  or its `assetID`.
 - Own the textures, and unload them before `CloseWindow`.
 - Check `view.missingImages` and `view.missingStrings` to find what could not be
-  supplied. A missing string shows its table and index instead.
-- Show and hide controls with `setHidden(_:named:)`, disable buttons with
-  `setDisabled(_:named:)`, and mark toggles or choices with `setSelected(_:named:)`.
-- Call `setWindowSize(_:)` when the space around anchored controls changes, then size
-  the window around the view from `windowSize`. A size below the document's minimum
-  uses the minimum on that axis.
+  supplied. A missing string shows its table and index instead, and a missing image
+  a 24-pixel stand-in with a red outline.
+- Show and hide controls with `setHidden(_:named:)`, disable buttons and toolbar
+  items with `setDisabled(_:named:)`, and mark toggles, choices, or toolbar tabs with
+  `setSelected(_:named:)`.
+- Call `setWindowSize(_:)` when the space around anchored controls changes, then
+  size the window around the view from `windowSize`. A size below the document's
+  minimum uses the minimum on that axis.
 - Slide or move a whole view by changing the `origin` passed to `update(at:)` and
   `draw(at:)`.
 - Read or set a selectable list's choice through its `selectedIndex`. The host's
@@ -693,17 +108,57 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   passed to the view. A document sets sizes through `<Style>`, and asks for the
   theme's `monospaceFont` with `font="monospace"`, but can't name a font file.
 
+### Styles
+
+Roles resolve against the `InterfaceTheme` a view draws with: `text`,
+`secondaryText`, `accent`, `panel`, `inputBackground`, and `border` are the theme's
+properties of those names, `disabledText` is `secondaryText`, `highlightedText` is
+`text`, and `selection` is `selectedItem`. The size roles are the theme's `tooltip`,
+`body`, `title`, and `largeTitle` sizes (12, 14, 16, and 22 by default). A theme is
+dark when its `isDark` says so, or, unless told, when its `panel` is dark; Hudini's
+standard theme is dark. A `UIView` resolves its document's styles again whenever its
+theme changes. A game reading colors out of its own document gets what was written
+as hex from `Style`'s plain properties, and everything, roles included, from
+`Style.resolved(in:)`.
+
+### Panels
+
+A panel's `UIScript` has a `panelEdge`, which is `nil` for a window, and its size is
+in `window`. Stretch the view with `setWindowSize(_:)`, then
+`panelOrigin(onScreen:x:)` gives where to update and draw it against its edge. A
+panel's view isn't wrapped in a `WindowFrame`.
+
+### Title bars
+
+A `WindowFrame` made with `WindowFrame(view:)` draws the title bar's elements. It
+wraps the view: `updateWindow(in:)` handles dragging, the bar, and the view, and
+returns one list of events, and `draw(in:)` draws the frame and the view. A toolbar
+item or the title field reports as the view's own event, wrapped in `.view`, and the
+close and minimize buttons report `.closeRequested` and `.minimizeRequested`, leaving
+the host to decide what they mean. Toolbar items report on the press. The minimize
+button is off until `showsMinimizeButton` is set. Set the frame's `drawRegion` to
+draw into the view's regions, since the frame, not the host, calls
+`draw(at:drawRegion:)`. The frame also draws a resizable window's grip and resizes
+the view by it, and `isResizing` says while it's being dragged. A `UIView` drawn on
+its own ignores the title bar's elements and the grip.
+
 ### Panels inside panels
 
-A view has no opinion about where it goes, so hosts compose them without a
-container type. To swap a control panel between modes, keep one view per mode and
-update and draw only the active one, calling `clearFocus()` on the one going away.
-To put one interface inside another, hide the parent's controls it replaces and
-draw the child at a position inside the parent. To give the same interface its own
-window, wrap it in `WindowFrame(view:)` instead, and give several such windows to a
-`WindowManager` to stack them. The host decides which view
-gets the pointer when they overlap, and `drawTooltip(at:)` shows nothing for a view
-that was not updated that frame.
+A view has no opinion about where it goes, so hosts compose them without a container
+type. To swap a control panel between modes, keep one view per mode and update and
+draw only the active one, calling `clearFocus()` on the one going away. To put one
+interface inside another, hide the parent's controls it replaces and draw the child
+at a position inside the parent. To give the same interface its own window, wrap it
+in `WindowFrame(view:)` instead, and give several such windows to a `WindowManager`
+to stack them. The host decides which view gets the pointer when they overlap, and
+`drawTooltip(at:)` shows nothing for a view that was not updated that frame.
+
+## Errors
+
+`UIScript(data:)` and `UIScript(contentsOf:)` throw `UIScriptError`, whose
+`localizedDescription` explains the problem and includes the line number when it
+relates to one element. Loading either returns a complete, valid document or throws.
+There is no partial result.
 
 ## Platform requirements
 
@@ -796,41 +251,21 @@ move to SwiftCST in their own time: create a `UIText` the same way, and call
 
 ## Not yet supported
 
-Hudini's reader reads everything in this draft's core. It implements no modules
-yet.
+Within its subset, a text area's caret stays at the end of its text. Clicking to
+place it, moving it with the arrow keys, selection, and the clipboard aren't
+supported yet. Typing in a text area reports no event.
 
-A text area's caret stays at the end of its text. Clicking to place it, moving it
-with the arrow keys, selection, and the clipboard aren't supported yet.
-
-It also doesn't draw slider images, which `.uis` sliders name and the view
-replaces with a plain track and thumb.
+Hudini doesn't draw slider images, which `.uis` sliders name and the view replaces
+with a plain track and thumb.
 
 ## Change log
 
-Newest first. Changes before the draft are in the repository's history.
+The spec's change log is in
+[VentureOS's spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#change-log),
+including the changes made while Hudini kept it. Changes to Hudini's reader:
 
-- **2026-11-20:** Modules may let their elements nest, while core elements stay
-  flat, so nesting needs no new `version`. `menus` nests first: a `<Menu>` holds
-  its items, separators, and submenus, and the flat form with `menu` still reads
-  the same. Submenus are new, and nest only.
-- **2026-11-20:** `<Panel>` in place of `<Window>`, from VentureOS: a strip
-  pinned to the top or bottom of the screen, such as a HUD bar, a dock, or a menu
-  bar. It's core, needing no `requires`, as VentureOS wrote it. Unlike
-  VentureOS's draft, it takes `minWidth` and `minHeight`, for a panel stretched
-  across the screen.
-
-- **2026-11-12:** `resizable` on `<Window>`, from VentureOS: a grip in the corner
-  resizes the window within its smallest size.
-- **2026-11-12:** Styles take color roles, size roles, and `dark` twins, from
-  VentureOS's draft. Hex colors and pixel sizes work as before.
-
-- **2026-11-12:** A toolbar item's click follows the host's buttons, on the press
-  or the release, rather than always on the release. The title bar's `title` and
-  `placeholder` are literal text for now.
-- **2026-11-12:** Added from VentureOS, which built and tested each of them
-  first: `<TextArea>` and `follows`, `font` on `<Style>`, double-clicking a
-  selectable list, the title bar's `<ToolbarItem>` and `<TitleField>`, the
-  `menus` and `sidebar` modules, and an Events section.
-- **2026-11-12:** Marked the format as a draft that changes on `main`, with
-  `version` frozen at `1`. Documents use `.uix`. `requires` now names optional
-  modules a host may never implement, rather than features newer than the reader.
+- **2026-11-20:** The spec moves to VentureOS, and Hudini reads a subset of it.
+  `requires` accepts the old module names `menus`, `sidebar`, `shelf`, and `panes`,
+  which mean nothing, so documents that name them read as before; the elements they
+  named are refused as unknown elements, with a message saying they're outside the
+  subset.

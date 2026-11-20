@@ -21,7 +21,7 @@ form layout.
 - A 2D camera with pointer-centered zoom and coordinate conversion
 - Declarative, vertically stacked form layout
 - Per-interface themes with colors, a font, text sizes, rounded corners, and glossy title bars
-- [UIScript](docs/UISCRIPT.md), a draft XML format (`.uix`) describing resources, styles, visuals, and controls
+- A reader for [UIScript](docs/UISCRIPT.md), a draft XML format (`.uix`) describing resources, styles, visuals, and controls. Its [spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md) lives in VentureOS, and Hudini reads the subset a game needs
 - `UIView`, which builds, updates, and draws a document's controls. It was called
   `UIScriptView`, a name that still works but is deprecated. A game that also imports
   UIKit writes `Hudini.UIView`.

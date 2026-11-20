@@ -209,3 +209,5 @@ and VentureOS proved the design first.
   color roles, size roles, and `dark` twins, from VentureOS's draft.
 - [x] Resize a window by a grip in its corner when its document says `resizable`,
   as VentureOS does.
+- [x] Hand the UIScript spec to VentureOS, which needs more of it than a game does,
+  and read the subset a game needs. The old module names in `requires` still read.
