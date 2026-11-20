@@ -335,6 +335,22 @@ public final class UIScriptView {
         windowSize = Vector2(x: max(size.x, minimum.width), y: max(size.y, minimum.height))
     }
 
+    /// Where to draw a panel on a screen of this size: against the top or bottom edge its
+    /// document names, `x` pixels from the left. Returns `nil` for a document with a `<Window>`.
+    ///
+    /// The height is `windowSize`'s, so call `setWindowSize(_:)` first when stretching the panel.
+    /// Where along its edge a panel sits is the host's choice, so `x` is passed in.
+    public func panelOrigin(onScreen screen: Vector2, x: Float = 0) -> Vector2? {
+        switch script.panelEdge {
+        case .top?:
+            Vector2(x: x, y: 0)
+        case .bottom?:
+            Vector2(x: x, y: screen.y - windowSize.y)
+        case nil:
+            nil
+        }
+    }
+
     /// Places a control or visual within the view, replacing its document position, size, and
     /// edge offsets.
     ///

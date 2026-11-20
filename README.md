@@ -284,7 +284,8 @@ Close and minimize are requests: the manager closes or minimizes a window only w
 the host calls `close(_:)` or `minimize(_:)`. Minimized windows stay open, and
 `minimizedWindows` lets the host show them however suits the game, such as a dock or
 a row of icons. HUD panels that never stack, like a control panel along the screen's
-edge, stay outside the manager.
+edge, stay outside the manager. A document can describe one with `<Panel edge="bottom">`
+in place of `<Window>`, and `panelOrigin(onScreen:)` gives where its view goes.
 
 ### More examples
 

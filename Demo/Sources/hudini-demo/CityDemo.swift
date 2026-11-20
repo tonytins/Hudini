@@ -4,7 +4,8 @@
 //
 // - HUD panels that never stack, outside the WindowManager: the tool palette (city/tools.uix), the
 //   overview with its minimap (city/overview.uix), and the status bar with its news ticker
-//   (city/status.uix). The host draws them under the windows and keeps clicks on them off the map.
+//   (city/status.uix), a <Panel> along the screen's bottom. The host draws them under the windows and
+//   keeps clicks on them off the map.
 // - Windows run by a WindowManager, each a small class with its own handler, so its logic lives with
 //   it rather than in one big switch in the game loop:
 //   - BudgetWindow (city/budget.uix) is modal, and the city pauses while any modal window is open.
@@ -542,7 +543,6 @@ enum CityDemoEnding {
 @MainActor
 final class CityDemo {
     private static let tileSize: Float = 16
-    private static let statusHeight: Float = 48
     private static let iconSize = Vector2(x: 110, y: 22)
     private static let headlines = [
         "Council Votes To Paint Every Fire Hydrant A Different Color",
@@ -649,7 +649,10 @@ final class CityDemo {
     }
 
     private var statusOrigin: Vector2 {
-        Vector2(x: 0, y: screen.y - Self.statusHeight)
+        guard let origin = status.panelOrigin(onScreen: screen) else {
+            fail("city/status.uix must describe a panel.")
+        }
+        return origin
     }
 
     private func panelBounds(_ view: UIScriptView, at origin: Vector2) -> Rectangle {
@@ -691,7 +694,8 @@ final class CityDemo {
     // MARK: Input and simulation
 
     private func update() {
-        status.setWindowSize(Vector2(x: screen.x, y: Self.statusHeight))
+        // The status bar is a panel along the bottom, stretched to the screen's width.
+        status.setWindowSize(Vector2(x: screen.x, y: status.windowSize.y))
         let pointer = GetMousePosition()
         let isPressed = IsMouseButtonPressed(.left)
         let wasTyping = cityPanel.isTyping

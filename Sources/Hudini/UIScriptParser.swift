@@ -39,6 +39,11 @@ enum UIScriptParser {
             .map(String.init) ?? []
 
         var window: UIScript.Window?
+        // The element that gave the window or panel, so a second of either reports both names.
+        var windowElement: Element?
+        var panelEdge: UIScript.PanelEdge?
+        // The first title bar element, which a panel refuses wherever it appears.
+        var firstTitleBarElement: Element?
         var images: [String: UIScript.ImageResource] = [:]
         var strings: [String: UIScript.StringResource] = [:]
         var styles: [String: UIScript.Style] = [:]
@@ -51,11 +56,22 @@ enum UIScriptParser {
         for element in elements {
             let reader = AttributeReader(element)
             switch element.name {
-            case "Window":
-                guard window == nil else {
-                    throw UIScriptError.duplicateElement("Window", line: element.line)
+            case "Window", "Panel":
+                if let windowElement {
+                    guard windowElement.name == element.name else {
+                        throw UIScriptError.conflictingElements(
+                            first: windowElement.name, second: element.name, line: element.line
+                        )
+                    }
+                    throw UIScriptError.duplicateElement(element.name, line: element.line)
                 }
-                window = try makeWindow(reader)
+                windowElement = element
+                if element.name == "Panel" {
+                    window = try makePanelWindow(reader)
+                    panelEdge = try makePanelEdge(reader)
+                } else {
+                    window = try makeWindow(reader)
+                }
             case "Image":
                 let name = try reader.requiredString("name")
                 guard images[name] == nil else {
@@ -89,6 +105,7 @@ enum UIScriptParser {
                     isInitiallyHidden: false
                 ))
             case "ToolbarItem":
+                firstTitleBarElement = firstTitleBarElement ?? element
                 toolbarItems.append(UIScript.ToolbarItem(
                     name: try reader.requiredString("name"),
                     title: try reader.requiredString("title")
@@ -97,6 +114,7 @@ enum UIScriptParser {
                 guard titleField == nil else {
                     throw UIScriptError.duplicateElement("TitleField", line: element.line)
                 }
+                firstTitleBarElement = firstTitleBarElement ?? element
                 titleField = UIScript.TitleField(
                     name: try reader.requiredString("name"),
                     placeholder: reader.string("placeholder")
@@ -113,10 +131,14 @@ enum UIScriptParser {
         guard let window else {
             throw UIScriptError.missingElement("Window")
         }
+        if panelEdge != nil, let firstTitleBarElement {
+            throw UIScriptError.notAllowedInPanel(firstTitleBarElement.name, line: firstTitleBarElement.line)
+        }
         return UIScript(
             version: version,
             requiredFeatures: requiredFeatures,
             window: window,
+            panelEdge: panelEdge,
             resources: UIScript.Resources(images: images, strings: strings),
             styles: styles,
             visuals: visuals,
@@ -140,13 +162,30 @@ enum UIScriptParser {
     ]
 
     private static func makeWindow(_ reader: AttributeReader) throws -> UIScript.Window {
+        try makeWindow(reader, isResizable: reader.boolean("resizable") ?? false)
+    }
+
+    /// Reads a panel's size. A panel takes `minWidth` and `minHeight`, which floor its layout when
+    /// the host stretches it to the screen, but not `resizable`, which stays unread and is listed.
+    private static func makePanelWindow(_ reader: AttributeReader) throws -> UIScript.Window {
+        try makeWindow(reader, isResizable: false)
+    }
+
+    private static func makePanelEdge(_ reader: AttributeReader) throws -> UIScript.PanelEdge {
+        let value = try reader.requiredString("edge")
+        guard let edge = UIScript.PanelEdge(rawValue: value) else {
+            throw reader.invalid("edge", value)
+        }
+        return edge
+    }
+
+    private static func makeWindow(_ reader: AttributeReader, isResizable: Bool) throws -> UIScript.Window {
         let size = UIScript.Size(
             width: try reader.requiredNumber("width"),
             height: try reader.requiredNumber("height")
         )
         let minWidth = try reader.number("minWidth")
         let minHeight = try reader.number("minHeight")
-        let isResizable = try reader.boolean("resizable") ?? false
         switch (minWidth, minHeight) {
         case (nil, nil):
             return UIScript.Window(size: size, minSize: nil, isResizable: isResizable)
@@ -365,7 +404,7 @@ private final class AttributeReader {
         return value
     }
 
-    private func invalid(_ attribute: String, _ value: String) -> UIScriptError {
+    func invalid(_ attribute: String, _ value: String) -> UIScriptError {
         .invalidAttribute(element: element.name, attribute: attribute, value: value, line: element.line)
     }
 

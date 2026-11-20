@@ -266,6 +266,119 @@ func uiScriptRejectsMalformedXML(text: String) {
     }
 }
 
+// MARK: Panels
+
+private func panelDocument(_ panel: String, _ body: String = "") throws -> UIScript {
+    try UIScript(data: Data("<UIScript>\(panel)\(body)</UIScript>".utf8))
+}
+
+@Test func panelTakesThePlaceOfAWindow() throws {
+    let loaded = try panelDocument(
+        "<Panel width='1024' height='48' minWidth='640' minHeight='48' edge='bottom'/>",
+        "<Button name='a' \(tenByTen)/>"
+    )
+
+    #expect(loaded.panelEdge == .bottom)
+    #expect(loaded.window.size.width == 1024 && loaded.window.size.height == 48)
+    #expect(loaded.window.minSize?.width == 640)
+    #expect(!loaded.window.isResizable)
+    #expect(loaded.ignoredAttributes.isEmpty)
+    #expect(try panelDocument("<Panel width='9' height='9' edge='top'/>").panelEdge == .top)
+}
+
+@Test func windowsAreNotPanels() throws {
+    #expect(try script("").panelEdge == nil)
+}
+
+@Test func panelListsResizableAsIgnored() throws {
+    let loaded = try panelDocument("<Panel width='9' height='9' edge='top' resizable='true'/>")
+
+    #expect(!loaded.window.isResizable)
+    #expect(loaded.ignoredAttributes.map(\.element) == ["Panel"])
+    #expect(loaded.ignoredAttributes.map(\.attribute) == ["resizable"])
+}
+
+@Test func panelNeedsAKnownEdge() {
+    #expect(throws: UIScriptError.missingAttribute(element: "Panel", attribute: "edge", line: 1)) {
+        try panelDocument("<Panel width='9' height='9'/>")
+    }
+    #expect(throws: UIScriptError.invalidAttribute(element: "Panel", attribute: "edge", value: "left", line: 1)) {
+        try panelDocument("<Panel width='9' height='9' edge='left'/>")
+    }
+    // Edges are written in lowercase, as every other keyword in the format is.
+    #expect(throws: UIScriptError.invalidAttribute(element: "Panel", attribute: "edge", value: "Top", line: 1)) {
+        try panelDocument("<Panel width='9' height='9' edge='Top'/>")
+    }
+}
+
+@Test func panelFollowsTheWindowsSizeRules() {
+    #expect(throws: UIScriptError.invalidWindowSize) {
+        try panelDocument("<Panel width='0' height='9' edge='top'/>")
+    }
+    #expect(throws: UIScriptError.invalidMinimumWindowSize) {
+        try panelDocument("<Panel width='9' height='9' minWidth='20' minHeight='9' edge='top'/>")
+    }
+    #expect(throws: UIScriptError.missingAttribute(element: "Panel", attribute: "minHeight", line: 1)) {
+        try panelDocument("<Panel width='9' height='9' minWidth='5' edge='top'/>")
+    }
+}
+
+@Test func documentHasAWindowOrAPanelButNotBoth() {
+    let window = "<Window width='9' height='9'/>"
+    let panel = "<Panel width='9' height='9' edge='top'/>"
+
+    #expect(throws: UIScriptError.conflictingElements(first: "Window", second: "Panel", line: 1)) {
+        try panelDocument(window, panel)
+    }
+    #expect(throws: UIScriptError.conflictingElements(first: "Panel", second: "Window", line: 1)) {
+        try panelDocument(panel, window)
+    }
+    #expect(throws: UIScriptError.duplicateElement("Panel", line: 1)) {
+        try panelDocument(panel, panel)
+    }
+}
+
+@Test func panelRefusesTitleBarElementsWhereverTheyAre() {
+    let panel = "<Panel width='9' height='9' edge='top'/>"
+
+    #expect(throws: UIScriptError.notAllowedInPanel("ToolbarItem", line: 1)) {
+        try panelDocument(panel, "<ToolbarItem name='go' title='Go'/>")
+    }
+    #expect(throws: UIScriptError.notAllowedInPanel("TitleField", line: 1)) {
+        try panelDocument("<TitleField name='address'/>", panel)
+    }
+    let lines = "<UIScript>\n<Panel width='9' height='9' edge='top'/>\n<TitleField name='t'/>\n<ToolbarItem name='go' title='Go'/>\n</UIScript>"
+    #expect(throws: UIScriptError.notAllowedInPanel("TitleField", line: 3)) {
+        try UIScript(data: Data(lines.utf8))
+    }
+}
+
+@Test func panelViewStretchesToTheScreenAboveItsMinimum() throws {
+    let view = UIScriptView(script: try panelDocument(
+        "<Panel width='1024' height='48' minWidth='640' minHeight='48' edge='bottom'/>",
+        "<Region name='ticker' x='8' y='4' width='1008' height='16' edgeOffsetLeft='8' edgeOffsetRight='8'/>"
+    ))
+
+    view.setWindowSize(Vector2(x: 1280, y: 48))
+    #expect(view.windowSize == Vector2(x: 1280, y: 48))
+    view.setWindowSize(Vector2(x: 300, y: 48))
+    #expect(view.windowSize == Vector2(x: 640, y: 48))
+}
+
+@Test func panelOriginSitsAgainstItsEdge() throws {
+    let screen = Vector2(x: 1280, y: 720)
+    let bottom = UIScriptView(script: try panelDocument("<Panel width='1024' height='160' edge='bottom'/>"))
+    let top = UIScriptView(script: try panelDocument("<Panel width='1024' height='26' edge='top'/>"))
+
+    #expect(bottom.panelOrigin(onScreen: screen) == Vector2(x: 0, y: 560))
+    #expect(bottom.panelOrigin(onScreen: screen, x: 128) == Vector2(x: 128, y: 560))
+    #expect(top.panelOrigin(onScreen: screen) == Vector2(x: 0, y: 0))
+    // The height follows a stretched panel's size.
+    bottom.setWindowSize(Vector2(x: 1280, y: 200))
+    #expect(bottom.panelOrigin(onScreen: screen) == Vector2(x: 0, y: 520))
+    #expect(UIScriptView(script: try script("")).panelOrigin(onScreen: screen) == nil)
+}
+
 @Test func uiScriptReportsMissingAndUnusableAttributes() {
     #expect(throws: UIScriptError.missingAttribute(element: "Button", attribute: "name", line: 1)) {
         try script("<Button \(tenByTen)/>")

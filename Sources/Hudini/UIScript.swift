@@ -19,8 +19,13 @@ public struct UIScript: Sendable {
     /// The features the document says a reader must understand.
     public let requiredFeatures: [String]
 
-    /// Window-level size settings.
+    /// Window-level size settings. For a panel, these are the panel's size and smallest size.
     public let window: Window
+
+    /// The screen edge the document's interface is pinned to, when it describes a `<Panel>`
+    /// rather than a `<Window>`. The host places the view along that edge. A panel has no title
+    /// bar and doesn't resize by a grip, so don't wrap its view in a `WindowFrame`.
+    public let panelEdge: PanelEdge?
 
     /// Named image and localized-string references.
     public let resources: Resources
@@ -91,6 +96,7 @@ public struct UIScript: Sendable {
         version: Int,
         requiredFeatures: [String],
         window: Window,
+        panelEdge: PanelEdge? = nil,
         resources: Resources,
         styles: [String: Style],
         visuals: [Visual],
@@ -104,6 +110,7 @@ public struct UIScript: Sendable {
         self.version = version
         self.requiredFeatures = requiredFeatures
         self.window = window
+        self.panelEdge = panelEdge
         self.resources = resources
         self.styles = styles
         self.visuals = visuals
@@ -404,6 +411,15 @@ public struct UIScript: Sendable {
         /// Whether the window has a grip that resizes it. It never goes below `minSize`, or
         /// below `size` without one.
         public let isResizable: Bool
+    }
+
+    /// The edge of the screen a panel is pinned to.
+    public enum PanelEdge: String, Sendable {
+        /// Along the top of the screen.
+        case top
+
+        /// Along the bottom of the screen.
+        case bottom
     }
 
     /// A width and height in pixels.
@@ -1019,6 +1035,12 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A required element is absent.
     case missingElement(String)
 
+    /// Two elements appear that a document may only have one of, such as `Window` and `Panel`.
+    case conflictingElements(first: String, second: String, line: Int)
+
+    /// An element appears in a document that describes a panel, which can't have it.
+    case notAllowedInPanel(String, line: Int)
+
     /// An element that may appear once appears again.
     case duplicateElement(String, line: Int)
 
@@ -1112,8 +1134,14 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript line \(line): element '\(name)' must be a direct child of 'UIScript'."
         case let .unexpectedText(line):
             "UIScript line \(line): text must be written in an attribute."
+        case .missingElement("Window"):
+            "UIScript document needs a 'Window' or a 'Panel' element."
         case let .missingElement(name):
             "UIScript document needs a '\(name)' element."
+        case let .conflictingElements(first, second, line):
+            "UIScript line \(line): a document can't have both '\(first)' and '\(second)'."
+        case let .notAllowedInPanel(name, line):
+            "UIScript line \(line): a panel has no title bar or sidebar, so it can't have '\(name)'."
         case let .duplicateElement(name, line):
             "UIScript line \(line): only one '\(name)' element is allowed."
         case let .missingAttribute(element, attribute, line):

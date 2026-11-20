@@ -3,8 +3,9 @@
 // - The Sims Online style, the rest of this file: a property chat window over a control panel that
 //   swaps between modes, with a lemonade stand panel that sits inside the live panel or in its own
 //   window, and an auto-hiding debug bar. The options panel opens a window for moving to another
-//   lot. The chat, mode panels, and move window are UIScript XML. The stand and the bar are Maxis'
-//   .uis format, and the text comes from CST tables.
+//   lot. The chat, mode panels, and move window are UIScript XML, and each mode panel is a <Panel>
+//   along the screen's bottom. The stand and the bar are Maxis' .uis format, which has no panels,
+//   and the text comes from CST tables.
 // - CityLimits style, in CityDemo.swift with its documents in Resources/city: a city map under HUD
 //   panels, with windows run by a WindowManager, each with its own handler. It's the shape a Swift
 //   port of CityLimits, the game Hudini grew out of, could take.
@@ -772,15 +773,18 @@ while running && !WindowShouldClose() {
     let screenSize = Vector2(x: Float(GetScreenWidth()), y: Float(GetScreenHeight()))
     let pointer = GetMousePosition()
 
-    let panelHeight = panelScript.window.size.height
-    let panelTop = screenSize.y - panelHeight
+    // The control panel's modes are panels along the bottom of the screen, all the same height.
+    guard let panelOrigin = panel.panelOrigin(onScreen: screenSize) else {
+        fail("livepanel1024.uix must describe a panel.")
+    }
+    let panelTop = panelOrigin.y
+    let panelHeight = screenSize.y - panelTop
     let chatSize = Vector2(x: chatScript.window.size.width, y: chatScript.window.size.height)
     let bounds = window.place(
         size: chatSize,
         at: Vector2(x: (screenSize.x - chatSize.x) / 2, y: (panelTop - chatSize.y) / 2)
     )
     let chatOrigin = Vector2(x: bounds.x, y: bounds.y)
-    let panelOrigin = Vector2(x: 0, y: panelTop)
     let lotArea = Rectangle(x: 0, y: 0, width: screenSize.x, height: panelTop)
     let toolbarItemCount = Mode.allCases.count
     let toolbarBounds = IconToolbar.bounds(itemCount: toolbarItemCount, in: lotArea)

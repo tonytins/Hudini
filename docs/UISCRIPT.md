@@ -106,19 +106,22 @@ along CityLimits'. So are a desktop's dock and menu bar.
 | Attribute | Required | Value |
 | --- | --- | --- |
 | `width`, `height` | Yes | The panel's size, as a window's. Both must be positive. |
-| `edge` | Yes | `top` or `bottom`: the edge of the screen the panel is pinned to. |
+| `minWidth`, `minHeight` | No | The smallest size the panel lays out at, as a window's. Give both or neither. |
+| `edge` | Yes | `top` or `bottom`, in lowercase: the edge of the screen the panel is pinned to. |
 
 Controls lay out in a panel as they do in a window, and edge offsets measure from
-the panel's size, or the size the host gives it with `setWindowSize(_:)`, such as
-the screen's width.
+the panel's size, or the size the host gives it, such as the screen's width. A
+panel stretched across the screen uses `minWidth` so its anchored controls don't
+run into each other on a narrow one. A reader that ignores `minWidth` and
+`minHeight` lays the panel out at any size, which is plainer but still shows it.
 
 Rules:
 
 - An `edge` other than `top` or `bottom` refuses the document, so a panel never
   lands somewhere it wasn't meant to. Another edge needs a reader that knows it.
-- A panel has no title bar and isn't resized by hand, so `resizable`, `minWidth`,
-  and `minHeight` mean nothing on it. Written anyway, they're ignored and listed
-  in `ignoredAttributes`, as unknown attributes are.
+- A panel has no title bar and isn't resized by a grip, so `resizable` means
+  nothing on it. Written anyway, it's ignored and listed in `ignoredAttributes`,
+  as unknown attributes are.
 - A panel can't have toolbar items, a title field, or a sidebar. Any of these
   refuses the document.
 - A panel may have menus. How the host shows them is the host's choice.
@@ -140,6 +143,11 @@ A host that shows panels:
 - Decides where along its edge a panel sits, and how many it allows on each edge.
   VentureOS allows one top panel, its menu bar, and centres a bottom panel, its
   dock, which can hide itself.
+
+In Hudini, a panel's `UIScript` has a `panelEdge`, which is `nil` for a window,
+and its size is in `window`. Stretch the view with `setWindowSize(_:)`, then
+`panelOrigin(onScreen:x:)` gives where to update and draw it against its edge. A
+panel's view isn't wrapped in a `WindowFrame`.
 
 A panel isn't the same as composing views inside each other, described in
 [Panels inside panels](#panels-inside-panels). A panel is where a document's
@@ -788,8 +796,8 @@ move to SwiftCST in their own time: create a `UIText` the same way, and call
 
 ## Not yet supported
 
-Hudini's reader reads everything in this draft's core except `<Panel>`, which it
-refuses as an unknown element. It implements no modules yet.
+Hudini's reader reads everything in this draft's core. It implements no modules
+yet.
 
 A text area's caret stays at the end of its text. Clicking to place it, moving it
 with the arrow keys, selection, and the clipboard aren't supported yet.
@@ -807,7 +815,9 @@ Newest first. Changes before the draft are in the repository's history.
   the same. Submenus are new, and nest only.
 - **2026-11-20:** `<Panel>` in place of `<Window>`, from VentureOS: a strip
   pinned to the top or bottom of the screen, such as a HUD bar, a dock, or a menu
-  bar. It's core, needing no `requires`, as VentureOS wrote it.
+  bar. It's core, needing no `requires`, as VentureOS wrote it. Unlike
+  VentureOS's draft, it takes `minWidth` and `minHeight`, for a panel stretched
+  across the screen.
 
 - **2026-11-12:** `resizable` on `<Window>`, from VentureOS: a grip in the corner
   resizes the window within its smallest size.
