@@ -53,8 +53,11 @@ complete examples.
 - Documents must be UTF-8 and well-formed XML.
 - `DOCTYPE` declarations are not allowed, which also rules out custom entities.
   The five standard entities, such as `&lt;`, work as usual.
-- Every element is a direct child of `<UIScript>`, in any order. Elements do not
-  nest and hold no text. Text goes in attributes.
+- Every core element is a direct child of `<UIScript>`, in any order, and holds
+  no children. Only a [module](#modules) can let its elements hold others, as
+  [menus](#menus) do, and only where its section says. An element anywhere else
+  refuses the document.
+- No element holds text. Text goes in attributes.
 - Controls draw in document order, with later controls on top. Visuals draw
   before all controls.
 - Names are unique among controls, visuals, title bar elements, and module
@@ -72,7 +75,8 @@ complete examples.
 
 ## Window
 
-Exactly one `<Window>` is required. It gives the interface's size in pixels.
+Exactly one `<Window>` is required, unless the document describes a
+[panel](#panel) instead. It gives the interface's size in pixels.
 
 | Attribute | Required | Value |
 | --- | --- | --- |
@@ -359,7 +363,7 @@ Controls report what the player does as events carrying the control's name.
 
 | Event | Reported when |
 | --- | --- |
-| `pressed` | A button, toolbar item, or menu item is chosen. |
+| `pressed` | A button, toolbar item, or menu item is chosen. Opening a menu or submenu reports nothing. |
 | `submitted` | Enter is pressed in a text field or title field, with its text, or an item in a selectable list is double-clicked, with the item's text. |
 | `changed` | A slider without a scroll binding moves, with its value. |
 | `selected` | A click on a selectable list or sidebar picks a different row, with its index. |
@@ -400,6 +404,11 @@ These rules set how the format grows:
   interface silently incomplete.
 - A module's elements and attributes refuse the document unless it names the
   module in `requires`.
+- A module may let its elements hold other elements, its own or core ones, and
+  its section says which. A reader checks `requires` before anything else, so a
+  reader without the module refuses the document before it meets the nesting.
+  That's why nesting can be added module by module with no change to `version`.
+  Core elements stay flat, since every reader reads them.
 - `version` only increases when existing documents or meanings change, which
   the draft avoids.
 
@@ -417,11 +426,13 @@ for ignored in script.ignoredAttributes {
 
 | Module | What it adds |
 | --- | --- |
-| [`menus`](#menus) | Menus for a global menu bar |
+| [`menus`](#menus) | Menus for a global menu bar, with submenus |
 | [`sidebar`](#sidebar) | A list of places down the window's left |
+| [`panel`](#panel) | A panel pinned to an edge of the screen, in place of a window |
 
 A host should list the modules it implements. Hudini's reader supports version 1
-and implements no modules yet. VentureOS implements both.
+and implements no modules yet. VentureOS implements `menus` and `sidebar`, menus'
+nesting aside, and reads panels from its own draft of `panel`.
 
 ### Menus
 
@@ -432,45 +443,73 @@ desktop shows the focused app's menus along the top of the screen.
 <UIScript version="1" requires="menus">
   <Window width="400" height="300"/>
 
-  <Menu name="notesMenu" title="Notes" hotkey="N"/>
-  <MenuItem menu="notesMenu" name="newNote" title="New Note" hotkey="N" shortcut="Ctrl+N"/>
-  <MenuSeparator menu="notesMenu"/>
-  <MenuItem menu="notesMenu" name="clearAll" title="Clear All Notes" hotkey="C"/>
+  <Menu name="notesMenu" title="Notes" hotkey="N">
+    <MenuItem name="newNote" title="New Note" hotkey="N" shortcut="Ctrl+N"/>
+    <Menu name="sortMenu" title="Sort By" hotkey="S">
+      <MenuItem name="sortByDate" title="Date" hotkey="D"/>
+      <MenuItem name="sortByTitle" title="Title" hotkey="T"/>
+    </Menu>
+    <MenuSeparator/>
+    <MenuItem name="clearAll" title="Clear All Notes" hotkey="C"/>
+  </Menu>
 
   <List name="notes" x="10" y="10" width="380" height="250" selectable="true"/>
 </UIScript>
 ```
 
-An item names the menu it belongs to, as a slider names the list it scrolls.
-Items and separators appear in a menu in document order, and menus appear in the
-bar in document order.
+A menu holds its items, separators, and submenus. A `<Menu>` directly inside
+`<UIScript>` goes in the menu bar, and a `<Menu>` inside another is a submenu: an
+entry in its parent that opens another menu beside it. Submenus nest to any depth.
+Menus appear in the bar in document order, and everything in a menu appears in
+the order it's written.
 
-`<Menu>` is one drop-down menu.
+A menu's items and separators may instead sit directly in `<UIScript>`, each
+naming its menu with `menu`, as a slider names the list it scrolls. This is the
+form the module had before it nested, and it still reads the same:
+
+```xml
+<Menu name="notesMenu" title="Notes" hotkey="N"/>
+<MenuItem menu="notesMenu" name="newNote" title="New Note" hotkey="N" shortcut="Ctrl+N"/>
+<MenuSeparator menu="notesMenu"/>
+<MenuItem menu="notesMenu" name="clearAll" title="Clear All Notes" hotkey="C"/>
+```
+
+A menu uses one form or the other. One that holds anything can't also be named by
+a `menu` attribute, and a submenu only nests, so a menu with submenus holds all of
+its contents.
+
+`<Menu>` is one drop-down menu, or a submenu.
 
 | Attribute | Required | Value |
 | --- | --- | --- |
-| `name` | Yes | The name items use to join it. |
-| `title` | Yes | The text in the menu bar. |
-| `hotkey` | No | One letter or digit. With Alt held, it opens the menu. |
-| `role` | No | `file`, `edit`, `view`, or `help`: the host's standard menu this one adds to. |
+| `name` | Yes | The name a flat item uses to join it. |
+| `title` | Yes | The text in the menu bar, or a submenu's entry in its parent. |
+| `hotkey` | No | One letter or digit. With Alt held, it opens a menu in the bar. On a submenu, it opens the submenu while its parent is open. |
+| `role` | No | `file`, `edit`, `view`, or `help`: the host's standard menu this one adds to. Only a menu in the bar takes it. |
 
 `<MenuItem>` is a choice in a menu.
 
 | Attribute | Required | Value |
 | --- | --- | --- |
-| `menu` | Yes | The name of a `<Menu>`. |
+| `menu` | Only when flat | The name of the `<Menu>` it joins. An item inside a menu must not have it. |
 | `name` | Yes | The name the host uses for it, as for a control. |
 | `title` | Yes | The text in the menu. |
 | `hotkey` | No | One letter or digit that picks it while its menu is open. |
 | `shortcut` | No | A key combination that picks it from anywhere, such as `Ctrl+N` or `Ctrl+Shift+S`. |
 
-`<MenuSeparator>` is a line between groups of items. It takes `menu` only.
+`<MenuSeparator>` is a line between groups of items. It takes `menu` when flat,
+and nothing when nested.
 
 Rules:
 
-- A menu may be empty.
-- Menus use different `hotkey`s from each other, as do the items in one menu,
-  ignoring case.
+- A menu may be empty, and so may a submenu.
+- Menus in the bar use different `hotkey`s from each other. Within one menu, its
+  items and submenus use different `hotkey`s from each other. Both ignore case.
+- A `<MenuItem>` or `<MenuSeparator>` inside a menu that also has a `menu`
+  attribute, a `role` on a submenu, a flat item naming a menu that holds
+  anything, or a menu element inside anything other than `<UIScript>` or a
+  `<Menu>`, refuses the document.
+- `name`s stay unique across the whole document, however deep they nest.
 - A `shortcut` is `Ctrl`, `Alt`, and `Shift` in any combination, each at most
   once and joined with `+`, then one letter or digit. It needs `Ctrl` or `Alt`,
   so typing into a text field never triggers it. No two items in a document use
@@ -483,7 +522,14 @@ Rules:
 A host that implements menus:
 
 - Shows the focused interface's menus in the bar, after any menus of its own.
-- Reports a chosen item as `pressed` with the item's name.
+- Reports a chosen item as `pressed` with the item's name, however deep its
+  submenu. Opening a menu or submenu reports nothing.
+- Opens a submenu from its entry, such as on hover or with the right arrow, and
+  marks the entry so it reads as a submenu rather than an item. A host that can't
+  show a submenu beside its parent may show it in place of the parent, with a way
+  back.
+- Treats a disabled submenu's entry as `setDisabled(_:named:)` does an item: it
+  can't be opened, and nothing in it can be picked, shortcuts included.
 - Disables items with `setDisabled(_:named:)` and checks them with
   `setSelected(_:named:)`, as for controls.
 - Draws `hotkey` and `shortcut` in the menu so people can learn them.
@@ -523,6 +569,63 @@ A host that implements sidebars:
   selects a row, and reports `selected`, as for `<List selectable="true">`.
 - Sets it apart from the content, such as with its own shade, and marks the
   selected row.
+
+### Panel
+
+A document can describe a panel in place of a window: pinned to an edge of the
+screen, with no title bar, such as a dock or a menu bar. It's a module because
+plenty of hosts, such as a game showing one dialog at a time, have no screen
+edges to pin anything to.
+
+```xml
+<UIScript version="1" requires="panel">
+  <Panel width="400" height="40" edge="bottom"/>
+
+  <Button name="home" x="8" y="6" width="80" height="28" text="Home"/>
+  <Text name="clock" x="332" y="12" width="60" height="16" edgeOffsetRight="8"
+        text="12:00" alignment="right"/>
+</UIScript>
+```
+
+This is a different thing from composing views inside each other, described in
+[Panels inside panels](#panels-inside-panels), which needs no module.
+
+`<Panel>` takes the place of `<Window>`: a document has exactly one of the two.
+
+| Attribute | Required | Value |
+| --- | --- | --- |
+| `width`, `height` | Yes | The panel's size, as a window's. Both must be positive. |
+| `edge` | Yes | `top` or `bottom`: the edge of the screen the panel is pinned to. |
+
+Controls lay out in a panel as they do in a window, and edge offsets measure from
+the panel's size.
+
+Rules:
+
+- An `edge` other than `top` or `bottom` refuses the document, so a panel never
+  lands somewhere it wasn't meant to. Another edge needs a reader that knows it.
+- A panel has no title bar and isn't resized by hand, so `resizable`, `minWidth`,
+  and `minHeight` mean nothing on it. Written anyway, they're ignored and listed
+  in `ignoredAttributes`, as unknown attributes are.
+- A panel can't have toolbar items, a title field, or a sidebar. Any of these
+  refuses the document.
+- A panel may have menus. How the host shows them is the host's choice.
+- A `<Panel>` in a document without `requires="panel"`, a document with both a
+  `<Window>` and a `<Panel>`, or one with two panels, refuses the document.
+- `<Panel>` holds nothing. Its controls sit in `<UIScript>`, as a window's do, so
+  the rest of a document reads the same whichever it has.
+
+A reader without this module refuses a panel by design: a dock or a menu bar shown
+as an ordinary, movable window isn't a working fallback.
+
+A host that implements panels:
+
+- Keeps a panel above ordinary windows and doesn't let it be moved or focused as
+  a window.
+- Keeps other windows clear of the edge a panel is on.
+- Decides where along its edge a panel sits, and how many it allows on each edge.
+  VentureOS allows one top panel, its menu bar, and centres a bottom panel, its
+  dock, which can hide itself.
 
 ## Errors
 
@@ -694,6 +797,14 @@ replaces with a plain track and thumb.
 ## Change log
 
 Newest first. Changes before the draft are in the repository's history.
+
+- **2026-11-20:** Modules may let their elements nest, while core elements stay
+  flat, so nesting needs no new `version`. `menus` nests first: a `<Menu>` holds
+  its items, separators, and submenus, and the flat form with `menu` still reads
+  the same. Submenus are new, and nest only.
+- **2026-11-20:** The `panel` module, from VentureOS: `<Panel>` in place of
+  `<Window>`, pinned to the top or bottom of the screen. VentureOS wrote it as a
+  core element, with no `requires`.
 
 - **2026-11-12:** `resizable` on `<Window>`, from VentureOS: a grip in the corner
   resizes the window within its smallest size.
