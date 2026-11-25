@@ -172,6 +172,43 @@ public struct InterfaceTheme: Sendable {
     /// Hudini's default dark palette with a warm accent.
     public static let standard = InterfaceTheme()
 
+    /// The look Depot, the UIScript designer, gives new documents: the standard look's slate and
+    /// amber, made softer after GNOME's Adwaita, by way of VentureOS's HIG.
+    ///
+    /// Panels and title bars are opaque, so overlapping windows don't show through. Borders and
+    /// quieter text are the text color at 20% and 58% over the panel rather than colors of their
+    /// own (58% rather than Adwaita's 55%, so quieter text reads on the title bar too), fields sit a little darker than the panel instead of black, corners are rounded, and the
+    /// title bar is flat. `depotLight` is its light twin.
+    public static let depot = InterfaceTheme(
+        inputBackground: Color(r: 18, g: 21, b: 27, a: 255),
+        minimizeButton: Color(r: 245, g: 178, b: 50, a: 255),
+        panel: Color(r: 26, g: 30, b: 38, a: 255),
+        border: Color(r: 66, g: 70, b: 78, a: 255),
+        secondaryText: Color(r: 143, g: 147, b: 154, a: 255),
+        titleBar: Color(r: 38, g: 43, b: 52, a: 255),
+        cornerRadius: 6
+    )
+
+    /// The light twin of `depot`: Adwaita's neutral surfaces, with the amber accent darkened until
+    /// it stands out from white.
+    ///
+    /// Quieter text is the text color at 68% rather than `depot`'s 58%, so small text on a light
+    /// panel stays readable.
+    public static let depotLight = InterfaceTheme(
+        accent: Color(r: 176, g: 122, b: 14, a: 255),
+        inputBackground: Color(r: 255, g: 255, b: 255, a: 255),
+        minimizeButton: Color(r: 245, g: 178, b: 50, a: 255),
+        overlay: Color(r: 0, g: 0, b: 0, a: 90),
+        error: Color(r: 192, g: 28, b: 40, a: 255),
+        panel: Color(r: 250, g: 250, b: 251, a: 255),
+        border: Color(r: 210, g: 210, b: 212, a: 255),
+        text: Color(r: 51, g: 51, b: 56, a: 255),
+        secondaryText: Color(r: 115, g: 115, b: 118, a: 255),
+        titleBar: Color(r: 255, g: 255, b: 255, a: 255),
+        selectedItem: Color(r: 218, g: 218, b: 220, a: 255),
+        cornerRadius: 6
+    )
+
     /// This theme drawing its text in `monospaceFont`, or the theme itself when it has none. A
     /// monospace font with no texture counts as none, as for `font`, so the text stays in `font`.
     var monospaced: InterfaceTheme {

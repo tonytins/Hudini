@@ -96,6 +96,8 @@ import Raylib
 InitWindow(800, 600, "Game")
 SetExitKey(.null)
 
+// Or start from one of Hudini's looks: .standard, or .depot and .depotLight, which
+// Depot, the UIScript designer, gives new documents.
 let theme = InterfaceTheme(
     accent: Color(r: 120, g: 180, b: 240, a: 255)
 )

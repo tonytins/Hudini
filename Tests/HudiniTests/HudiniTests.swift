@@ -1115,6 +1115,46 @@ private func wrapped(_ text: String, maximumWidth: Int) -> [String] {
     #expect(InterfaceTheme.standard.cornerRadius(for: Rectangle(x: 0, y: 0, width: 100, height: 100)) == 0)
 }
 
+@Test func depotThemesAreOpaqueRoundedAndFlat() {
+    for theme in [InterfaceTheme.depot, .depotLight] {
+        #expect(theme.panel.a == 255)
+        #expect(theme.titleBar.a == 255)
+        #expect(theme.cornerRadius == 6)
+        #expect(theme.titleBarBottom == nil)
+    }
+    #expect(InterfaceTheme.depot.isDark)
+    #expect(!InterfaceTheme.depotLight.isDark)
+    // The dark one keeps the standard look's slate and amber.
+    #expect(InterfaceTheme.depot.accent == InterfaceTheme.standard.accent)
+    #expect(InterfaceTheme.depot.text == InterfaceTheme.standard.text)
+}
+
+// WCAG's contrast ratio, from 1 to 21.
+private func contrast(_ first: Color, _ second: Color) -> Double {
+    func luminance(_ color: Color) -> Double {
+        func channel(_ value: UInt8) -> Double {
+            let fraction = Double(value) / 255
+            return fraction <= 0.04045 ? fraction / 12.92 : pow((fraction + 0.055) / 1.055, 2.4)
+        }
+        return (0.2126 * channel(color.r)) + (0.7152 * channel(color.g)) + (0.0722 * channel(color.b))
+    }
+    let lighter = max(luminance(first), luminance(second))
+    let darker = min(luminance(first), luminance(second))
+    return (lighter + 0.05) / (darker + 0.05)
+}
+
+@Test func depotThemesKeepTheirTextAndAccentReadable() {
+    for theme in [InterfaceTheme.depot, .depotLight] {
+        for surface in [theme.panel, theme.titleBar, theme.inputBackground] {
+            #expect(contrast(theme.text, surface) >= 4.5)
+            #expect(contrast(theme.secondaryText, surface) >= 4.5)
+        }
+        #expect(contrast(theme.text, theme.selectedItem) >= 4.5)
+        #expect(contrast(theme.accent, theme.panel) >= 3)
+        #expect(contrast(theme.error, theme.panel) >= 4.5)
+    }
+}
+
 @Test func cornersShrinkToFitSmallShapes() {
     let theme = InterfaceTheme(cornerRadius: 8)
 
