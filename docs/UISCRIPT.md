@@ -27,7 +27,12 @@ Maxis' `.uis` files into the same model; see [Reading `.uis` files](#reading-uis
 | `<Style>`, with color roles, size roles, `dark` twins, and `font` | Yes |
 | `<Visual>` | Yes |
 | Controls: `<Text>`, `<FormattedText>`, `<Button>`, `<TextField>`, `<TextArea>`, `<List>`, `<Slider>`, `<ProgressBar>`, `<Region>` | Yes |
-| `<Shelf>` | No: refused as an unknown element |
+| Scroll bars on lists and text areas | Yes: the classic style, drawn by the control itself. See [Scroll bars and sliders](#scroll-bars-and-sliders). |
+| `<Slider>`'s `step`, and the `committed` event | Yes |
+| `alignment` on `<TextField>` and `<TextArea>` | Yes |
+| `scrolls` and `direction` | Refused, as the spec says, since nothing scrolls by hand |
+| `orientation` | Skipped and listed, as the spec says: a slider runs along its longer side |
+| `<Shelf>`, `<Grid>`, `<StatusItem>` | No: refused as unknown elements |
 | Title bar: `<ToolbarItem>` and `<TitleField>` | Yes |
 | A window's `subtitle`, and toolbar items' `image` and `placement` | Skipped and listed, as unknown attributes: no subtitle, and every item is a text item at the right end |
 | Menus: `<Menu>`, `<MenuItem>`, `<MenuSeparator>` | No: refused as unknown elements |
@@ -68,7 +73,7 @@ guard let history = view.list(named: "history") else { /* report it */ }
 history.items = messages
 
 // Each frame:
-for event in view.update(at: origin) { /* handle .pressed, .submitted, .changed, and .selected */ }
+for event in view.update(at: origin) { /* handle .pressed, .submitted, .changed, .committed, and .selected */ }
 view.draw(at: origin) { name, bounds in /* draw into regions */ }
 view.drawTooltip(at: origin) // After every view, so nothing covers it.
 ```
@@ -93,6 +98,7 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   event.
 - Change text at runtime with `setText(_:named:)`, and the value of a slider or
   progress bar with `setValue(_:named:)`. Both are cheap enough to call every frame.
+  A slider's value is kept in its range and on its `step`.
 - Open a window ready for typing with `textField(named:)?.setFocused(true)`, or
   `textArea(named:)?.setFocused(true)`, after taking focus from any other view with
   `clearFocus()`.
@@ -107,6 +113,33 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
 - Choose the fonts, default text sizes, and corners through the `InterfaceTheme`
   passed to the view. A document sets sizes through `<Style>`, and asks for the
   theme's `monospaceFont` with `font="monospace"`, but can't name a font file.
+
+### Scroll bars and sliders
+
+A list or text area draws a classic scroll bar down its right edge once its content
+doesn't fit, taking 15 pixels from the text while it shows. Its arrows scroll a line
+and its track a page, both repeating while held, and its thumb drags. A press on a
+bar belongs to it alone: it selects nothing, presses nothing, and leaves keyboard
+focus where it was. The host scrolls one itself with `scroll(byLines:)` or
+`scroll(toFraction:)` on the control from `list(named:)` or `textArea(named:)`.
+
+A `<Slider>` chooses a value only. It runs along its longer side, so a tall one runs
+bottom to top, and it snaps to its `step` when it has one. It reports `.changed` as
+it moves, and `.committed` once when a drag ends, even unchanged, or after a key
+moves it, so a game that wants only the final value, such as to recompute a budget,
+listens for that.
+
+A press on a slider gives it the keyboard, outlined in the accent: the arrows move
+it a step, or a tenth of its range without one, and Home and End move it to its
+ends. A press elsewhere, or `clearFocus()`, takes the keyboard away. Hudini can't
+keep the game from seeing those keys too, so a game that uses them, such as to pan
+its map, checks `focusedSlider` first:
+
+```swift
+if view.focusedSlider == nil {
+    panCamera(with: arrowKeys)
+}
+```
 
 ### Styles
 
@@ -266,6 +299,15 @@ with a plain track and thumb.
 The spec's change log is in
 [VentureOS's spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#change-log),
 including the changes made while Hudini kept it. Changes to Hudini's reader:
+
+- **2026-11-25:** Hudini follows the spec's changes of 2026-11-24 and 2026-11-25.
+  Lists and text areas draw their own scroll bars, and a control with `scrolls` or
+  `direction` refuses the document (`UIScriptError.retiredScrolling`), where it used
+  to scroll a list by hand. `orientation` is skipped and listed. `<Slider>` takes
+  `step` and reports `committed`, takes the keyboard when pressed, and runs bottom
+  to top when it's tall. `<TextField>` and `<TextArea>` follow `alignment`. A
+  document that scrolled a list with a slider or buttons drops them and widens the
+  list into their room.
 
 - **2026-11-20:** The spec moves to VentureOS, and Hudini reads a subset of it.
   `requires` accepts the old module names `menus`, `sidebar`, `shelf`, and `panes`,

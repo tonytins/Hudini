@@ -13,8 +13,8 @@ form layout.
 - Bottom-left icon toolbar with host-owned selection and custom icon drawing
 - Editable window titles with optional validation
 - Single-line and multiline text fields
-- Scrollable plain-text lists
-- Tooltips, draggable sliders, and progress bars
+- Scrollable plain-text lists and text areas, with their own scroll bars
+- Tooltips, value sliders with steps and the keyboard, and progress bars
 - Panels that swap by mode, sit inside each other, or open in their own window
 - Confirmation and notice panels
 - Button rows with hit testing and enabled states

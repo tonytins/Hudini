@@ -211,3 +211,7 @@ and VentureOS proved the design first.
   as VentureOS does.
 - [x] Hand the UIScript spec to VentureOS, which needs more of it than a game does,
   and read the subset a game needs. The old module names in `requires` still read.
+- [x] Follow VentureOS's scroll bars and value slider: lists and text areas scroll by
+  bars of their own, `<Slider>` only chooses a value, with `step`, `committed`, and
+  the keyboard, and scroll sliders and buttons are refused. Text fields and areas
+  follow `alignment`.
