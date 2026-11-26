@@ -32,8 +32,6 @@ public final class WindowFrame {
 
     private static let editWidth: Int = 260
 
-    private static let ellipsis: String = "..."
-
     /// How tall each of a sidebar's rows is.
     public static let sidebarRowHeight: Int = 28
 
@@ -655,7 +653,7 @@ public final class WindowFrame {
                 theme.secondaryText
             }
             let room = row.width - Float(Self.sidebarInset * 2)
-            theme.drawText(fitted(pane.title, size: theme.textSizes.body, in: room), x: Int(clamping: row.x) + Self.sidebarInset, y: Int(clamping: row.y + ((row.height - Float(theme.textSizes.body)) / 2)), size: theme.textSizes.body, color: color)
+            theme.drawText(theme.fitted(pane.title, size: theme.textSizes.body, in: room), x: Int(clamping: row.x) + Self.sidebarInset, y: Int(clamping: row.y + ((row.height - Float(theme.textSizes.body)) / 2)), size: theme.textSizes.body, color: color)
         }
     }
 
@@ -763,20 +761,8 @@ public final class WindowFrame {
             return shownTitle
         }
         (shownFor, shownRoom) = (text, room)
-        shownTitle = fitted(text, size: theme.textSizes.title, in: room)
+        shownTitle = theme.fitted(text, size: theme.textSizes.title, in: room)
         return shownTitle
-    }
-
-    // `text`, cut and ended with an ellipsis when it's wider than `room`.
-    private func fitted(_ text: String, size: Int, in room: Float) -> String {
-        guard Float(theme.textWidth(of: text, size: size)) > room else {
-            return text
-        }
-        var length = text.count
-        while length > 0 && Float(theme.textWidth(of: String(text.prefix(length)) + WindowFrame.ellipsis, size: size)) > room {
-            length -= 1
-        }
-        return String(text.prefix(length)) + WindowFrame.ellipsis
     }
 
     // The close button sits in the first slot at the bar's left, and the minimize button after it,

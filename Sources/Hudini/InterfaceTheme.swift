@@ -306,6 +306,19 @@ public struct InterfaceTheme: Sendable {
         TextWrapper.lines(for: text, maximumWidth: maximumWidth) { textWidth(of: $0, size: size) }
     }
 
+    /// `text`, cut and ended with an ellipsis when it's wider than `room` pixels.
+    func fitted(_ text: String, size: Int, in room: Float) -> String {
+        let ellipsis = "..."
+        guard Float(textWidth(of: text, size: size)) > room else {
+            return text
+        }
+        var length = text.count
+        while length > 0 && Float(textWidth(of: String(text.prefix(length)) + ellipsis, size: size)) > room {
+            length -= 1
+        }
+        return String(text.prefix(length)) + ellipsis
+    }
+
     // raylib's automatic count falls to one segment per corner at small radii, which draws a
     // straight diagonal, so a slider thumb would come out as a diamond.
     private static let cornerSegments = 8
