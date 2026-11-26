@@ -1,5 +1,5 @@
 // The appearance document a game's windows share (docs/design/2026-11-25-appearance.md): its
-// reader and its checks. Windows don't inherit from it yet.
+// reader, its checks, its fonts (docs/design/2026-11-25-fonts.md), and windows inheriting from it.
 
 import Foundation
 @testable import Hudini
@@ -132,7 +132,7 @@ func anAppearanceHoldsOnlyImagesStylesAndAScrollBar(body: String, element: Strin
     ].map { $0.errorDescription ?? "" }
 
     #expect(messages.allSatisfy { $0.hasPrefix("Appearance") })
-    #expect(messages[2].contains("'Image', 'Style', and 'ScrollBar'"))
+    #expect(messages[2].contains("'Image', 'Style', 'Font', 'Fonts', and 'ScrollBar'"))
 }
 
 @Test func anAppearanceLoadsFromAFile() throws {
@@ -141,6 +141,103 @@ func anAppearanceHoldsOnlyImagesStylesAndAScrollBar(body: String, element: Strin
     defer { try? FileManager.default.removeItem(at: url) }
 
     #expect(try Appearance(contentsOf: url).scrollBar?.width == 12)
+}
+
+// MARK: Fonts (docs/design/2026-11-25-fonts.md)
+
+@Test func anAppearanceReadsItsFontsAndTheThemesFonts() throws {
+    let loaded = try appearance("""
+        <Font name='text' path='fonts/ComicNeue-Regular.ttf' size='32'/>
+        <Font name='tiles' path='fonts/B612Mono-Bold.ttf' size='48'/>
+        <Fonts default='text' monospace='tiles'/>
+        """)
+
+    #expect(loaded.fonts["text"] == UIScript.FontResource(path: "fonts/ComicNeue-Regular.ttf", size: 32))
+    #expect(loaded.fonts["tiles"] == UIScript.FontResource(path: "fonts/B612Mono-Bold.ttf", size: 48))
+    #expect(loaded.themeFonts == Appearance.ThemeFonts(default: "text", monospace: "tiles"))
+    #expect(loaded.ignoredAttributes.isEmpty)
+}
+
+@Test func withoutFontsAnAppearanceKeepsTheThemes() throws {
+    let loaded = try appearance("<Font name='text' path='text.ttf' size='32'/>")
+
+    #expect(loaded.themeFonts == nil)
+    // A <Fonts> may fill one font and leave the other to the theme.
+    #expect(try appearance("<Font name='t' path='t.ttf' size='9'/><Fonts monospace='t'/>").themeFonts
+        == Appearance.ThemeFonts(default: nil, monospace: "t"))
+}
+
+@Test func anAppearanceStyleNamesAFontOrATypeface() throws {
+    let loaded = try appearance("""
+        <Font name='tiles' path='tiles.ttf' size='48'/>
+        <Style name='tile' font='tiles' fontSize='title'/>
+        <Style name='code' font='monospace'/>
+        <Style name='plain' font='interface'/>
+        """)
+
+    #expect(loaded.styles["tile"]?.fontName == "tiles")
+    #expect(loaded.styles["tile"]?.font == nil)
+    #expect(loaded.styles["code"]?.font == .monospace)
+    #expect(loaded.styles["code"]?.fontName == nil)
+    #expect(loaded.styles["plain"]?.font == .interface)
+    // Resolving a style against a theme keeps the font it names.
+    #expect(loaded.styles["tile"]?.resolved(in: .standard).fontName == "tiles")
+}
+
+@Test func anAppearanceChecksItsFonts() {
+    #expect(throws: UIScriptError.missingAttribute(element: "Font", attribute: "name", line: 1)) {
+        try appearance("<Font path='a.ttf' size='9'/>")
+    }
+    #expect(throws: UIScriptError.missingAttribute(element: "Font", attribute: "path", line: 1)) {
+        try appearance("<Font name='a' size='9'/>")
+    }
+    #expect(throws: UIScriptError.missingAttribute(element: "Font", attribute: "size", line: 1)) {
+        try appearance("<Font name='a' path='a.ttf'/>")
+    }
+    #expect(throws: UIScriptError.invalidAttribute(element: "Font", attribute: "size", value: "0", line: 1)) {
+        try appearance("<Font name='a' path='a.ttf' size='0'/>")
+    }
+    #expect(throws: UIScriptError.invalidAttribute(element: "Font", attribute: "size", value: "12.5", line: 1)) {
+        try appearance("<Font name='a' path='a.ttf' size='12.5'/>")
+    }
+    #expect(throws: UIScriptError.duplicateName("a")) {
+        try appearance("<Font name='a' path='a.ttf' size='9'/><Font name='a' path='b.ttf' size='9'/>")
+    }
+    // A style's font already means these, so a <Font> can't take them.
+    #expect(throws: UIScriptError.invalidAttribute(element: "Font", attribute: "name", value: "monospace", line: 1)) {
+        try appearance("<Font name='monospace' path='a.ttf' size='9'/>")
+    }
+    #expect(throws: UIScriptError.invalidAttribute(element: "Font", attribute: "name", value: "interface", line: 1)) {
+        try appearance("<Font name='interface' path='a.ttf' size='9'/>")
+    }
+    #expect(throws: UIScriptError.duplicateElement("Fonts", line: 1)) {
+        try appearance("<Fonts/><Fonts/>")
+    }
+    #expect(throws: UIScriptError.unknownReference(owner: "Fonts", property: "default", reference: "missing")) {
+        try appearance("<Fonts default='missing'/>")
+    }
+    #expect(throws: UIScriptError.unknownReference(owner: "Fonts", property: "monospace", reference: "missing")) {
+        try appearance("<Fonts monospace='missing'/>")
+    }
+    #expect(throws: UIScriptError.unknownReference(owner: "tile", property: "font", reference: "missing")) {
+        try appearance("<Style name='tile' font='missing'/>")
+    }
+}
+
+@Test func aFontsUnknownAttributesAreSkippedAndListed() throws {
+    let loaded = try appearance("<Font name='a' path='a.ttf' size='9' codepoints='latin'/><Fonts default='a' bold='a'/>")
+
+    #expect(loaded.ignoredAttributes.map(\.attribute) == ["codepoints", "bold"])
+}
+
+@Test func aWindowCantNameAFont() {
+    // Fonts are an appearance feature: a window keeps the spec's two typefaces.
+    #expect(throws: UIScriptError.invalidAttribute(element: "Style", attribute: "font", value: "tiles", line: 1)) {
+        try UIScript(data: Data("<UIScript version='1'><Style name='s' font='tiles'/><Window width='9' height='9'/></UIScript>".utf8))
+    }
+    #expect(throws: UIScriptError.unknownElement("Font", line: 1)) {
+        try UIScript(data: Data("<UIScript version='1'><Font name='a' path='a.ttf' size='9'/><Window width='9' height='9'/></UIScript>".utf8))
+    }
 }
 
 // MARK: Inheriting

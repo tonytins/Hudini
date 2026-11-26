@@ -511,6 +511,18 @@ public struct UIScript: Sendable {
         case disabled = 3
     }
 
+    /// A font file an appearance names, which the host loads.
+    ///
+    /// Only an appearance's `<Font>` makes one; a window document can't name a font file.
+    public struct FontResource: Sendable, Hashable {
+        /// A host-defined path to the font file.
+        public let path: String
+
+        /// The pixel size the glyphs are made at when loaded, above 0. Text draws at its own size,
+        /// scaled from this one.
+        public let size: Int
+    }
+
     /// A reference to an image asset resolved by the host game.
     ///
     /// A resource has a path, an asset ID, or both. The host decides which to use.
@@ -569,14 +581,25 @@ public struct UIScript: Sendable {
         /// The font size as written: a role or a size in pixels.
         public let size: StyleSize?
 
-        /// The kind of typeface the text uses, or `nil` for the interface font.
+        /// The kind of typeface the text uses, or `nil` for the interface font or a named one.
         public let font: Typeface?
 
-        init(colors: StyleColors, darkColors: StyleColors = StyleColors(), size: StyleSize?, font: Typeface?) {
+        /// The appearance font the text uses, by its `<Font>` name, or `nil`. Only a style an
+        /// appearance defines can name one, and a style with one has no `font`.
+        public let fontName: String?
+
+        init(
+            colors: StyleColors,
+            darkColors: StyleColors = StyleColors(),
+            size: StyleSize?,
+            font: Typeface?,
+            fontName: String? = nil
+        ) {
             self.colors = colors
             self.darkColors = darkColors
             self.size = size
             self.font = font
+            self.fontName = fontName
         }
 
         /// The primary text color, when written as a fixed color.
@@ -636,7 +659,8 @@ public struct UIScript: Sendable {
                 colors: shown.resolved(in: theme),
                 darkColors: StyleColors(),
                 size: size.map { .fixed($0.resolved(in: theme)) },
-                font: font
+                font: font,
+                fontName: fontName
             )
         }
     }
@@ -1044,7 +1068,7 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     case unsupportedAppearanceVersion(Int)
 
     /// An element that doesn't belong in an appearance, or that isn't directly under its root. An
-    /// appearance holds `Image`, `Style`, and `ScrollBar`.
+    /// appearance holds `Image`, `Style`, `Font`, `Fonts`, and `ScrollBar`.
     case unexpectedAppearanceElement(String, line: Int)
 
     /// The document names something in `requires` that this reader doesn't know.
@@ -1162,7 +1186,7 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case let .unsupportedAppearanceVersion(version):
             "Appearance version \(version) is newer than this reader supports (\(Appearance.supportedVersion)). Update Hudini to load it."
         case let .unexpectedAppearanceElement(name, line):
-            "Appearance line \(line): '\(name)' doesn't belong there. An appearance holds 'Image', 'Style', and 'ScrollBar', directly under its root."
+            "Appearance line \(line): '\(name)' doesn't belong there. An appearance holds 'Image', 'Style', 'Font', 'Fonts', and 'ScrollBar', directly under its root."
         case let .unsupportedFeature(feature):
             "UIScript document requires '\(feature)', which this reader doesn't know. Remove it from the document's requires, or use a reader that knows it."
         case let .unknownElement(name, line):

@@ -49,6 +49,8 @@ enum UIScriptParser {
         var images: [String: UIScript.ImageResource] = [:]
         var styles: [String: UIScript.Style] = [:]
         var scrollBar: Appearance.ScrollBar?
+        var fonts: [String: UIScript.FontResource] = [:]
+        var themeFonts: Appearance.ThemeFonts?
         var ignoredAttributes = rootReader.unusedAttributes()
 
         for element in elements {
@@ -65,7 +67,21 @@ enum UIScriptParser {
                 guard styles[name] == nil else {
                     throw UIScriptError.duplicateName(name)
                 }
-                styles[name] = try makeStyle(reader)
+                styles[name] = try makeStyle(reader, allowsNamedFont: true)
+            case "Font":
+                let name = try reader.requiredString("name")
+                guard !Appearance.reservedFontNames.contains(name) else {
+                    throw reader.invalid("name", name)
+                }
+                guard fonts[name] == nil else {
+                    throw UIScriptError.duplicateName(name)
+                }
+                fonts[name] = try makeFont(reader)
+            case "Fonts":
+                guard themeFonts == nil else {
+                    throw UIScriptError.duplicateElement("Fonts", line: element.line)
+                }
+                themeFonts = Appearance.ThemeFonts(default: reader.string("default"), monospace: reader.string("monospace"))
             case "ScrollBar":
                 guard scrollBar == nil else {
                     throw UIScriptError.duplicateElement("ScrollBar", line: element.line)
@@ -81,8 +97,21 @@ enum UIScriptParser {
             images: images,
             styles: styles,
             scrollBar: scrollBar,
+            fonts: fonts,
+            themeFonts: themeFonts,
             ignoredAttributes: ignoredAttributes
         )
+    }
+
+    private static func makeFont(_ reader: AttributeReader) throws -> UIScript.FontResource {
+        let path = try reader.requiredString("path")
+        guard let size = try reader.integer("size") else {
+            throw reader.missing("size")
+        }
+        guard size > 0 else {
+            throw reader.invalid("size", String(size))
+        }
+        return UIScript.FontResource(path: path, size: size)
     }
 
     private static func makeScrollBar(_ reader: AttributeReader) throws -> Appearance.ScrollBar {
@@ -275,12 +304,22 @@ enum UIScriptParser {
         }
     }
 
-    private static func makeStyle(_ reader: AttributeReader) throws -> UIScript.Style {
-        UIScript.Style(
+    // A window's style takes the spec's typefaces for `font`. An appearance's can also name one of
+    // its `<Font>`s, which the appearance checks once it has read them all.
+    private static func makeStyle(_ reader: AttributeReader, allowsNamedFont: Bool = false) throws -> UIScript.Style {
+        var font: UIScript.Typeface?
+        var fontName: String?
+        if allowsNamedFont, let value = reader.string("font"), UIScript.Typeface(rawValue: value) == nil {
+            fontName = value
+        } else {
+            font = try reader.typeface("font")
+        }
+        return UIScript.Style(
             colors: try makeStyleColors(reader, prefix: ""),
             darkColors: try makeStyleColors(reader, prefix: "dark"),
             size: try reader.styleSize("fontSize"),
-            font: try reader.typeface("font")
+            font: font,
+            fontName: fontName
         )
     }
 

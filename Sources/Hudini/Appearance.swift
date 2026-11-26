@@ -1,24 +1,30 @@
 import Foundation
 
-/// The images, styles, and scroll bar art a game's windows share, read from one appearance
+/// The images, styles, fonts, and scroll bar art a game's windows share, read from one appearance
 /// document that the game loads.
 ///
 /// An appearance is a Hudini feature, not part of the UIScript spec. It holds UIScript's own
-/// `<Image>` and `<Style>` elements, and a `<ScrollBar>` naming the images a list's or text area's
-/// scroll bar draws with:
+/// `<Image>` and `<Style>` elements, a `<ScrollBar>` naming the images a list's or text area's
+/// scroll bar draws with, and `<Font>` files, which `<Fonts>` makes the theme's fonts and a
+/// `<Style>` can name in its `font`:
 ///
 /// ```xml
 /// <Appearance version="1">
 ///   <Image name="scrollThumb" path="scroll/thumb.png"/>
 ///   <Image name="scrollUp" path="scroll/up.png" stateCount="4"/>
 ///   <ScrollBar thumb="scrollThumb" thumbCap="6" up="scrollUp"/>
+///   <Font name="text" path="fonts/ComicNeue-Regular.ttf" size="32"/>
+///   <Font name="tiles" path="fonts/B612Mono-Bold.ttf" size="48"/>
+///   <Fonts default="text"/>
 ///   <Style name="chatText" textColor="#FFF99D" fontSize="body"/>
+///   <Style name="tile" font="tiles" fontSize="title"/>
 /// </Appearance>
 /// ```
 ///
 /// The document rules are UIScript's: elements sit directly under the root and hold no text, an
 /// unknown element refuses the document, and an unknown attribute is skipped and listed in
-/// `ignoredAttributes`. See `docs/design/2026-11-25-appearance.md`.
+/// `ignoredAttributes`. See `docs/design/2026-11-25-appearance.md` and
+/// `docs/design/2026-11-25-fonts.md`.
 public struct Appearance: Sendable {
     /// The newest appearance version this reader understands. A newer one is refused.
     public static let supportedVersion = 1
@@ -37,6 +43,15 @@ public struct Appearance: Sendable {
 
     /// The art lists' and text areas' scroll bars draw with, or `nil` for the theme's classic bar.
     public let scrollBar: ScrollBar?
+
+    /// Font files keyed by name, which `themeFonts` and styles name.
+    public let fonts: [String: UIScript.FontResource]
+
+    /// The fonts that replace the theme's, or `nil` to keep the theme's.
+    public let themeFonts: ThemeFonts?
+
+    /// Names a style's `font` takes for the theme's fonts, which a `<Font>` can't use.
+    static let reservedFontNames: Set<String> = ["interface", "monospace"]
 
     /// Attributes this reader did not recognize and ignored.
     public let ignoredAttributes: [UIScript.IgnoredAttribute]
@@ -68,6 +83,18 @@ public struct Appearance: Sendable {
         }
     }
 
+    /// The fonts an appearance's `<Fonts>` puts in place of the theme's, by `<Font>` name. A
+    /// font left out keeps the theme's.
+    public struct ThemeFonts: Sendable, Equatable {
+        /// The font text uses without a `font` in its style, or with `font="interface"`. It
+        /// replaces `InterfaceTheme.font`.
+        public let `default`: String?
+
+        /// The font a style with `font="monospace"` uses. It replaces
+        /// `InterfaceTheme.monospaceFont`.
+        public let monospace: String?
+    }
+
     /// Parses and validates an appearance document, which must be UTF-8.
     public init(data: Data) throws {
         let appearance = try UIScriptParser.parseAppearance(data)
@@ -85,17 +112,33 @@ public struct Appearance: Sendable {
         images: [String: UIScript.ImageResource],
         styles: [String: UIScript.Style],
         scrollBar: ScrollBar?,
+        fonts: [String: UIScript.FontResource] = [:],
+        themeFonts: ThemeFonts? = nil,
         ignoredAttributes: [UIScript.IgnoredAttribute]
     ) {
         self.version = version
         self.images = images
         self.styles = styles
         self.scrollBar = scrollBar
+        self.fonts = fonts
+        self.themeFonts = themeFonts
         self.ignoredAttributes = ignoredAttributes
     }
 
     private func validate() throws {
         try UIScript.validate(images: images, styles: styles)
+        for (name, style) in styles {
+            if let fontName = style.fontName, fonts[fontName] == nil {
+                throw UIScriptError.unknownReference(owner: name, property: "font", reference: fontName)
+            }
+        }
+        if let themeFonts {
+            for (property, name) in [("default", themeFonts.default), ("monospace", themeFonts.monospace)] {
+                if let name, fonts[name] == nil {
+                    throw UIScriptError.unknownReference(owner: "Fonts", property: property, reference: name)
+                }
+            }
+        }
         guard let scrollBar else {
             return
         }
