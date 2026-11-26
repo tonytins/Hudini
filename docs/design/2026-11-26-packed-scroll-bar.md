@@ -1,6 +1,6 @@
 # Packed scroll bar art
 
-**Status:** proposed. **Date:** 2026-11-26.
+**Status:** approved 2026-11-26; being built in phases. **Date:** 2026-11-26.
 
 The Sims Online draws its scroll bars from one image that holds both the track and the thumb, with arrows narrower
 in height and wider than the bar. An [appearance](2026-11-25-appearance.md)'s `<ScrollBar>` can't take art shaped

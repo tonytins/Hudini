@@ -57,8 +57,13 @@ public struct Appearance: Sendable {
     public let ignoredAttributes: [UIScript.IgnoredAttribute]
 
     /// The images a scroll bar draws with. A part without an image draws from the theme.
+    ///
+    /// The track and thumb come either from `thumb` and `track`, each stretched, or from one packed
+    /// `slider` image, as The Sims Online draws them. See
+    /// `docs/design/2026-11-26-packed-scroll-bar.md`.
     public struct ScrollBar: Sendable, Equatable {
-        /// The bar's width in pixels, above 0. The arrows are as tall as the bar is wide.
+        /// The bar's width in pixels, above 0. The arrows are as tall as the bar is wide. With
+        /// `slider`, it's left at the default and unused: the bar is as wide as its art.
         public let width: Float
 
         /// The up arrow's image. With four states, it shows normal, pressed, hovered, and disabled.
@@ -77,9 +82,33 @@ public struct Appearance: Sendable {
         /// An image stretched behind the thumb, between the arrows.
         public let track: String?
 
+        /// One image holding the track and the thumb: the track in its top three-quarters, whose
+        /// thirds keep their ends' shape while the middle stretches, and the thumb in its bottom
+        /// quarter, drawn at its own size. With it, every part of the bar is drawn at its own
+        /// size. It can't be combined with `thumb`, `track`, `thumbCap`, or `width`.
+        public let slider: String?
+
+        init(
+            width: Float = Appearance.defaultScrollBarWidth,
+            up: String? = nil,
+            down: String? = nil,
+            thumb: String? = nil,
+            thumbCap: Float = 0,
+            track: String? = nil,
+            slider: String? = nil
+        ) {
+            self.width = width
+            self.up = up
+            self.down = down
+            self.thumb = thumb
+            self.thumbCap = thumbCap
+            self.track = track
+            self.slider = slider
+        }
+
         /// The names of every image the bar draws with.
         public var imageNames: [String] {
-            [up, down, thumb, track].compactMap { $0 }
+            [up, down, thumb, track, slider].compactMap { $0 }
         }
     }
 
@@ -142,7 +171,7 @@ public struct Appearance: Sendable {
         guard let scrollBar else {
             return
         }
-        for (property, name) in [("up", scrollBar.up), ("down", scrollBar.down), ("thumb", scrollBar.thumb), ("track", scrollBar.track)] {
+        for (property, name) in [("up", scrollBar.up), ("down", scrollBar.down), ("thumb", scrollBar.thumb), ("track", scrollBar.track), ("slider", scrollBar.slider)] {
             if let name, images[name] == nil {
                 throw UIScriptError.unknownReference(owner: "ScrollBar", property: property, reference: name)
             }

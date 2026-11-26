@@ -115,6 +115,13 @@ enum UIScriptParser {
     }
 
     private static func makeScrollBar(_ reader: AttributeReader) throws -> Appearance.ScrollBar {
+        // A packed slider image draws the track and thumb, and sets the bar's width, by itself.
+        let slider = reader.string("slider")
+        if slider != nil {
+            for other in ["thumb", "track", "thumbCap", "width"] where reader.string(other) != nil {
+                throw reader.conflicting("slider", other)
+            }
+        }
         let width = try reader.number("width") ?? Appearance.defaultScrollBarWidth
         guard width > 0 else {
             throw reader.invalid("width", reader.string("width") ?? "")
@@ -129,7 +136,8 @@ enum UIScriptParser {
             down: reader.string("down"),
             thumb: reader.string("thumb"),
             thumbCap: thumbCap,
-            track: reader.string("track")
+            track: reader.string("track"),
+            slider: slider
         )
     }
 
@@ -753,6 +761,10 @@ private final class AttributeReader {
             throw missing(attribute)
         }
         return value
+    }
+
+    func conflicting(_ first: String, _ second: String) -> UIScriptError {
+        .conflictingAttributes(element: element.name, first: first, second: second, line: element.line)
     }
 
     func invalid(_ attribute: String, _ value: String) -> UIScriptError {

@@ -1,5 +1,6 @@
 // The appearance document a game's windows share (docs/design/2026-11-25-appearance.md): its
-// reader, its checks, its fonts (docs/design/2026-11-25-fonts.md), and windows inheriting from it.
+// reader, its checks, its fonts (docs/design/2026-11-25-fonts.md), its packed scroll bar art
+// (docs/design/2026-11-26-packed-scroll-bar.md), and windows inheriting from it.
 
 import Foundation
 @testable import Hudini
@@ -49,6 +50,68 @@ private func appearance(_ body: String, root: String = "<Appearance version='1'>
 
     #expect(loaded.scrollBar == Appearance.ScrollBar(width: 15, up: nil, down: nil, thumb: nil, thumbCap: 0, track: nil))
     #expect(loaded.scrollBar?.imageNames == [])
+}
+
+// MARK: Packed scroll bar art
+
+// The Sims Online's gizmo scroll bar, by the asset IDs about 30 of its windows define.
+private let gizmo = """
+    <Image name='scrollUp' assetID='0x0000031200000001' stateCount='4'/>
+    <Image name='scrollDown' assetID='0x0000031100000001' stateCount='4'/>
+    <Image name='scrollBar' assetID='0x0000031000000001'/>
+    """
+
+@Test func aScrollBarReadsAPackedSlider() throws {
+    let loaded = try appearance(gizmo + "<ScrollBar up='scrollUp' down='scrollDown' slider='scrollBar'/>")
+
+    #expect(loaded.scrollBar == Appearance.ScrollBar(up: "scrollUp", down: "scrollDown", slider: "scrollBar"))
+    #expect(loaded.scrollBar?.width == Appearance.defaultScrollBarWidth)
+    #expect(loaded.scrollBar?.imageNames == ["scrollUp", "scrollDown", "scrollBar"])
+    #expect(loaded.ignoredAttributes.isEmpty)
+}
+
+@Test func aScrollBarWithoutASliderHasNone() throws {
+    #expect(try appearance("<ScrollBar/>").scrollBar?.slider == nil)
+}
+
+@Test(arguments: [
+    ("thumb='scrollBar'", "thumb"),
+    ("track='scrollBar'", "track"),
+    ("thumbCap='4'", "thumbCap"),
+    ("width='13'", "width"),
+    // Refused even when the value is the default, so the art alone sets the width.
+    ("width='15'", "width"),
+])
+func aPackedSliderCantBeMixedWithStretchedParts(attribute: String, second: String) {
+    #expect(throws: UIScriptError.conflictingAttributes(element: "ScrollBar", first: "slider", second: second, line: 1)) {
+        try appearance(gizmo.replacingOccurrences(of: "\n", with: "") + "<ScrollBar slider='scrollBar' \(attribute)/>")
+    }
+}
+
+@Test func aPackedSliderMustNameAnImage() {
+    #expect(throws: UIScriptError.unknownReference(owner: "ScrollBar", property: "slider", reference: "missing")) {
+        try appearance("<ScrollBar slider='missing'/>")
+    }
+}
+
+@Test func aWindowTakesAndOverridesASharedSlider() throws {
+    let shared = try appearance(gizmo + "<ScrollBar up='scrollUp' down='scrollDown' slider='scrollBar'/>")
+
+    let list = try window("<List name='lots' x='0' y='0' width='200' height='100'/>", appearance: shared)
+    #expect(list.scrollBar?.slider == "scrollBar")
+    #expect(list.resources.images["scrollBar"]?.assetID == "0x0000031000000001")
+    #expect(Set(list.resources.images.keys) == ["scrollUp", "scrollDown", "scrollBar"])
+
+    // As person selection does, with art of its own.
+    let own = try window("""
+        <Image name='scrollBar' path='personselection/scrollbar.png'/>
+        <List name='people' x='0' y='0' width='200' height='100'/>
+        """, appearance: shared)
+    #expect(own.resources.images["scrollBar"]?.path == "personselection/scrollbar.png")
+    #expect(own.resources.images["scrollBar"]?.assetID == nil)
+
+    let buttons = try window("<Button name='ok' x='0' y='0' width='40' height='20'/>", appearance: shared)
+    #expect(buttons.resources.images["scrollBar"] == nil)
 }
 
 @Test func unknownAttributesAreSkippedAndListed() throws {
