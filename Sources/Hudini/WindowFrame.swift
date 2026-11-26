@@ -533,7 +533,7 @@ public final class WindowFrame {
                 return []
             }
             view.setSelected(true, named: pane)
-            return [.view(.selected(control: sidebar.name, index: row))]
+            return [.view(.selected(control: sidebar.name, index: row, item: pane))]
         }
         return []
     }

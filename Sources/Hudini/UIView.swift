@@ -43,6 +43,10 @@ public final class UIView {
                     borderColor: style?.borderColor
                 )
                 styled?.theme = theme(for: control.name)
+                if let grid = grids[control.name] {
+                    grid.applyStyle(fontSize: style?.fontSize, textColor: style?.textColor)
+                    grid.theme = theme(for: control.name)
+                }
             }
         }
     }
@@ -62,6 +66,7 @@ public final class UIView {
     }
     private var labels: [String: String]
     private let lists: [String: TextList]
+    private let grids: [String: ItemGrid]
     private let textFields: [String: TextField]
     private let textAreas: [String: TextArea]
     // Controls whose style asks for `font="monospace"`.
@@ -79,9 +84,13 @@ public final class UIView {
     /// lands elsewhere or `clearFocus()` is called. A host that uses those keys itself, such as to
     /// move a camera, leaves them alone while this is set.
     public private(set) var focusedSlider: String?
-    private var hoveredControl: String?
+    // What the pointer rests on that has a tooltip: a control, or one of a grid's items.
+    private var hovered: (control: String, item: Int?)?
     private var hoveredSeconds: Float = 0
+    /// The control whose tooltip shows this frame, if any.
     private(set) var pendingTooltip: String?
+    /// The grid item whose tooltip shows this frame, when `pendingTooltip` is a grid's.
+    private(set) var pendingTooltipItem: Int?
     // What the host hid, and separately what the selected tab and pane leave out, so switching
     // tabs never shows what the host hid.
     private var hiddenNames: Set<String> = []
@@ -132,8 +141,13 @@ public final class UIView {
         /// place a host that only wants the final value listens. A drag reports it even when the
         /// value ended where it started.
         case committed(control: String, value: Float)
-        /// A click on a selectable list changed its selected item.
-        case selected(control: String, index: Int)
+        /// A click changed the item chosen in a selectable list, a grid, or a sidebar of panes.
+        /// `item` is a grid item's or a pane's name, or `nil` for a list's item or an unnamed grid
+        /// item.
+        case selected(control: String, index: Int, item: String?)
+        /// A grid's item was double-clicked. The first click chose it. A list's double-click reports
+        /// `submitted` with the item's text instead.
+        case submittedItem(control: String, index: Int, item: String?)
     }
 
     /// Creates the controls for `script`.
@@ -257,7 +271,7 @@ public final class UIView {
             case .slider, .progressBar, .region:
                 break
             case .grid:
-                // Grids don't draw yet.
+                // Made once the images are loaded, below.
                 break
             }
         }
@@ -270,6 +284,35 @@ public final class UIView {
             } else {
                 missingImages.append(name)
             }
+        }
+
+        var grids: [String: ItemGrid] = [:]
+        for control in script.controls {
+            guard let layout = control.grid else {
+                continue
+            }
+            let style = control.style.flatMap { resolvedStyles[$0] }
+            grids[control.name] = ItemGrid(
+                itemSize: Vector2(x: layout.itemSize.width, y: layout.itemSize.height),
+                spacing: layout.spacing,
+                titles: layout.titles,
+                items: layout.items.map { item in
+                    let content: ItemGrid.Item.Content = switch item.content {
+                    case let .image(name): Self.picture(named: name, script: script, textures: textures)
+                    case let .color(color): .color(color)
+                    case .plain: .plain
+                    }
+                    return ItemGrid.Item(
+                        name: item.name,
+                        title: resolved(item.title) ?? "",
+                        content: content,
+                        tooltip: item.tooltip.flatMap { strings[$0] }
+                    )
+                },
+                fontSize: style?.fontSize,
+                theme: Self.theme(theme, for: control.name, namedFonts: namedFonts, monospaceNames: monospaceNames),
+                textColor: style?.textColor
+            )
         }
 
         func size(of frame: UIScript.Frame, image: String?) -> Vector2 {
@@ -300,6 +343,7 @@ public final class UIView {
         }
         self.labels = labels
         self.lists = lists
+        self.grids = grids
         self.textFields = textFields
         self.textAreas = textAreas
         self.monospaceNames = monospaceNames
@@ -328,6 +372,9 @@ public final class UIView {
             }
             for area in textAreas.values {
                 area.useScrollBar(width: bar.width, art: art)
+            }
+            for grid in grids.values {
+                grid.useScrollBar(width: bar.width, art: art)
             }
         }
         tooltips = script.controls.reduce(into: [:]) { result, control in
@@ -460,6 +507,33 @@ public final class UIView {
     /// startup and report any that are missing.
     public func list(named name: String) -> TextList? {
         lists[name]
+    }
+
+    /// Returns the grid with this name, or `nil` when no grid has it.
+    ///
+    /// It starts with the items the document lists. Replace `items` to show the host's own, such
+    /// as pictures it loaded itself, or the document's images through `gridPicture(named:)`.
+    public func grid(named name: String) -> ItemGrid? {
+        grids[name]
+    }
+
+    /// What a grid item shows for the document's image with this name: the image's first slice,
+    /// or a missing picture when the host couldn't supply the image or the document has none by
+    /// this name.
+    public func gridPicture(named name: String) -> ItemGrid.Item.Content {
+        Self.picture(named: name, script: script, textures: textures)
+    }
+
+    private static func picture(named name: String, script: UIScript, textures: [String: Texture2D]) -> ItemGrid.Item.Content {
+        guard let texture = textures[name], let resource = script.resources.images[name] else {
+            return .image(nil)
+        }
+        let source = resource.sourceRectangle(
+            for: .normal,
+            textureWidth: Float(texture.width),
+            textureHeight: Float(texture.height)
+        )
+        return .image(texture, source: source)
     }
 
     /// Returns the text field with this name, or `nil` when no text field has it.
@@ -698,7 +772,7 @@ public final class UIView {
             if let event = pressButton(at: pointer, origin: origin) {
                 events.append(event)
             }
-            if let event = selectListItem(at: pointer, origin: origin, time: GetTime()) {
+            if let event = selectItem(at: pointer, origin: origin, time: GetTime()) {
                 events.append(event)
             }
             if !beginSliderDrag(at: pointer, origin: origin) {
@@ -722,6 +796,7 @@ public final class UIView {
             }
             if !isPressed || pressedBar != nil {
                 lists[control.name]?.update(in: bounds)
+                grids[control.name]?.update(in: bounds)
             }
             if case let .submitted(text)? = textFields[control.name]?.update(in: bounds) {
                 events.append(.submitted(control: control.name, text: text))
@@ -743,17 +818,30 @@ public final class UIView {
         }
     }
 
-    /// Applies a click at `time`, in seconds, to the item under `point` when a selectable list is
-    /// the topmost control there. A changed selection reports `.selected`, and a double-click
-    /// reports `.submitted` with the item's text.
-    func selectListItem(at point: Vector2, origin: Vector2, time: Double) -> Event? {
-        guard let control = topmostControl(at: point, origin: origin), let list = lists[control.name] else {
+    /// Applies a click at `time`, in seconds, to the item under `point` when a selectable list or
+    /// a grid is the topmost control there. A changed choice reports `.selected`. A double-click
+    /// reports `.submitted` with a list item's text, or `.submittedItem` for a grid's item.
+    func selectItem(at point: Vector2, origin: Vector2, time: Double) -> Event? {
+        guard let control = topmostControl(at: point, origin: origin) else {
             return nil
         }
         let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
+        if let grid = grids[control.name] {
+            switch grid.select(at: point, in: bounds, time: time) {
+            case let .selected(index)?:
+                return .selected(control: control.name, index: index, item: grid.items[index].name)
+            case let .submitted(index)?:
+                return .submittedItem(control: control.name, index: index, item: grid.items[index].name)
+            case nil:
+                return nil
+            }
+        }
+        guard let list = lists[control.name] else {
+            return nil
+        }
         switch list.select(at: point, in: bounds, time: time) {
         case let .selected(index)?:
-            return .selected(control: control.name, index: index)
+            return .selected(control: control.name, index: index, item: nil)
         case let .submitted(index)?:
             return .submitted(control: control.name, text: list.items[index])
         case nil:
@@ -761,8 +849,8 @@ public final class UIView {
         }
     }
 
-    /// The name of the list or text area whose scroll bar is under `point`, when it's the topmost
-    /// control there.
+    /// The name of the list, text area, or grid whose scroll bar is under `point`, when it's the
+    /// topmost control there.
     func scrollBarControl(at point: Vector2, origin: Vector2) -> String? {
         guard let control = topmostControl(at: point, origin: origin) else {
             return nil
@@ -770,6 +858,7 @@ public final class UIView {
         let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
         let isOnBar = lists[control.name]?.scrollBarContains(point, in: bounds)
             ?? textAreas[control.name]?.scrollBarContains(point, in: bounds)
+            ?? grids[control.name]?.scrollBarContains(point, in: bounds)
             ?? false
         return isOnBar ? control.name : nil
     }
@@ -792,16 +881,33 @@ public final class UIView {
         return monospaceNames.contains(name) ? theme.monospaced : theme
     }
 
-    /// Tracks how long the pointer has rested on the topmost control under it. A negative
-    /// `elapsed` starts the wait again, which is how a held button dismisses a tooltip.
+    /// Tracks how long the pointer has rested on the topmost control under it, or on one of a
+    /// grid's items, which has a tooltip of its own. A negative `elapsed` starts the wait again,
+    /// which is how a held button dismisses a tooltip.
     func updateTooltip(pointer: Vector2, origin: Vector2, elapsed: Float) {
-        let name = topmostControl(at: pointer, origin: origin).flatMap { tooltips[$0.name]?.isEmpty == false ? $0.name : nil }
-        if name != hoveredControl {
-            hoveredControl = name
+        let now = tooltipTarget(at: pointer, origin: origin)
+        if now?.control != hovered?.control || now?.item != hovered?.item {
+            hovered = now
             hoveredSeconds = 0
         }
         hoveredSeconds = max(0, hoveredSeconds + elapsed)
-        pendingTooltip = hoveredSeconds >= Self.tooltipDelay ? name : nil
+        let shows = hoveredSeconds >= Self.tooltipDelay
+        pendingTooltip = shows ? now?.control : nil
+        pendingTooltipItem = shows ? now?.item : nil
+    }
+
+    // The control, or grid item, under `pointer` whose tooltip would show. Over a grid, an item's
+    // own tooltip wins over the grid's.
+    private func tooltipTarget(at pointer: Vector2, origin: Vector2) -> (control: String, item: Int?)? {
+        guard let control = topmostControl(at: pointer, origin: origin) else {
+            return nil
+        }
+        if let grid = grids[control.name],
+           let index = grid.itemIndex(at: pointer, in: screenRectangle(for: control.frame, named: control.name, at: origin)),
+           grid.tooltip(forItem: index)?.isEmpty == false {
+            return (control.name, index)
+        }
+        return tooltips[control.name]?.isEmpty == false ? (control.name, nil) : nil
     }
 
     /// Starts dragging the topmost visible, enabled slider under `point`. Pressing the track
@@ -1015,7 +1121,7 @@ public final class UIView {
             case .region:
                 drawRegion(control.name, bounds)
             case .grid:
-                break
+                grids[control.name]?.draw(in: bounds)
             }
         }
     }
@@ -1025,14 +1131,28 @@ public final class UIView {
     /// Call this after drawing every view, so nothing covers the tooltip. It shows after a
     /// `update(at:)` in the same frame, so a view the host stops updating shows none.
     public func drawTooltip(at origin: Vector2) {
-        defer { pendingTooltip = nil }
-        guard let name = pendingTooltip, let text = tooltips[name], let control = script.control(named: name) else {
+        defer {
+            pendingTooltip = nil
+            pendingTooltipItem = nil
+        }
+        guard let name = pendingTooltip, let control = script.control(named: name) else {
+            return
+        }
+        let controlBounds = screenRectangle(for: control.frame, named: name, at: origin)
+        var text = tooltips[name]
+        var anchor = controlBounds
+        // A grid item's tooltip sits under the item.
+        if let index = pendingTooltipItem, let grid = grids[name] {
+            text = grid.tooltip(forItem: index)
+            anchor = grid.cell(of: index, in: controlBounds) ?? controlBounds
+        }
+        guard let text else {
             return
         }
         let bounds = Self.tooltipBounds(
             textWidth: Float(theme.textWidth(of: text, size: theme.textSizes.tooltip)),
             textHeight: Float(theme.textSizes.tooltip),
-            below: screenRectangle(for: control.frame, named: name, at: origin),
+            below: anchor,
             screen: Vector2(x: Float(GetScreenWidth()), y: Float(GetScreenHeight()))
         )
         theme.fillRectangle(bounds, theme.panel)

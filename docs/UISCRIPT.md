@@ -32,7 +32,7 @@ Maxis' `.uis` files into the same model; see [Reading `.uis` files](#reading-uis
 | `alignment` on `<TextField>` and `<TextArea>` | Yes |
 | `scrolls` and `direction` | Refused, as the spec says, since nothing scrolls by hand |
 | `orientation` | Skipped and listed, as the spec says: a slider runs along its longer side |
-| `<Grid>` and `<Item>` | Read into each grid control's `grid`, at the top, in a tab, or in a pane. A view doesn't draw grids yet. |
+| `<Grid>` and `<Item>` | Yes. See [Grids](#grids). |
 | `<Shelf>`, `<StatusItem>` | No: refused as unknown elements |
 | Title bar: `<ToolbarItem>` and `<TitleField>` | Yes |
 | `<Tab>`, and `tab` on toolbar items | Yes |
@@ -81,7 +81,7 @@ guard let history = view.list(named: "history") else { /* report it */ }
 history.items = messages
 
 // Each frame:
-for event in view.update(at: origin) { /* handle .pressed, .submitted, .changed, .committed, and .selected */ }
+for event in view.update(at: origin) { /* handle .pressed, .submitted, .changed, .committed, .selected, and .submittedItem */ }
 view.draw(at: origin) { name, bounds in /* draw into regions */ }
 view.drawTooltip(at: origin) // After every view, so nothing covers it.
 ```
@@ -104,7 +104,8 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   switching tabs never shows what the host hid, and `isHidden(named:)` only reports
   what the host hid.
 - Panes switch the same way from a `WindowFrame`'s sidebar: clicking a row shows
-  that pane and reports `.selected` with the sidebar's name and the row's index.
+  that pane and reports `.selected` with the sidebar's name, the row's index, and
+  the pane's name as its `item`.
   `selectedPane` says which is showing, and `setSelected(_:named:)` with a pane's
   name selects it, or, deselecting it, leaves no row selected, which shows only
   what's in no pane. Neither reports an event.
@@ -162,6 +163,35 @@ if view.focusedSlider == nil {
     panCamera(with: arrowKeys)
 }
 ```
+
+### Grids
+
+A `<Grid>` shows its items in as many columns as fit, row after row, and scrolls by
+rows with a scroll bar of its own once they don't all fit, as a list does. Pictures
+stretch to fill their cells, colors draw as circles, and an item with neither is a
+plain tile with its title inside. The chosen item is ringed in the theme's accent.
+A grid draws nothing behind its items.
+
+A click on an item chooses it and reports `.selected` with the grid's name, the
+item's index, and its `name` as `item`, or `nil` for an item without one. A second
+click on it soon after reports `.submittedItem` with the same three. While the
+pointer rests on an item, its `tooltip` shows under it, or, in a grid with
+`titles="none"`, its title; elsewhere on the grid, the grid's own `tooltip` shows.
+
+The control from `grid(named:)` is an `ItemGrid`. Its `selectedIndex` reads or sets
+the choice without an event, and its `items` start as the document lists them. Replace
+them to show the host's own, as a list is filled:
+
+```swift
+guard let wallpapers = view.grid(named: "wallpapers") else { /* report it */ }
+wallpapers.items = files.map { file in
+    ItemGrid.Item(name: file.name, title: file.title, content: .image(file.texture))
+}
+// Or one of the document's images:
+wallpapers.items.append(.init(name: "earthset", title: "Earthset", content: view.gridPicture(named: "earthset")))
+```
+
+The host owns the textures it passes in, as it owns those `loadImage` returns.
 
 ### Styles
 
@@ -446,7 +476,13 @@ including the changes made while Hudini kept it. Changes to Hudini's reader:
   and items. An item outside a grid is refused with `itemOutsideGrid`, and one with
   nothing to show with `emptyGridItem`. A grid in a tab or pane holds its items too,
   so elements now nest three deep there. A grid's item images and scroll bar come
-  from an appearance as a list's do. A view doesn't draw grids yet.
+  from an appearance as a list's do. `UIView` draws grids as `ItemGrid`s, from
+  `grid(named:)`, and `gridPicture(named:)` gives a document image to a host's own
+  items.
+- **2026-11-26, breaking:** `UIView.Event.selected` gains `item`, a grid item's or
+  pane's name, or `nil` for a list's item, and a grid's double-click reports the new
+  `.submittedItem`. A host that matches `.selected(control:index:)` adds `item: _`,
+  and one that switches over every event adds a case for `.submittedItem`.
 
 - **2026-11-25:** Tabs and a sidebar of panes. `UIScript` reads `<Tab>`, `tab` on
   `<ToolbarItem>`, `<Sidebar>`, and `<Pane>` in both its forms, into `tabs` and

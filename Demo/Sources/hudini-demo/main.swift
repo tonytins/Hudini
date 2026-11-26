@@ -931,7 +931,7 @@ while running && !WindowShouldClose() {
     } else if isMoveLotOpen {
         for event in moveLotWindow.updateWindow(in: moveLotBounds) {
             switch event {
-            case .view(.selected(control: "lotChoices", index: _)):
+            case .view(.selected(control: "lotChoices", index: _, item: _)):
                 moveLot.setDisabled(false, named: "moveConfirm")
             case .view(.pressed(control: "moveCancel")):
                 closeMoveLot()

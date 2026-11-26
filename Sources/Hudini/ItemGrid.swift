@@ -240,7 +240,13 @@ public final class ItemGrid {
     /// What shows while the pointer rests at `point`: the item's tooltip, or its title when the
     /// grid shows no titles; `nil` elsewhere.
     public func tooltip(at point: Vector2, in bounds: Rectangle) -> String? {
-        guard let index = itemIndex(at: point, in: bounds) else {
+        itemIndex(at: point, in: bounds).flatMap(tooltip(forItem:))
+    }
+
+    /// What shows while the pointer rests on the item at `index`: its tooltip, or its title when
+    /// the grid shows no titles; `nil` when there's neither, or no item at `index`.
+    func tooltip(forItem index: Int) -> String? {
+        guard items.indices.contains(index) else {
             return nil
         }
         let item = items[index]

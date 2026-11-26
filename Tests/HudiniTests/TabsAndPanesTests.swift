@@ -380,7 +380,7 @@ private func rowCenter(_ frame: WindowFrame, _ index: Int) throws -> Vector2 {
     let view = UIView(script: try script(paned))
     let frame = WindowFrame(view: view)
 
-    #expect(frame.press(at: try rowCenter(frame, 1), in: sidebarFrameBounds) == [.view(.selected(control: "places", index: 1))])
+    #expect(frame.press(at: try rowCenter(frame, 1), in: sidebarFrameBounds) == [.view(.selected(control: "places", index: 1, item: "advanced"))])
     #expect(view.selectedPane == "advanced")
     // The selected row again reports nothing, as a list does.
     #expect(frame.press(at: try rowCenter(frame, 1), in: sidebarFrameBounds) == [])
@@ -396,7 +396,7 @@ private func rowCenter(_ frame: WindowFrame, _ index: Int) throws -> Vector2 {
     let frame = WindowFrame(view: view)
 
     // 80 pixels of sidebar fit two 28-pixel rows after the 6-pixel inset.
-    #expect(frame.press(at: try rowCenter(frame, 1), in: sidebarFrameBounds) == [.view(.selected(control: "s", index: 1))])
+    #expect(frame.press(at: try rowCenter(frame, 1), in: sidebarFrameBounds) == [.view(.selected(control: "s", index: 1, item: "p1"))])
     #expect(frame.press(at: try rowCenter(frame, 2), in: sidebarFrameBounds) == [])
 }
 

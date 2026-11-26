@@ -916,9 +916,9 @@ private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' sel
     let list = try #require(view.list(named: "lots"))
     list.items = ["Maple", "Oak"]
 
-    #expect(view.selectListItem(at: Vector2(x: 510, y: 507), origin: origin, time: 0) == .selected(control: "lots", index: 0))
-    #expect(view.selectListItem(at: Vector2(x: 510, y: 523), origin: origin, time: 10) == .selected(control: "lots", index: 1))
-    #expect(view.selectListItem(at: Vector2(x: 510, y: 523), origin: origin, time: 20) == nil)
+    #expect(view.selectItem(at: Vector2(x: 510, y: 507), origin: origin, time: 0) == .selected(control: "lots", index: 0, item: nil))
+    #expect(view.selectItem(at: Vector2(x: 510, y: 523), origin: origin, time: 10) == .selected(control: "lots", index: 1, item: nil))
+    #expect(view.selectItem(at: Vector2(x: 510, y: 523), origin: origin, time: 20) == nil)
     #expect(list.selectedIndex == 1)
 }
 
@@ -927,11 +927,11 @@ private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' sel
     let list = try #require(view.list(named: "lots"))
     list.items = ["Maple", "Oak"]
 
-    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero, time: 0) == nil)
+    #expect(view.selectItem(at: Vector2(x: 10, y: 7), origin: .zero, time: 0) == nil)
     #expect(list.selectedIndex == nil)
     // Hiding the button uncovers the list.
     view.setHidden(true, named: "over")
-    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero, time: 10) == .selected(control: "lots", index: 0))
+    #expect(view.selectItem(at: Vector2(x: 10, y: 7), origin: .zero, time: 10) == .selected(control: "lots", index: 0, item: nil))
 }
 
 @Test func hiddenListsTakeNoClicks() throws {
@@ -939,7 +939,7 @@ private let lotList = "<List name='lots' x='0' y='0' width='100' height='60' sel
     view.list(named: "lots")?.items = ["Maple"]
     view.setHidden(true, named: "lots")
 
-    #expect(view.selectListItem(at: Vector2(x: 10, y: 7), origin: .zero, time: 0) == nil)
+    #expect(view.selectItem(at: Vector2(x: 10, y: 7), origin: .zero, time: 0) == nil)
 }
 
 @Test func formLayoutStacksLabeledControlsAndReservesFooterSpace() {
@@ -2192,8 +2192,8 @@ private let threeLines = Rectangle(x: 0, y: 0, width: 200, height: 80)
     let list = try #require(view.list(named: "lots"))
     list.items = ["Maple", "Oak"]
 
-    #expect(view.selectListItem(at: Vector2(x: 10, y: 23), origin: .zero, time: 0) == .selected(control: "lots", index: 1))
-    #expect(view.selectListItem(at: Vector2(x: 10, y: 23), origin: .zero, time: 0.2) == .submitted(control: "lots", text: "Oak"))
+    #expect(view.selectItem(at: Vector2(x: 10, y: 23), origin: .zero, time: 0) == .selected(control: "lots", index: 1, item: nil))
+    #expect(view.selectItem(at: Vector2(x: 10, y: 23), origin: .zero, time: 0.2) == .submitted(control: "lots", text: "Oak"))
     #expect(list.selectedIndex == 1)
 }
 
