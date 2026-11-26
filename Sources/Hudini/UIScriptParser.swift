@@ -245,6 +245,10 @@ enum UIScriptParser {
         _ reader: AttributeReader
     ) throws -> UIScript.Control {
         let name = try reader.requiredString("name")
+        // Refused rather than ignored: a control left in place would do nothing.
+        if reader.string("scrolls") != nil || reader.string("direction") != nil {
+            throw UIScriptError.retiredScrolling(owner: name)
+        }
         return UIScript.Control(
             name: name,
             type: type,
@@ -256,13 +260,11 @@ enum UIScriptParser {
             image: reader.string("image"),
             tooltip: reader.string("tooltip"),
             maximumLength: try reader.integer("maximumLength"),
-            scrolls: try makeScrollBinding(owner: name, reader),
             isReadOnly: try reader.boolean("readOnly") ?? false,
             isSecure: try reader.boolean("secure") ?? false,
             isSelectable: try reader.boolean("selectable") ?? false,
             alignment: try reader.alignment("alignment") ?? .left,
             valueRange: try makeValueRange(owner: name, reader),
-            orientation: try reader.orientation("orientation"),
             follows: try reader.boolean("follows") ?? false,
             isInitiallyHidden: false
         )
@@ -284,19 +286,6 @@ enum UIScriptParser {
         return lower...upper
     }
 
-    private static func makeScrollBinding(
-        owner: String,
-        _ reader: AttributeReader
-    ) throws -> UIScript.ScrollBinding? {
-        let direction = try reader.scrollDirection("direction")
-        guard let list = reader.string("scrolls") else {
-            guard direction == nil else {
-                throw UIScriptError.invalidScrollBinding(owner: owner)
-            }
-            return nil
-        }
-        return UIScript.ScrollBinding(list: list, direction: direction)
-    }
 }
 
 private struct Element {
@@ -494,26 +483,6 @@ private final class AttributeReader {
             throw invalid(attribute, value)
         }
         return .fixed(size)
-    }
-
-    func scrollDirection(_ attribute: String) throws -> UIScript.ScrollDirection? {
-        guard let value = string(attribute) else {
-            return nil
-        }
-        guard let direction = UIScript.ScrollDirection(rawValue: value) else {
-            throw invalid(attribute, value)
-        }
-        return direction
-    }
-
-    func orientation(_ attribute: String) throws -> UIScript.Orientation? {
-        guard let value = string(attribute) else {
-            return nil
-        }
-        guard let orientation = UIScript.Orientation(rawValue: value) else {
-            throw invalid(attribute, value)
-        }
-        return orientation
     }
 
     func typeface(_ attribute: String) throws -> UIScript.Typeface? {

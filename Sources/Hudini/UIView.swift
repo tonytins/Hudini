@@ -97,11 +97,11 @@ public final class UIView {
 
     /// Something a control reports for the host to act on.
     public enum Event: Equatable, Sendable {
-        /// An enabled button without a scroll binding was pressed.
+        /// An enabled button was pressed.
         case pressed(control: String)
         /// A text field submitted its text.
         case submitted(control: String, text: String)
-        /// Dragging moved a slider that does not scroll a list to a new value.
+        /// Dragging moved a slider to a new value.
         case changed(control: String, value: Float)
         /// A click on a selectable list changed its selected item.
         case selected(control: String, index: Int)
@@ -233,15 +233,6 @@ public final class UIView {
         }
         for control in script.controls {
             sizes[control.name] = size(of: control.frame, image: control.image)
-        }
-
-        // A list or area a slider or buttons already scroll draws no bar of its own, so it never
-        // shows two.
-        for control in script.controls {
-            if let target = control.scrolls?.list {
-                lists[target]?.hasScrollBar = false
-                textAreas[target]?.hasScrollBar = false
-            }
         }
 
         if let titleField = script.titleField {
@@ -614,11 +605,6 @@ public final class UIView {
         return isOnBar ? control.name : nil
     }
 
-    // The list or text area a slider or button scrolls.
-    private func scrollTarget(of binding: UIScript.ScrollBinding) -> (any ScrollableText)? {
-        lists[binding.list] ?? textAreas[binding.list]
-    }
-
     // The theme a control draws with: the view's, in its monospace font when the control's style
     // asks for one.
     private func theme(for name: String) -> InterfaceTheme {
@@ -649,8 +635,8 @@ public final class UIView {
             guard !disabledNames.contains(control.name) else {
                 return false
             }
-            let thumb = sliderThumb(of: control, in: track, origin: origin)
-            let isVertical = sliderOrientation(of: control, in: track) == .vertical
+            let thumb = sliderThumb(of: control, in: track)
+            let isVertical = Self.isVertical(track)
             let grab = CheckCollisionPointRec(point, thumb)
                 ? (isVertical ? point.y - thumb.y : point.x - thumb.x)
                 : (isVertical ? thumb.height : thumb.width) / 2
@@ -668,8 +654,8 @@ public final class UIView {
             return nil
         }
         let track = screenRectangle(for: control.frame, named: control.name, at: origin)
-        let thumb = sliderThumb(of: control, in: track, origin: origin)
-        let isVertical = sliderOrientation(of: control, in: track) == .vertical
+        let thumb = sliderThumb(of: control, in: track)
+        let isVertical = Self.isVertical(track)
         let fraction = Self.sliderFraction(
             pointer: isVertical ? point.y : point.x,
             trackStart: isVertical ? track.y : track.x,
@@ -677,10 +663,6 @@ public final class UIView {
             thumbLength: isVertical ? thumb.height : thumb.width,
             grab: dragged.grab
         )
-        if let binding = control.scrolls {
-            scrollTarget(of: binding)?.scroll(toFraction: fraction)
-            return nil
-        }
         let range = Self.range(of: control)
         let value = range.lowerBound + (fraction * (range.upperBound - range.lowerBound))
         guard value != values[control.name] else {
@@ -706,38 +688,26 @@ public final class UIView {
         return min(max((pointer - grab - trackStart - 1) / room, 0), 1)
     }
 
-    private func sliderOrientation(of control: UIScript.Control, in track: Rectangle) -> UIScript.Orientation {
-        if control.scrolls != nil {
-            return .vertical
-        }
-        return control.orientation ?? (track.height > track.width ? .vertical : .horizontal)
+    // A slider runs along its longer side; a square one runs across.
+    private static func isVertical(_ track: Rectangle) -> Bool {
+        track.height > track.width
     }
 
-    private func sliderThumb(of control: UIScript.Control, in track: Rectangle, origin: Vector2) -> Rectangle {
-        if let binding = control.scrolls, let scrolled = scrollTarget(of: binding),
-           let target = script.control(named: binding.list) {
-            // The slider may act before its list, after the host changed the items.
-            scrolled.prepareLines(for: screenRectangle(for: target.frame, named: target.name, at: origin))
-            return scrolled.scrollThumbBounds(in: track)
-        }
+    private func sliderThumb(of control: UIScript.Control, in track: Rectangle) -> Rectangle {
         let fraction = fraction(of: control)
         let length = Self.sliderThumbLength
         let width = max(0, track.width - 2)
         let height = max(0, track.height - 2)
-        switch sliderOrientation(of: control, in: track) {
-        case .horizontal:
-            let thumb = min(length, width)
-            return Rectangle(x: track.x + 1 + ((width - thumb) * fraction), y: track.y + 1, width: thumb, height: height)
-        case .vertical:
+        if Self.isVertical(track) {
             let thumb = min(length, height)
             return Rectangle(x: track.x + 1, y: track.y + 1 + ((height - thumb) * fraction), width: width, height: thumb)
         }
+        let thumb = min(length, width)
+        return Rectangle(x: track.x + 1 + ((width - thumb) * fraction), y: track.y + 1, width: thumb, height: height)
     }
 
-    /// Applies a press to the topmost visible button under `point`.
-    ///
-    /// A button bound to a list scrolls it one line and reports nothing. Any
-    /// other enabled button reports `.pressed`.
+    /// Applies a press to the topmost visible button under `point`, which reports `.pressed` when
+    /// it's enabled.
     public func pressButton(at point: Vector2, origin: Vector2) -> Event? {
         for control in script.controls.reversed()
         where control.type == .button && !hiddenNames.contains(control.name) {
@@ -747,11 +717,7 @@ public final class UIView {
             guard !disabledNames.contains(control.name) else {
                 return nil
             }
-            guard let binding = control.scrolls else {
-                return .pressed(control: control.name)
-            }
-            scrollTarget(of: binding)?.scroll(byLines: binding.direction == .up ? 1 : -1)
-            return nil
+            return .pressed(control: control.name)
         }
         return nil
     }
@@ -788,7 +754,7 @@ public final class UIView {
             case .list:
                 lists[control.name]?.draw(in: bounds)
             case .slider:
-                drawSlider(control, in: bounds, origin: origin)
+                drawSlider(control, in: bounds)
             case .progressBar:
                 drawProgressBar(control, in: bounds)
             case .region:
@@ -909,15 +875,12 @@ public final class UIView {
         )
     }
 
-    private func drawSlider(_ control: UIScript.Control, in bounds: Rectangle, origin: Vector2) {
+    private func drawSlider(_ control: UIScript.Control, in bounds: Rectangle) {
         let style = resolvedStyle(for: control)
         theme.fillRectangle(bounds, style?.backgroundColor ?? theme.panel)
         theme.outlineRectangle(bounds, style?.borderColor ?? theme.border)
-        if let binding = control.scrolls, scrollTarget(of: binding) == nil {
-            return
-        }
         let color = disabledNames.contains(control.name) ? theme.secondaryText : (style?.fillColor ?? theme.accent)
-        theme.fillRectangle(sliderThumb(of: control, in: bounds, origin: origin), color)
+        theme.fillRectangle(sliderThumb(of: control, in: bounds), color)
     }
 
     private func drawProgressBar(_ control: UIScript.Control, in bounds: Rectangle) {

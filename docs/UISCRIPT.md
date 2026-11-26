@@ -215,8 +215,11 @@ lists:
 - `ignoredAttributes` lists attributes the model has no place for, such as
   `tracking` or `opaque`.
 
-Scroll bindings do not exist in `.uis`, so a slider or scroll button read from one
-is not connected to a list. Only `alignment=3`, which centers, is understood. See
+Lists and text areas show their own scroll bars, so a `.uis` slider or scroll
+button placed beside one, which TSO's game code connected to it, reads as an
+ordinary slider or button that scrolls nothing. Hide it by name with
+`setHidden(_:named:)`. A slider runs along its longer side, so `orientation` is
+listed in `ignoredAttributes`. Only `alignment=3`, which centers, is understood. See
 the [roadmap's open questions](ROADMAP.md#open-questions) for what remains unknown.
 
 ## Reading CST text

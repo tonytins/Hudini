@@ -222,7 +222,6 @@ private struct UISBuilder {
     ]
     private static let supportedStateCounts: Set<Int> = [1, 4, 6]
     private static let centeredAlignment = 3
-    private static let orientations: [Int: UIScript.Orientation] = [0: .horizontal, 1: .vertical]
 
     private let tags: [UISTag]
     private var notes: [UIScript.ConversionNote] = []
@@ -474,13 +473,11 @@ private struct UISBuilder {
             image: nil,
             tooltip: nil,
             maximumLength: nil,
-            scrolls: nil,
             isReadOnly: false,
             isSecure: false,
             isSelectable: false,
             alignment: .left,
             valueRange: nil,
-            orientation: nil,
             follows: false,
             isInitiallyHidden: true
         )
@@ -604,13 +601,11 @@ private struct UISBuilder {
             image: image,
             tooltip: tooltip,
             maximumLength: maximumLength,
-            scrolls: nil,
             isReadOnly: reader.string("mode") == "kReadOnly" && type == .textField,
             isSecure: false,
             isSelectable: false,
             alignment: alignment,
             valueRange: makeValueRange(type, reader, tag),
-            orientation: makeOrientation(type, reader, tag),
             follows: false,
             isInitiallyHidden: false
         )
@@ -635,21 +630,6 @@ private struct UISBuilder {
             return nil
         }
         return lower...upper
-    }
-
-    private mutating func makeOrientation(
-        _ type: UIScript.ControlType,
-        _ reader: UISAttributes,
-        _ tag: UISTag
-    ) -> UIScript.Orientation? {
-        guard type == .slider, let value = reader.integer("orientation") else {
-            return nil
-        }
-        guard let orientation = Self.orientations[value] else {
-            note(tag, "The meaning of orientation \(value) is unknown, so this slider follows its shape.")
-            return nil
-        }
-        return orientation
     }
 
     /// Turns a control's own colors and font into a style named after it, because `.uis` has no

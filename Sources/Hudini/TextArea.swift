@@ -17,7 +17,6 @@ public final class TextArea: FormLayoutControl {
     private static let lineGap: Int = 4
     private static let caretRoom: Int = 4
     private static let linesPerWheelNotch: Float = 3
-    private static let minimumThumbHeight: Float = 6
 
     private var _text: String = ""
 
@@ -71,13 +70,6 @@ public final class TextArea: FormLayoutControl {
     // Whether the text overflowed, so it was wrapped short of the scroll bar.
     private var showsScrollBar = false
 
-    /// Whether the area draws its own scroll bar when its text overflows. A document's area that a
-    /// slider or scroll buttons already move has none, so it never shows two.
-    var hasScrollBar = true {
-        didSet {
-            wrappedWidth = nil
-        }
-    }
     // The line at the top of the area.
     private var firstLine = 0
     // Whether the next layout moves to the last line, after typing or a followed change.
@@ -296,7 +288,7 @@ public final class TextArea: FormLayoutControl {
         firstLine >= lastFirstLine
     }
 
-    /// The scrollbar position, where zero shows the first line and one shows the last.
+    /// The scroll position, where zero shows the first line and one shows the last.
     public var scrollFraction: Float {
         guard lastFirstLine > 0 else {
             return 1
@@ -312,25 +304,13 @@ public final class TextArea: FormLayoutControl {
         return min(1, Float(visibleLineCount) / Float(lines.count))
     }
 
-    /// Returns the scrollbar thumb's bounds inside `track`. Call this after `update(in:)` or
-    /// `draw(in:)` so it reflects the current text.
-    public func scrollThumbBounds(in track: Rectangle) -> Rectangle {
-        let innerHeight = max(0, track.height - 2)
-        let thumbHeight = min(innerHeight, max(Self.minimumThumbHeight, innerHeight * scrollThumbFraction))
-        return Rectangle(
-            x: track.x + 1,
-            y: track.y + 1 + ((innerHeight - thumbHeight) * scrollFraction),
-            width: max(0, track.width - 2),
-            height: thumbHeight
-        )
-    }
 
     /// Moves through the text. Positive values reveal earlier lines, as for `TextList`.
     public func scroll(byLines lineCount: Int) {
         firstLine = min(max(firstLine - lineCount, 0), lastFirstLine)
     }
 
-    /// Moves to a scrollbar position, where zero shows the first line and one shows the last.
+    /// Moves to a scroll position, where zero shows the first line and one shows the last.
     public func scroll(toFraction fraction: Float) {
         guard fraction.isFinite else {
             return
@@ -397,7 +377,7 @@ public final class TextArea: FormLayoutControl {
             wrap(to: width)
             // The bar takes room only once the text overflows, and wrapping short of it can only
             // add lines, so it still shows afterward.
-            showsScrollBar = hasScrollBar && lines.count > visibleLineCount
+            showsScrollBar = lines.count > visibleLineCount
             if showsScrollBar {
                 wrap(to: max(1, width - Int(ScrollBar.width)))
             }

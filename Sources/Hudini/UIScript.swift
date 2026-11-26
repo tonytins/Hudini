@@ -214,16 +214,10 @@ public struct UIScript: Sendable {
             if control.isSelectable, control.type != .list {
                 throw UIScriptError.invalidSelectable(owner: control.name)
             }
-            if let binding = control.scrolls {
-                try validate(binding, of: control)
-            }
             if let range = control.valueRange,
                range.lowerBound >= range.upperBound
                 || (control.type != .slider && control.type != .progressBar) {
                 throw UIScriptError.invalidValueRange(owner: control.name)
-            }
-            if control.orientation != nil, control.type != .slider {
-                throw UIScriptError.invalidOrientation(owner: control.name)
             }
             if let style = control.style, styles[style] == nil {
                 throw UIScriptError.unknownReference(
@@ -270,24 +264,6 @@ public struct UIScript: Sendable {
                 )
             }
             try validate(frame: control.frame, owner: control.name)
-        }
-    }
-
-    private func validate(_ binding: ScrollBinding, of control: Control) throws {
-        guard let target = self.control(named: binding.list) else {
-            throw UIScriptError.unknownReference(
-                owner: control.name,
-                property: "scrolls",
-                reference: binding.list
-            )
-        }
-        let hasValidDirection = switch control.type {
-        case .slider: binding.direction == nil
-        case .button: binding.direction != nil
-        default: false
-        }
-        guard target.type == .list || target.type == .textArea, hasValidDirection else {
-            throw UIScriptError.invalidScrollBinding(owner: control.name)
         }
     }
 
@@ -881,7 +857,8 @@ public struct UIScript: Sendable {
         /// A scrollable list of text the host fills.
         case list
 
-        /// A draggable thumb on a track, which scrolls a list or holds a value.
+        /// A thumb on a track for choosing a value. It runs along its longer side, and never
+        /// scrolls anything: lists and text areas have scroll bars of their own.
         case slider
 
         /// A bar filled in proportion to a value.
@@ -891,15 +868,6 @@ public struct UIScript: Sendable {
         case region
     }
 
-    /// The direction a slider's track runs.
-    public enum Orientation: String, Sendable {
-        /// Left to right, with the lowest value on the left.
-        case horizontal
-
-        /// Top to bottom, with the lowest value at the top.
-        case vertical
-    }
-
     /// Text content expressed literally or by a localized-string reference.
     public enum Text: Sendable, Equatable {
         /// Literal text.
@@ -907,27 +875,6 @@ public struct UIScript: Sendable {
 
         /// The name of a string in `resources.strings`.
         case string(String)
-    }
-
-    /// The direction a scroll button moves through its list.
-    public enum ScrollDirection: String, Sendable {
-        /// Toward the top of the list, which holds the oldest content.
-        case up
-
-        /// Toward the bottom of the list, which holds the newest content.
-        case down
-    }
-
-    /// Connects a slider or button to the list or text area it scrolls.
-    ///
-    /// A slider shows the list's position and has no direction. A button
-    /// requires a direction.
-    public struct ScrollBinding: Sendable, Equatable {
-        /// The name of the list or text area control.
-        public let list: String
-
-        /// The direction a button scrolls.
-        public let direction: ScrollDirection?
     }
 
     /// A button on the window's title bar.
@@ -980,9 +927,6 @@ public struct UIScript: Sendable {
         /// The most characters a text field or text area accepts.
         public let maximumLength: Int?
 
-        /// The list or text area a slider or button scrolls.
-        public let scrolls: ScrollBinding?
-
         /// Whether a text field or text area only displays text.
         public let isReadOnly: Bool
 
@@ -997,11 +941,6 @@ public struct UIScript: Sendable {
 
         /// The values a slider or progress bar covers, or `nil` for the default of 0 to 1.
         public let valueRange: ClosedRange<Float>?
-
-        /// The direction a slider's track runs, or `nil` to follow its shape.
-        ///
-        /// A slider that scrolls a list always runs top to bottom.
-        public let orientation: Orientation?
 
         /// Whether a text area stays at its last line when its text changes while it shows it.
         public let follows: Bool
@@ -1116,15 +1055,12 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// `selectable` appears on a control other than a list.
     case invalidSelectable(owner: String)
 
-    /// A scroll binding targets a control other than a list or text area, or does not suit its
-    /// control.
-    case invalidScrollBinding(owner: String)
+    /// A control has `scrolls` or `direction`, which scrolled a list or text area by hand before
+    /// they had scroll bars of their own. The spec dropped both on 2026-11-24.
+    case retiredScrolling(owner: String)
 
     /// A value range is empty, or is attached to a control other than a slider or progress bar.
     case invalidValueRange(owner: String)
-
-    /// An orientation is attached to a control other than a slider.
-    case invalidOrientation(owner: String)
 
     public var errorDescription: String? {
         switch self {
@@ -1198,12 +1134,10 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript secure for '\(owner)' requires a text field control."
         case let .invalidSelectable(owner):
             "UIScript selectable for '\(owner)' requires a list control."
-        case let .invalidScrollBinding(owner):
-            "UIScript scrolls for '\(owner)' must target a list or text area, from a slider without a direction or a button with one."
+        case let .retiredScrolling(owner):
+            "UIScript '\(owner)' has scrolls or direction. Lists and text areas show their own scroll bars, so nothing scrolls them by hand any more; remove it."
         case let .invalidValueRange(owner):
             "UIScript value range for '\(owner)' must have minValue below maxValue and requires a slider or progress bar."
-        case let .invalidOrientation(owner):
-            "UIScript orientation for '\(owner)' requires a slider."
         }
     }
 }

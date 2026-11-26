@@ -12,7 +12,6 @@ public final class TextList {
     private static let padding: Int = 6
     private static let lineGap: Int = 2
     private static let linesPerWheelNotch: Float = 3
-    private static let minimumThumbHeight: Float = 6
 
     /// The most seconds between two clicks on the same item that count as a double-click.
     public static let doubleClickInterval: Double = 0.5
@@ -28,13 +27,6 @@ public final class TextList {
     // Whether the lines overflowed, so they were wrapped short of the scroll bar.
     private var showsScrollBar = false
 
-    /// Whether the list draws its own scroll bar when its lines overflow. A document's list that a
-    /// slider or scroll buttons already move has none, so it never shows two.
-    var hasScrollBar = true {
-        didSet {
-            lineWidth = nil
-        }
-    }
     private var pendingWheelLines: Float = 0
     // The item the last click landed on, and when, so a second one can make a double-click.
     private var lastClick: (index: Int, time: Double)?
@@ -119,7 +111,7 @@ public final class TextList {
     /// The value is clamped to the available content during update and drawing.
     public private(set) var scrollOffset = 0
 
-    /// The current scrollbar position, where zero is the oldest content and one
+    /// The current scroll position, where zero is the oldest content and one
     /// is the newest content.
     public var scrollFraction: Float {
         let maximumOffset = max(0, lines.count - visibleLineCount)
@@ -137,21 +129,6 @@ public final class TextList {
         return min(1, Float(visibleLineCount) / Float(lines.count))
     }
 
-    /// Returns the scrollbar thumb's bounds inside `track`.
-    ///
-    /// The thumb sits at the bottom of the track while the newest content is
-    /// showing. Call this after `update(in:)` or `draw(in:)` so it reflects the
-    /// current items.
-    public func scrollThumbBounds(in track: Rectangle) -> Rectangle {
-        let innerHeight = max(0, track.height - 2)
-        let thumbHeight = min(innerHeight, max(Self.minimumThumbHeight, innerHeight * scrollThumbFraction))
-        return Rectangle(
-            x: track.x + 1,
-            y: track.y + 1 + ((innerHeight - thumbHeight) * scrollFraction),
-            width: max(0, track.width - 2),
-            height: thumbHeight
-        )
-    }
 
     /// Creates a text list using the host's ordered items. Without a `fontSize`, it uses the
     /// theme's `body` size.
@@ -174,19 +151,15 @@ public final class TextList {
         self.isSelectable = isSelectable
     }
 
-    /// Updates the scroll bar, wheel, and arrow-button scrolling for this frame, and selection on a
-    /// selectable list.
+    /// Updates the scroll bar, wheel, and Page Up and Page Down scrolling for this frame, and
+    /// selection on a selectable list.
     ///
     /// A press on the scroll bar, and the pointer until it's let go, belong to the bar, so they
     /// never select an item. Positive values passed to `scroll(byLines:)` move toward older
     /// content. Returns an event when a click selects a different item, or when a second click on
     /// the same item within `doubleClickInterval` makes a double-click.
     @discardableResult
-    public func update(
-        in bounds: Rectangle,
-        scrollUpButton: Rectangle? = nil,
-        scrollDownButton: Rectangle? = nil
-    ) -> Event? {
+    public func update(in bounds: Rectangle) -> Event? {
         prepareLines(for: bounds)
         let mouse = GetMousePosition()
         let tookPointer = updateScrollBar(
@@ -212,14 +185,7 @@ public final class TextList {
             return nil
         }
 
-        if let scrollUpButton, CheckCollisionPointRec(mouse, scrollUpButton) {
-            scroll(byLines: 1)
-        } else if let scrollDownButton, CheckCollisionPointRec(mouse, scrollDownButton) {
-            scroll(byLines: -1)
-        } else {
-            return select(at: mouse, in: bounds, time: GetTime())
-        }
-        return nil
+        return select(at: mouse, in: bounds, time: GetTime())
     }
 
     // MARK: Scroll bar
@@ -303,7 +269,7 @@ public final class TextList {
         scrollOffset = min(max(scrollOffset + lineCount, 0), maximumOffset)
     }
 
-    /// Moves to a scrollbar position, where zero is the oldest content and one is the newest.
+    /// Moves to a scroll position, where zero is the oldest content and one is the newest.
     public func scroll(toFraction fraction: Float) {
         guard fraction.isFinite else {
             return
@@ -381,7 +347,7 @@ public final class TextList {
             wrap(to: width)
             // The bar takes room only once the lines overflow, and wrapping short of it can only
             // add lines, so it still shows afterward.
-            showsScrollBar = hasScrollBar && lines.count > visibleLineCount
+            showsScrollBar = lines.count > visibleLineCount
             if showsScrollBar {
                 wrap(to: max(1, width - Int(ScrollBar.width)))
             }
@@ -408,14 +374,3 @@ public final class TextList {
         }
     }
 }
-
-/// Text a slider or scroll buttons can move through: a list or a text area.
-protocol ScrollableText: AnyObject {
-    func prepareLines(for bounds: Rectangle)
-    func scroll(byLines lineCount: Int)
-    func scroll(toFraction fraction: Float)
-    func scrollThumbBounds(in track: Rectangle) -> Rectangle
-}
-
-extension TextList: ScrollableText {}
-extension TextArea: ScrollableText {}

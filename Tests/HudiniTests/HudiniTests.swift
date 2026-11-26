@@ -497,36 +497,26 @@ private func scrollDocument(_ scroller: String) -> String {
     "<List name='history' \(tenByTen)/><Text name='label' \(tenByTen)/>\(scroller)"
 }
 
-@Test func scrollBindingsReadForSlidersAndButtons() throws {
-    let slider = try script(scrollDocument("<Slider name='scroller' \(tenByTen) scrolls='history'/>"))
-    #expect(slider.control(named: "scroller")?.scrolls?.list == "history")
-    #expect(slider.control(named: "scroller")?.scrolls?.direction == nil)
-
-    let button = try script(scrollDocument("<Button name='scroller' \(tenByTen) scrolls='history' direction='up'/>"))
-    #expect(button.control(named: "scroller")?.scrolls?.list == "history")
-    #expect(button.control(named: "scroller")?.scrolls?.direction == .up)
-}
-
+// Lists and text areas scroll by themselves now, so a control that scrolled one by hand is
+// refused rather than left in place doing nothing, as VentureOS does.
 @Test(arguments: [
-    "<Slider name='scroller' \(tenByTen) scrolls='history' direction='up'/>",
-    "<Button name='scroller' \(tenByTen) scrolls='history'/>",
+    "<Slider name='scroller' \(tenByTen) scrolls='history'/>",
+    "<Button name='scroller' \(tenByTen) scrolls='history' direction='up'/>",
     "<Button name='scroller' \(tenByTen) direction='up'/>",
-    "<Text name='scroller' \(tenByTen) scrolls='history'/>",
-    "<Slider name='scroller' \(tenByTen) scrolls='label'/>"
+    "<Text name='scroller' \(tenByTen) scrolls='nothing'/>"
 ])
-func uiScriptRejectsMismatchedScrollBindings(scroller: String) {
-    #expect(throws: UIScriptError.invalidScrollBinding(owner: "scroller")) {
+func uiScriptRefusesControlsThatScrollByHand(scroller: String) {
+    #expect(throws: UIScriptError.retiredScrolling(owner: "scroller")) {
         try script(scrollDocument(scroller))
     }
 }
 
-@Test func uiScriptRejectsUnknownScrollDirectionsAndLists() {
-    #expect(throws: UIScriptError.invalidAttribute(element: "Button", attribute: "direction", value: "sideways", line: 1)) {
-        try script(scrollDocument("<Button name='scroller' \(tenByTen) scrolls='history' direction='sideways'/>"))
-    }
-    #expect(throws: UIScriptError.unknownReference(owner: "scroller", property: "scrolls", reference: "missing")) {
-        try script(scrollDocument("<Slider name='scroller' \(tenByTen) scrolls='missing'/>"))
-    }
+@Test func theRefusalSaysWhatToDo() {
+    let message = UIScriptError.retiredScrolling(owner: "scroller").errorDescription ?? ""
+
+    #expect(message.contains("'scroller'"))
+    #expect(message.contains("own scroll bars"))
+    #expect(message.contains("remove it"))
 }
 
 @Test(arguments: [
@@ -659,17 +649,18 @@ func controlsWithoutAnImageNeedASize(element: String) {
     #expect(entry.text.count == 120)
 }
 
-@Test func viewScrollButtonsMoveTheirListWithoutReportingAnEvent() throws {
+@Test func theChatHistoryScrollsByItsOwnBar() throws {
     let view = UIView(script: try UIScript(contentsOf: demoResource("chatdialog.uix")))
     let history = try #require(view.list(named: "chatHistory"))
     let origin = Vector2(x: 1000, y: 1000)
+    let bounds = try #require(view.bounds(named: "chatHistory", at: origin))
     history.items = (1...20).map { "Message \($0)" }
-    _ = view.update(at: origin)
 
-    #expect(view.pressButton(at: Vector2(x: 1370, y: 1035), origin: origin) == nil)
+    // The up arrow sits at the top of the bar, inside the list's right edge.
+    let upArrow = Vector2(x: bounds.x + bounds.width - 8, y: bounds.y + 5)
+    #expect(view.scrollBarControl(at: upArrow, origin: origin) == "chatHistory")
+    #expect(history.updateScrollBar(in: bounds, pointer: upArrow, isPressed: true, isDown: true, time: 0))
     #expect(history.scrollOffset == 1)
-    #expect(view.pressButton(at: Vector2(x: 1370, y: 1200), origin: origin) == nil)
-    #expect(history.scrollOffset == 0)
 }
 
 @Test func viewReportsOtherButtonsAndSkipsHiddenOnes() throws {
@@ -727,8 +718,8 @@ func controlsWithoutAnImageNeedASize(element: String) {
     let chatView = UIView(script: chat)
     let panelView = UIView(script: panel)
 
-    #expect(chat.controls.contains { $0.scrolls != nil })
-    #expect(!panel.controls.contains { $0.scrolls != nil })
+    #expect(chat.controls.contains { $0.type == .list })
+    #expect(!chat.controls.contains { $0.type == .slider })
     #expect(panel.controls.contains { $0.type == .region })
     #expect(!chat.controls.contains { $0.type == .region })
     #expect(chatView.missingImages.isEmpty)
@@ -764,18 +755,6 @@ private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangl
     return (list, bounds)
 }
 
-@Test func scrollThumbSitsAtTheBottomForNewestContent() {
-    let (list, _) = scrollableList(itemCount: 20)
-    let track = Rectangle(x: 10, y: 100, width: 12, height: 102)
-
-    let newest = list.scrollThumbBounds(in: track)
-    #expect(newest == Rectangle(x: 11, y: 176, width: 10, height: 25))
-
-    list.scroll(byLines: 15)
-    let oldest = list.scrollThumbBounds(in: track)
-    #expect(oldest == Rectangle(x: 11, y: 101, width: 10, height: 25))
-}
-
 @Test func scrollingToAFractionMatchesTheThumbPosition() {
     let (list, _) = scrollableList(itemCount: 20)
 
@@ -790,13 +769,6 @@ private func scrollableList(itemCount: Int) -> (list: TextList, bounds: Rectangl
     #expect(list.scrollOffset == 0)
     list.scroll(toFraction: .nan)
     #expect(list.scrollOffset == 0)
-}
-
-@Test func scrollThumbFillsTheTrackWhenEverythingFits() {
-    let (list, _) = scrollableList(itemCount: 2)
-    let thumb = list.scrollThumbBounds(in: Rectangle(x: 0, y: 0, width: 10, height: 52))
-
-    #expect(thumb == Rectangle(x: 1, y: 1, width: 8, height: 50))
 }
 
 @Test func wheelMovementAddsUpPartialLines() {
@@ -1682,15 +1654,14 @@ private func uis(_ text: String) throws -> UIScript {
     <AddProgressBar "Unsized" position=(0,0)>
     """)
 
-    #expect(loaded.control(named: "Across")?.orientation == .horizontal)
     #expect(loaded.control(named: "Across")?.valueRange == 2...12)
-    #expect(loaded.control(named: "Down")?.orientation == .vertical)
     #expect(loaded.control(named: "Down")?.valueRange == nil)
-    #expect(loaded.control(named: "Odd")?.orientation == nil)
     #expect(loaded.control(named: "Odd")?.valueRange == nil)
+    // A slider runs along its longer side, so orientation is listed as ignored.
+    #expect(loaded.ignoredAttributes.filter { $0.attribute == "orientation" }.count == 3)
     #expect(loaded.control(named: "Score")?.type == .progressBar)
     #expect(loaded.control(named: "Score")?.valueRange == 0...50)
-    #expect(loaded.conversionNotes.map(\.name) == ["Odd", "Odd", "Unsized"])
+    #expect(loaded.conversionNotes.map(\.name) == ["Odd", "Unsized"])
 }
 
 @Test func uisKeepsTagsWithoutAnEquivalentInItsNotes() throws {
@@ -1879,24 +1850,21 @@ private let sliders = """
 
     #expect(loaded.control(named: "across")?.valueRange == 10...20)
     #expect(loaded.control(named: "down")?.valueRange == nil)
-    #expect(loaded.control(named: "forced")?.orientation == .horizontal)
+    // orientation is gone: a slider runs along its longer side, and a reader lists it as ignored.
+    #expect(loaded.ignoredAttributes.map(\.attribute) == ["orientation"])
     #expect(loaded.control(named: "score")?.type == .progressBar)
     #expect(loaded.control(named: "score")?.valueRange == 0...50)
 }
 
-@Test func uiScriptRejectsBadValueRangesAndOrientations() {
+@Test func uiScriptRejectsBadValueRanges() {
     #expect(throws: UIScriptError.invalidValueRange(owner: "a")) {
         try script("<Slider name='a' \(tenByTen) minValue='5' maxValue='5'/>")
     }
     #expect(throws: UIScriptError.invalidValueRange(owner: "a")) {
         try script("<Text name='a' \(tenByTen) maxValue='5'/>")
     }
-    #expect(throws: UIScriptError.invalidOrientation(owner: "a")) {
-        try script("<Text name='a' \(tenByTen) orientation='vertical'/>")
-    }
-    #expect(throws: UIScriptError.invalidAttribute(element: "Slider", attribute: "orientation", value: "sideways", line: 1)) {
-        try script("<Slider name='a' \(tenByTen) orientation='sideways'/>")
-    }
+    // Any orientation, on any control, is ignored and listed now.
+    #expect((try? script("<Slider name='a' \(tenByTen) orientation='sideways'/>"))?.ignoredAttributes.count == 1)
 }
 
 @Test func uiScriptReadsAFillColor() throws {
@@ -1953,16 +1921,15 @@ private let sliders = """
     #expect(view.dragSlider(to: Vector2(x: 5000, y: 0), origin: origin) == .changed(control: "across", value: 20))
 }
 
-@Test func slidersFollowTheirOrientationOrShape() throws {
+@Test func slidersRunAlongTheirLongerSide() throws {
     let view = UIView(script: try script(sliders))
 
     #expect(view.beginSliderDrag(at: Vector2(x: 205, y: 51), origin: .zero))
     #expect(view.dragSlider(to: Vector2(x: 205, y: 51), origin: .zero) == .changed(control: "down", value: 0.5))
 
+    // A document from before still says horizontal, which no longer turns a tall track on its side.
     #expect(view.beginSliderDrag(at: Vector2(x: 305, y: 51), origin: .zero))
-    // This tall track is forced horizontal, so its little width leaves the thumb no room.
-    #expect(view.dragSlider(to: Vector2(x: 305, y: 51), origin: .zero) == nil)
-    #expect(view.value(named: "forced") == 0)
+    #expect(view.dragSlider(to: Vector2(x: 305, y: 51), origin: .zero) == .changed(control: "forced", value: 0.5))
 }
 
 @Test func hiddenAndDisabledSlidersCannotBeDragged() throws {
@@ -2076,7 +2043,8 @@ private func tooltipView() throws -> UIView {
     let view = UIView(script: stand)
 
     #expect(stand.conversionNotes.isEmpty)
-    #expect(stand.ignoredAttributes.isEmpty)
+    // A slider runs along its longer side, so the file's orientation is the one thing left out.
+    #expect(stand.ignoredAttributes.map(\.attribute) == ["orientation"])
     #expect(stand.setting(named: "PanelPosition")?.position == Vector2(x: 165, y: 32))
     #expect(view.isHidden(named: "StandOpenArt"))
     #expect(view.isHidden(named: "StandClosedArt"))
@@ -2423,28 +2391,6 @@ private let threeLines = Rectangle(x: 0, y: 0, width: 200, height: 80)
     #expect(throws: UIScriptError.invalidSelectable(owner: "a")) {
         try script("<TextArea name='a' \(tenByTen) selectable='true'/>")
     }
-}
-
-@Test func scrollButtonsAndSlidersCanScrollATextArea() throws {
-    let view = UIView(script: try script("""
-        <TextArea name='log' x='0' y='0' width='200' height='80'/>
-        <Button name='up' x='300' y='0' width='10' height='10' scrolls='log' direction='up'/>
-        <Slider name='bar' x='300' y='20' width='10' height='60' scrolls='log'/>
-        """))
-    let area = try #require(view.textArea(named: "log"))
-    area.text = (1...10).map(String.init).joined(separator: "\n")
-    // A document's area uses the theme's 14-pixel body size, so four lines fit.
-    area.prepareLines(for: threeLines)
-    area.scroll(toFraction: 1)
-    #expect(area.firstVisibleLine == 6)
-
-    #expect(view.pressButton(at: Vector2(x: 305, y: 5), origin: .zero) == nil)
-    #expect(area.firstVisibleLine == 5)
-
-    // Dragging the slider's thumb to the top of its track shows the first line, reporting nothing.
-    #expect(view.beginSliderDrag(at: Vector2(x: 305, y: 75), origin: .zero))
-    #expect(view.dragSlider(to: Vector2(x: 305, y: 0), origin: .zero) == nil)
-    #expect(area.firstVisibleLine == 0)
 }
 
 @Test func textAreasKeepLineBreaksAndOnlyTheCharactersTheyDraw() {

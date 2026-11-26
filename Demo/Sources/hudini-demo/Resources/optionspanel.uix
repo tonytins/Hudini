@@ -31,7 +31,6 @@
   <Button name="accent" x="660" y="80" width="120" height="24" string="accentText" tooltip="accentTip"/>
 
   <!-- Typing reports no event, so a host reads the notes by name when it needs them. -->
-  <TextArea name="notes" x="806" y="14" width="184" height="126" style="notes"
+  <TextArea name="notes" x="806" y="14" width="200" height="126" style="notes"
             placeholderString="notesPrompt" maximumLength="2000"/>
-  <Slider name="notesScroll" x="992" y="14" width="14" height="126" scrolls="notes"/>
 </UIScript>

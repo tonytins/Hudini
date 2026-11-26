@@ -150,24 +150,22 @@ private let downArrow = Vector2(x: 690, y: 595)
     #expect(area.firstVisibleLine == 1)
 }
 
-@Test func aDocumentsListOrAreaThatASliderScrollsHasNoBarOfItsOwn() throws {
+@Test func aPressOnADocumentsScrollBarIsThatControlsAlone() throws {
     let view = UIView(script: try UIScript(data: Data("""
         <UIScript version="1">
           <Window width="400" height="300"/>
-          <List name="bound" x="0" y="0" width="200" height="100"/>
-          <Slider name="bar" x="200" y="0" width="12" height="100" scrolls="bound"/>
-          <List name="free" x="0" y="150" width="200" height="100"/>
+          <List name="history" x="0" y="0" width="200" height="100"/>
+          <List name="short" x="0" y="150" width="200" height="100"/>
           <TextArea name="notes" x="220" y="0" width="150" height="80"/>
         </UIScript>
         """.utf8)))
-    let items = (0..<20).map { "Item \($0)" }
-    view.list(named: "bound")?.items = items
-    view.list(named: "free")?.items = items
+    view.list(named: "history")?.items = (0..<20).map { "Item \($0)" }
+    view.list(named: "short")?.items = ["Fits"]
     view.textArea(named: "notes")?.text = (1...10).map(String.init).joined(separator: "\n")
 
-    #expect(view.scrollBarControl(at: Vector2(x: 190, y: 50), origin: .zero) == nil)
-    #expect(view.scrollBarControl(at: Vector2(x: 190, y: 200), origin: .zero) == "free")
+    #expect(view.scrollBarControl(at: Vector2(x: 190, y: 50), origin: .zero) == "history")
     #expect(view.scrollBarControl(at: Vector2(x: 360, y: 40), origin: .zero) == "notes")
-    // Off the bar, the list is left to select as before.
-    #expect(view.scrollBarControl(at: Vector2(x: 50, y: 200), origin: .zero) == nil)
+    // Off the bar, or on a list that fits, the press is left for the list as before.
+    #expect(view.scrollBarControl(at: Vector2(x: 50, y: 50), origin: .zero) == nil)
+    #expect(view.scrollBarControl(at: Vector2(x: 190, y: 200), origin: .zero) == nil)
 }
