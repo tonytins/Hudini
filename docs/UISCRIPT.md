@@ -90,8 +90,15 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   supplied. A missing string shows its table and index instead, and a missing image
   a 24-pixel stand-in with a red outline.
 - Show and hide controls with `setHidden(_:named:)`, disable buttons and toolbar
-  items with `setDisabled(_:named:)`, and mark toggles, choices, or toolbar tabs with
+  items with `setDisabled(_:named:)`, and mark toggles or choices with
   `setSelected(_:named:)`.
+- A document's tabs switch themselves: pressing a toolbar item that names a tab
+  shows that tab's controls in place of the others', and still reports `.pressed`.
+  `selectedTab` says which is showing, and `setSelected(true, named:)` on a tab's
+  item switches to it without an event. One tab is always selected, so deselecting
+  its item does nothing. Hiding a control with `setHidden(_:named:)` is separate:
+  switching tabs never shows what the host hid, and `isHidden(named:)` only reports
+  what the host hid.
 - Call `setWindowSize(_:)` when the space around anchored controls changes, then
   size the window around the view from `windowSize`. A size below the document's
   minimum uses the minimum on that axis.
@@ -403,8 +410,8 @@ the game's own package.
 
 ## Not yet supported
 
-A view shows the first tab and the first pane and hides the rest, but nothing
-switches them yet, and a `WindowFrame` doesn't draw a sidebar yet.
+A view shows the first pane and hides the rest, but nothing switches panes yet, and
+a `WindowFrame` doesn't draw a sidebar yet.
 
 Within its subset, a text area's caret stays at the end of its text. Clicking to
 place it, moving it with the arrow keys, selection, and the clipboard aren't
@@ -421,7 +428,8 @@ including the changes made while Hudini kept it. Changes to Hudini's reader:
 
 - **2026-11-25:** Tabs and a sidebar of panes. `UIScript` reads `<Tab>`, `tab` on
   `<ToolbarItem>`, `<Sidebar>`, and `<Pane>` in both its forms, into `tabs` and
-  `sidebar`, and a view shows the first tab and pane. Other sidebars are refused
+  `sidebar`. Pressing a tab's toolbar item switches tabs, and `selectedTab` says
+  which is showing; a view shows the first pane. Other sidebars are refused
   with `unsupportedSidebar`. A nested `<Menu>` is now refused as outside the subset,
   rather than as nesting.
 - **2026-11-25:** Appearances hold fonts: `<Font>` files, `<Fonts>` in place of

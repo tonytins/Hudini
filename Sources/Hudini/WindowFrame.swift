@@ -117,7 +117,8 @@ public final class WindowFrame {
     /// Something a frame around a view reports.
     public enum Event: Equatable, Sendable {
         /// The view, its toolbar items, or its title field reported this. A toolbar item reports
-        /// `.pressed` with its name, and a submitted title `.submitted` with the title field's name.
+        /// `.pressed` with its name, after selecting its tab if it names one, and a submitted title
+        /// `.submitted` with the title field's name.
         case view(UIView.Event)
         /// The close button was clicked. The host decides what closing means.
         case closeRequested
@@ -450,8 +451,16 @@ public final class WindowFrame {
         }
         let tool = toolAt(point, bounds)
         if tool >= 0, let view {
-            // The edit stays, so the item can act on what was typed.
-            return isItemDisabled(tool) ? [] : [.view(.pressed(control: view.script.toolbarItems[tool].name))]
+            guard !isItemDisabled(tool) else {
+                return []
+            }
+            // The edit stays, so the item can act on what was typed. An item that names a tab
+            // selects it, and still reports the press, so the host can follow it.
+            let item = view.script.toolbarItems[tool]
+            if item.tab != nil {
+                view.setSelected(true, named: item.name)
+            }
+            return [.view(.pressed(control: item.name))]
         }
         if let field = editableField, CheckCollisionPointRec(point, titleBounds(bounds)) {
             if !isEditingTitle {

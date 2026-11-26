@@ -227,3 +227,83 @@ private let paned = """
     view.setHidden(false, named: "population")
     #expect(view.isShown("population"))
 }
+
+// MARK: Switching tabs
+
+@Test func selectingATabsItemSwitchesTabsWithoutAnEvent() throws {
+    let view = UIView(script: try script(tabbed))
+
+    view.setSelected(true, named: "lawsTab")
+    #expect(view.selectedTab == "laws")
+    #expect(view.isSelected(named: "lawsTab"))
+    #expect(!view.isSelected(named: "cityTab"))
+    #expect(view.isShown("curfew"))
+    #expect(!view.isShown("population"))
+    #expect(!view.isShown("badge"))
+    #expect(view.isShown("always"))
+}
+
+@Test func oneTabIsAlwaysSelected() throws {
+    let view = UIView(script: try script(tabbed))
+
+    view.setSelected(false, named: "cityTab")
+    #expect(view.selectedTab == "city")
+    #expect(view.isSelected(named: "cityTab"))
+    #expect(view.isShown("population"))
+}
+
+@Test func anOrdinaryItemDoesntTouchTheTabs() throws {
+    let view = UIView(script: try script(tabbed))
+
+    view.setSelected(true, named: "refresh")
+    #expect(view.isSelected(named: "refresh"))
+    #expect(view.selectedTab == "city")
+    #expect(view.isSelected(named: "cityTab"))
+}
+
+@Test func switchingTabsNeverShowsWhatTheHostHid() throws {
+    let view = UIView(script: try script(tabbed))
+
+    view.setHidden(true, named: "curfew")
+    view.setSelected(true, named: "lawsTab")
+    #expect(!view.isShown("curfew"))
+    #expect(view.isHidden(named: "curfew"))
+    view.setSelected(true, named: "cityTab")
+    view.setHidden(false, named: "curfew")
+    // Shown by the host, but still outside the selected tab.
+    #expect(!view.isShown("curfew"))
+}
+
+@Test func aFieldInATabThatsSwitchedAwayLosesFocus() throws {
+    let view = UIView(script: try script("""
+        <ToolbarItem name='aTab' title='A' tab='a'/>
+        <ToolbarItem name='bTab' title='B' tab='b'/>
+        <Tab name='a'><TextField name='field' \(box)/></Tab>
+        <Tab name='b'/>
+        """))
+    let field = try #require(view.textField(named: "field"))
+
+    field.setFocused(true)
+    view.setSelected(true, named: "bTab")
+    #expect(!field.isFocused)
+}
+
+@Test func pressingATabsItemSelectsItAndStillReportsThePress() throws {
+    let view = UIView(script: try script(tabbed))
+    let frame = WindowFrame(view: view)
+    let bounds = Rectangle(x: 0, y: 0, width: 400, height: 200)
+    func center(ofItem index: Int) -> Vector2 {
+        let item = frame.toolBounds(bounds, index)
+        return Vector2(x: item.x + item.width / 2, y: item.y + item.height / 2)
+    }
+
+    #expect(frame.press(at: center(ofItem: 2), in: bounds) == [.view(.pressed(control: "lawsTab"))])
+    #expect(view.selectedTab == "laws")
+    #expect(frame.press(at: center(ofItem: 1), in: bounds) == [.view(.pressed(control: "refresh"))])
+    #expect(view.selectedTab == "laws")
+
+    // A disabled tab's item neither reports nor switches.
+    view.setDisabled(true, named: "cityTab")
+    #expect(frame.press(at: center(ofItem: 0), in: bounds) == [])
+    #expect(view.selectedTab == "laws")
+}

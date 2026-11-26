@@ -86,8 +86,11 @@ public final class UIView {
     // tabs never shows what the host hid.
     private var hiddenNames: Set<String> = []
     private var switchedOffNames: Set<String> = []
-    private var selectedTab: String?
     private var selectedPane: String?
+
+    /// The name of the selected tab, or `nil` when the document has none. The first tab starts
+    /// selected, and one always is. Select another with `setSelected(_:named:)` on its toolbar item.
+    public private(set) var selectedTab: String?
     private var disabledNames: Set<String> = []
     private var selectedNames: Set<String> = []
 
@@ -334,14 +337,13 @@ public final class UIView {
             script.visuals.filter(\.isInitiallyHidden).map(\.name)
                 + script.controls.filter(\.isInitiallyHidden).map(\.name)
         )
-        selectedTab = script.tabs.first?.name
         selectedPane = script.sidebar?.panes.first?.name
-        if let tab = selectedTab, let item = script.toolbarItems.first(where: { $0.tab == tab }) {
-            selectedNames.insert(item.name)
-        }
         self.missingImages = missingImages.sorted()
         self.missingStrings = missingStrings.sorted()
         updateSwitchedOffNames()
+        if let first = script.tabs.first {
+            selectTab(first.name)
+        }
     }
 
     /// Returns the screen bounds of a control or visual in a view whose corner is
@@ -588,6 +590,21 @@ public final class UIView {
         !hiddenNames.contains(name) && !switchedOffNames.contains(name)
     }
 
+    private func selectTab(_ tab: String) {
+        for item in script.toolbarItems where item.tab != nil {
+            if item.tab == tab {
+                selectedNames.insert(item.name)
+            } else {
+                selectedNames.remove(item.name)
+            }
+        }
+        guard tab != selectedTab else {
+            return
+        }
+        selectedTab = tab
+        updateSwitchedOffNames()
+    }
+
     private func updateSwitchedOffNames() {
         let tabs = script.tabs.filter { $0.name != selectedTab }.flatMap(\.contents)
         let panes = (script.sidebar?.panes ?? []).filter { $0.name != selectedPane }.flatMap(\.contents)
@@ -615,10 +632,20 @@ public final class UIView {
         disabledNames.contains(name)
     }
 
-    /// Selects or deselects a button or toolbar item, for a toggle or a choice among them, such as
-    /// tabs. A selected button shows its pressed image and selected text color, a selected toolbar
-    /// item shows held down, and both still report presses.
+    /// Selects or deselects a button or toolbar item, for a toggle or a choice among them. A selected
+    /// button shows its pressed image and selected text color, a selected toolbar item shows held
+    /// down, and both still report presses.
+    ///
+    /// Selecting a toolbar item that names a tab selects that tab, showing its controls and
+    /// visuals in place of the other tabs', and reports no event. One tab is always selected, so
+    /// deselecting a tab's item does nothing.
     public func setSelected(_ isSelected: Bool, named name: String) {
+        if let tab = script.toolbarItems.first(where: { $0.name == name })?.tab {
+            if isSelected {
+                selectTab(tab)
+            }
+            return
+        }
         if isSelected {
             selectedNames.insert(name)
         } else {
