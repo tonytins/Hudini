@@ -3,11 +3,18 @@
      and text areas' scroll bars art, as The Sims Online's windows shared its "gizmo" scroll bar.
      The demo ships no art: makePlaceholderTexture in main.swift draws plain placeholders for these
      paths. A game points `path` at its own files, or uses `assetID`. Move Lot overrides the thumb
-     by defining its own scrollThumb image. -->
+     by defining its own scrollThumb image.
+
+     It draws their text in Comic Neue, standing in for the Comic Sans The Sims Online used. Comic
+     Neue is under the SIL Open Font License, in fonts/OFL.txt. The monospace font is left to the
+     theme, so the demo's monospace font option still shows. -->
 <Appearance version="1">
   <Image name="scrollUp" path="scroll/up.png" stateCount="4"/>
   <Image name="scrollDown" path="scroll/down.png" stateCount="4"/>
   <Image name="scrollThumb" path="scroll/thumb.png"/>
   <Image name="scrollTrack" path="scroll/track.png"/>
   <ScrollBar width="15" up="scrollUp" down="scrollDown" thumb="scrollThumb" thumbCap="6" track="scrollTrack"/>
+
+  <Font name="comicNeue" path="fonts/ComicNeue-Regular.ttf" size="32"/>
+  <Fonts default="comicNeue"/>
 </Appearance>

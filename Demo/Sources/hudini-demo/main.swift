@@ -23,7 +23,8 @@
 // - The city demo: city, citybudget, and cityconfirm. See CityDemo.swift.
 // --pointer holds the pointer in place, and a screenshot then waits long enough to show a tooltip.
 // --font draws the interface in a font file, such as a .ttf. The demo's own lot art keeps raylib's
-// default font, since the theme only reaches Hudini's controls.
+// default font, since the theme only reaches Hudini's controls. The Sims demo's appearance gives it
+// Comic Neue, which wins over --font there, so --font shows in the menu and the city demo.
 // --monospace-font draws text whose style asks for `font="monospace"`, such as the options panel's
 // notes, in a fixed-width font file.
 // --glossy gives the theme rounded corners and a title bar that fades, and asks for smoother curves.
@@ -511,6 +512,39 @@ guard demo == .sims else {
 }
 SetWindowTitle("Hudini Demo - The Sims Online Style")
 
+// The fonts appearance.xml names, by the file and size it gives, so each loads once however many
+// windows and themes use it. Paths are relative to the demo's resources.
+var appearanceFonts: [UIScript.FontResource: Font] = [:]
+@MainActor
+func loadAppearanceFont(_ resource: UIScript.FontResource) -> Font? {
+    if let font = appearanceFonts[resource] {
+        return font
+    }
+    guard let url = Bundle.module.resourceURL?.appendingPathComponent(resource.path),
+          FileManager.default.fileExists(atPath: url.path) else {
+        log("appearance.xml names the font '\(resource.path)', which the demo doesn't have")
+        return nil
+    }
+    var font = LoadFontEx(url.path, Int32(resource.size), nil, 0)
+    guard IsFontValid(font) else {
+        log("Couldn't load the font at '\(url.path)'")
+        return nil
+    }
+    // Text is drawn smaller than the font is loaded, and without mipmaps thin strokes such as an
+    // "l" drop out when scaled down.
+    GenTextureMipmaps(&font.texture)
+    SetTextureFilter(font.texture, .trilinear)
+    appearanceFonts[resource] = font
+    return font
+}
+
+/// The demo's theme with the Sims appearance's fonts: Comic Neue in place of the default font.
+@MainActor
+func makeSimsTheme(accent: Color) -> InterfaceTheme {
+    makeTheme(accent: accent).withFonts(from: appearance, loadFont: loadAppearanceFont)
+}
+theme = makeSimsTheme(accent: accents[accentIndex])
+
 var placeholderTextures: [Texture2D] = []
 @MainActor
 func makeView(_ script: UIScript) -> UIView {
@@ -522,10 +556,14 @@ func makeView(_ script: UIScript) -> UIView {
             let texture = makePlaceholderTexture(for: resource)
             placeholderTextures.append(texture)
             return texture
-        }
+        },
+        loadFont: loadAppearanceFont
     )
     for name in view.missingStrings {
         log("No text for string '\(name)'")
+    }
+    for name in view.missingFonts {
+        log("No font for '\(name)'")
     }
     return view
 }
@@ -798,7 +836,7 @@ standWindow.toolbarItems = ["Dock"]
 @MainActor
 func showNextAccent() {
     accentIndex = (accentIndex + 1) % accents.count
-    theme = makeTheme(accent: accents[accentIndex])
+    theme = makeSimsTheme(accent: accents[accentIndex])
     for view in [chat, panel, stats, options, moveLot, bar, stand] {
         view.theme = theme
     }
@@ -1111,7 +1149,7 @@ while running && !WindowShouldClose() {
 for texture in placeholderTextures {
     UnloadTexture(texture)
 }
-for font in [font, monospaceFont].compactMap({ $0 }) {
+for font in [font, monospaceFont].compactMap({ $0 }) + appearanceFonts.values {
     UnloadFont(font)
 }
 CloseWindow()
