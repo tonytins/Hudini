@@ -14,7 +14,7 @@ form layout.
 - Editable window titles with optional validation
 - Single-line and multiline text fields
 - Scrollable plain-text lists and text areas, with their own scroll bars
-- Appearances: one document holding the images, styles, and scroll bar art a game's windows share, which any window can override
+- Appearances: one document holding the images, styles, fonts, and scroll bar art a game's windows share, which any window can override
 - Tooltips, value sliders with steps and the keyboard, and progress bars
 - Panels that swap by mode, sit inside each other, or open in their own window
 - Confirmation and notice panels
@@ -161,6 +161,11 @@ A theme given a font that failed to load draws in the default font instead, so c
 it with `IsFontValid` as above. Pass a fixed-width font as `monospaceFont` too, and
 text whose UIScript style says `font="monospace"`, such as a terminal or code, draws
 in it. Without one, that text uses `font`.
+
+A game reading its windows with an [appearance](docs/UISCRIPT.md#fonts) can name its
+fonts there instead, so a designer changes them without touching Swift. The game
+still loads them, through a `loadFont` closure it gives
+`InterfaceTheme.withFonts(from:loadFont:)` and each `UIView`.
 
 A UIScript document can ask for the theme's colors and sizes by role, such as
 `textColor="accent"` or `fontSize="title"`, rather than fixing them. A theme is
@@ -325,3 +330,7 @@ came from.
 
 I license the source code under the BSD-3-Clause license. See [LICENSE](LICENSE)
 for details.
+
+The demo includes [Comic Neue](https://github.com/crozynski/comicneue), by Craig
+Rozynski and Hrant Papazian, under the SIL Open Font License 1.1. Its license is in
+[`Demo/Sources/hudini-demo/Resources/fonts/OFL.txt`](Demo/Sources/hudini-demo/Resources/fonts/OFL.txt).

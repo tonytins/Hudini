@@ -135,6 +135,32 @@ func anAppearanceHoldsOnlyImagesStylesAndAScrollBar(body: String, element: Strin
     #expect(messages[2].contains("'Image', 'Style', 'Font', 'Fonts', and 'ScrollBar'"))
 }
 
+@Test func errorsBothKindsOfDocumentReachDontSayUIScript() {
+    // An appearance meets these too, and the caller names the file, so they don't claim to be about a window.
+    let shared: [UIScriptError] = [
+        .unsupportedEncoding,
+        .doctypeNotAllowed,
+        .malformed(line: 20, column: 1),
+        .unexpectedText(line: 1),
+        .duplicateElement("Fonts", line: 2),
+        .missingAttribute(element: "Font", attribute: "size", line: 3),
+        .invalidAttribute(element: "Font", attribute: "size", value: "0", line: 3),
+        .invalidFontSize(style: "s"),
+        .duplicateName("a"),
+        .invalidImageResource(image: "a"),
+        .invalidStateCount(image: "a"),
+        .unknownReference(owner: "Fonts", property: "default", reference: "missing"),
+    ]
+    for error in shared {
+        let message = error.errorDescription ?? ""
+        #expect(!message.hasPrefix("UIScript ") || message.hasPrefix("UIScript and appearance "), "\(message)")
+    }
+    #expect(UIScriptError.malformed(line: 20, column: 1).errorDescription
+        == "The document is not well-formed XML near line 20, column 1.")
+    #expect(UIScriptError.missingAttribute(element: "Font", attribute: "size", line: 3).errorDescription
+        == "Line 3: 'Font' needs a 'size' attribute.")
+}
+
 @Test func anAppearanceLoadsFromAFile() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("hudini-appearance-\(UUID()).xml")
     try Data("<Appearance version='1'><ScrollBar width='12'/></Appearance>".utf8).write(to: url)

@@ -1191,11 +1191,11 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .unsupportedEncoding:
-            "UIScript documents must be UTF-8."
+            "UIScript and appearance documents must be UTF-8."
         case .doctypeNotAllowed:
-            "UIScript documents must not declare a DOCTYPE."
+            "UIScript and appearance documents must not declare a DOCTYPE."
         case let .malformed(line, column):
-            "UIScript document is not well-formed XML near line \(line), column \(column)."
+            "The document is not well-formed XML near line \(line), column \(column)."
         case let .malformedUIS(line, reason):
             ".uis line \(line): \(reason)"
         case let .invalidRoot(name):
@@ -1217,7 +1217,7 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case let .unexpectedNesting(name, line):
             "UIScript line \(line): element '\(name)' must be a direct child of 'UIScript'."
         case let .unexpectedText(line):
-            "UIScript line \(line): text must be written in an attribute."
+            "Line \(line): text must be written in an attribute."
         case .missingElement("Window"):
             "UIScript document needs a 'Window' or a 'Panel' element."
         case let .missingElement(name):
@@ -1227,11 +1227,11 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case let .notAllowedInPanel(name, line):
             "UIScript line \(line): a panel has no title bar or sidebar, so it can't have '\(name)'."
         case let .duplicateElement(name, line):
-            "UIScript line \(line): only one '\(name)' element is allowed."
+            "Line \(line): only one '\(name)' element is allowed."
         case let .missingAttribute(element, attribute, line):
-            "UIScript line \(line): '\(element)' needs a '\(attribute)' attribute."
+            "Line \(line): '\(element)' needs a '\(attribute)' attribute."
         case let .invalidAttribute(element, attribute, value, line):
-            "UIScript line \(line): '\(element)' cannot use '\(value)' for '\(attribute)'."
+            "Line \(line): '\(element)' cannot use '\(value)' for '\(attribute)'."
         case let .conflictingAttributes(element, first, second, line):
             "UIScript line \(line): '\(element)' cannot have both '\(first)' and '\(second)'."
         case .invalidWindowSize:
@@ -1239,13 +1239,13 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case .invalidMinimumWindowSize:
             "UIScript minimum window size must be positive and no larger than the window size."
         case let .invalidFontSize(style):
-            "UIScript font size for style '\(style)' must be positive."
+            "The font size for style '\(style)' must be positive."
         case let .duplicateName(name):
-            "UIScript name '\(name)' is used more than once."
+            "The name '\(name)' is used more than once."
         case let .invalidImageResource(image):
-            "UIScript image '\(image)' needs a 'path' or an 'assetID'."
+            "Image '\(image)' needs a 'path' or an 'assetID'."
         case let .invalidStateCount(image):
-            "UIScript state count for image '\(image)' must be 1, 4, or 6."
+            "The state count for image '\(image)' must be 1, 4, or 6."
         case let .invalidImage(owner):
             "UIScript image for '\(owner)' requires a button control."
         case let .missingSize(owner):
@@ -1253,7 +1253,7 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
         case let .invalidFrame(owner):
             "UIScript frame for '\(owner)' cannot have a negative size."
         case let .unknownReference(owner, property, reference):
-            "UIScript \(property) for '\(owner)' refers to unknown '\(reference)'."
+            "The \(property) for '\(owner)' refers to unknown '\(reference)'."
         case let .invalidPlaceholder(owner):
             "UIScript placeholder for '\(owner)' requires a text field or text area control."
         case let .invalidMaximumLength(owner):

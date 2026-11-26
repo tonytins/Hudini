@@ -219,3 +219,6 @@ and VentureOS proved the design first.
 - [x] Let windows share an appearance: images, styles, and scroll bar art in one
   document the game loads, which a window overrides by name, as The Sims Online's
   windows shared their scroll bar art.
+- [x] Name fonts in the appearance: the theme's default and monospace fonts, and
+  fonts for shared styles, so games stop naming font files in Swift. The demo draws
+  its Sims windows in Comic Neue.

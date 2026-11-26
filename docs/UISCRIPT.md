@@ -112,7 +112,9 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
 - Draw any window frame or background behind the view.
 - Choose the fonts, default text sizes, and corners through the `InterfaceTheme`
   passed to the view. A document sets sizes through `<Style>`, and asks for the
-  theme's `monospaceFont` with `font="monospace"`, but can't name a font file.
+  theme's `monospaceFont` with `font="monospace"`, but can't name a font file. An
+  [appearance](#fonts) can: it names font files, fills the theme's fonts, and gives
+  shared styles fonts of their own.
 
 ### Scroll bars and sliders
 
@@ -239,12 +241,68 @@ draws it, from the theme. The demo's Sims windows read with
 [`appearance.xml`](../Demo/Sources/hudini-demo/Resources/appearance.xml), and Move
 Lot overrides its thumb.
 
+### Fonts
+
+An appearance names the font files a game draws with, so they live beside its other
+design values instead of in Swift. The
+[design note](design/2026-11-25-fonts.md) explains the choices.
+
+```xml
+<Appearance version="1">
+  <Font name="text" path="fonts/ComicNeue-Regular.ttf" size="32"/>
+  <Font name="tiles" path="fonts/B612Mono-Bold.ttf" size="48"/>
+  <Fonts default="text"/>
+  <Style name="tile" font="tiles" fontSize="title"/>
+</Appearance>
+```
+
+- `<Font>` takes a `name`, a `path` the game's `loadFont` interprets, and a `size`,
+  the whole number of pixels the glyphs are made at when loaded. Text draws at its
+  own size, scaled from that one, so load near the largest size you draw. The names
+  `interface` and `monospace` are taken, since a style's `font` means the theme's
+  fonts by them.
+- `<Fonts>`, at most one, puts fonts in place of the theme's: `default` for
+  `InterfaceTheme.font`, which text uses without a `font` or with
+  `font="interface"`, and `monospace` for `monospaceFont`. Either can be left out
+  to keep the theme's.
+- An appearance's `<Style>` can name one of its fonts in `font`. A window's style
+  can't, so a window uses a named font through a shared style, such as
+  `style="tile"`. A window that defines a style of the same name replaces it whole,
+  font and all.
+- Only appearances hold `<Font>` and `<Fonts>`. An older Hudini refuses an
+  appearance with them, naming the element.
+
+The game loads the fonts, as it loads images:
+
+```swift
+let theme = InterfaceTheme.standard.withFonts(from: appearance, loadFont: fonts.load)
+let chat = try UIScript(contentsOf: chatURL, appearance: appearance)
+let view = UIView(script: chat, theme: theme, loadImage: textures.load, loadFont: fonts.load)
+```
+
+- `loadFont` gets a `UIScript.FontResource`, with the `path` and `size`, after
+  `InitWindow`, and returns a raylib `Font` or `nil`. Cache what it loads, since
+  the theme and every view ask for the same fonts, and unload them before
+  `CloseWindow`. Mipmaps and trilinear filtering keep thin strokes from dropping out
+  when text is drawn smaller than the font was loaded; see the demo's
+  `loadAppearanceFont`.
+- `withFonts(from:loadFont:)` returns the theme with the appearance's `<Fonts>` in
+  place of its own. The appearance wins; a font it leaves out, or that doesn't load,
+  keeps the theme's. Pass the result to everything you draw, `WindowFrame`,
+  `ButtonRow`, and `NoticePanel` included, and call it again on a new theme, such as
+  when switching to dark mode.
+- `UIView` loads the fonts its shared styles name and draws and measures each
+  styled control in its font. A font it couldn't load is listed in `missingFonts`,
+  and that text draws in the theme's font.
+
 ## Errors
 
 `UIScript(data:)` and `UIScript(contentsOf:)` throw `UIScriptError`, whose
 `localizedDescription` explains the problem and includes the line number when it
 relates to one element. Loading either returns a complete, valid document or throws.
-There is no partial result.
+There is no partial result. `Appearance` throws the same errors. Messages either
+kind of document can cause don't name the kind, so say which file failed when you
+show one, as the demo does.
 
 ## Platform requirements
 
@@ -354,6 +412,10 @@ The spec's change log is in
 [VentureOS's spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#change-log),
 including the changes made while Hudini kept it. Changes to Hudini's reader:
 
+- **2026-11-25:** Appearances hold fonts: `<Font>` files, `<Fonts>` in place of
+  the theme's, and shared styles naming a font. `UIView` takes `loadFont` and
+  reports `missingFonts`, and `InterfaceTheme.withFonts(from:loadFont:)` fills the
+  theme. Error messages an appearance can cause too no longer begin "UIScript".
 - **2026-11-25:** `CSTCatalog` and `CSTError` are gone, and Hudini no longer depends
   on SwiftCST. Games read `.cst` text with SwiftCST's `UIText` themselves.
 - **2026-11-25:** Appearances: `Appearance`, read from `<Appearance>` documents,
