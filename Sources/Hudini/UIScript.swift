@@ -167,19 +167,7 @@ public struct UIScript: Sendable {
             || minimumSize.height > window.size.height {
             throw UIScriptError.invalidMinimumWindowSize
         }
-        for (name, style) in styles {
-            if case let .fixed(fontSize)? = style.size, fontSize <= 0 {
-                throw UIScriptError.invalidFontSize(style: name)
-            }
-        }
-        for (name, image) in resources.images {
-            guard image.path != nil || image.assetID != nil else {
-                throw UIScriptError.invalidImageResource(image: name)
-            }
-            guard image.stateCount == 1 || image.stateCount == 4 || image.stateCount == 6 else {
-                throw UIScriptError.invalidStateCount(image: name)
-            }
-        }
+        try Self.validate(images: resources.images, styles: styles)
         try validateUniqueNames(
             visuals.map(\.name) + controls.map(\.name) + toolbarItems.map(\.name) + [titleField?.name].compactMap { $0 }
         )
@@ -270,6 +258,23 @@ public struct UIScript: Sendable {
                 )
             }
             try validate(frame: control.frame, owner: control.name)
+        }
+    }
+
+    /// Checks images and styles as UIScript defines them, for a window or an appearance.
+    static func validate(images: [String: ImageResource], styles: [String: Style]) throws {
+        for (name, style) in styles {
+            if case let .fixed(fontSize)? = style.size, fontSize <= 0 {
+                throw UIScriptError.invalidFontSize(style: name)
+            }
+        }
+        for (name, image) in images {
+            guard image.path != nil || image.assetID != nil else {
+                throw UIScriptError.invalidImageResource(image: name)
+            }
+            guard image.stateCount == 1 || image.stateCount == 4 || image.stateCount == 6 else {
+                throw UIScriptError.invalidStateCount(image: name)
+            }
         }
     }
 
@@ -980,6 +985,16 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// The document's version is newer than this reader supports.
     case unsupportedVersion(Int)
 
+    /// An appearance document's root element is not `Appearance`.
+    case invalidAppearanceRoot(String)
+
+    /// An appearance document declares a version newer than this reader supports.
+    case unsupportedAppearanceVersion(Int)
+
+    /// An element that doesn't belong in an appearance, or that isn't directly under its root. An
+    /// appearance holds `Image`, `Style`, and `ScrollBar`.
+    case unexpectedAppearanceElement(String, line: Int)
+
     /// The document names something in `requires` that this reader doesn't know.
     ///
     /// No `requires` names are defined today besides the retired ones, so an
@@ -1090,6 +1105,12 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript root element must be 'UIScript', not '\(name)'."
         case let .unsupportedVersion(version):
             "UIScript version \(version) is newer than this reader supports (\(UIScript.supportedVersion)). Update Hudini to load this document."
+        case let .invalidAppearanceRoot(name):
+            "Appearance root element must be 'Appearance', not '\(name)'."
+        case let .unsupportedAppearanceVersion(version):
+            "Appearance version \(version) is newer than this reader supports (\(Appearance.supportedVersion)). Update Hudini to load it."
+        case let .unexpectedAppearanceElement(name, line):
+            "Appearance line \(line): '\(name)' doesn't belong there. An appearance holds 'Image', 'Style', and 'ScrollBar', directly under its root."
         case let .unsupportedFeature(feature):
             "UIScript document requires '\(feature)', which this reader doesn't know. Remove it from the document's requires, or use a reader that knows it."
         case let .unknownElement(name, line):

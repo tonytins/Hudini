@@ -4,9 +4,21 @@ import FoundationXML
 #endif
 import Raylib
 
-/// Reads the XML form of a UIScript document into the model, without validating references.
+/// Reads the XML form of a UIScript document, or of an appearance, into the model, without
+/// validating references.
 enum UIScriptParser {
     static func parse(_ data: Data) throws -> UIScript {
+        let (root, elements) = try collect(data, kind: .uiScript)
+        return try buildScript(root: root, elements: elements)
+    }
+
+    static func parseAppearance(_ data: Data) throws -> Appearance {
+        let (root, elements) = try collect(data, kind: .appearance)
+        return try buildAppearance(root: root, elements: elements)
+    }
+
+    // Checks what the XML parser can't, parses, and returns the root and the elements under it.
+    private static func collect(_ data: Data, kind: DocumentKind) throws -> (root: Element, elements: [Element]) {
         // Encodings such as UTF-16 hold zero bytes and could hide a DOCTYPE from the check below.
         guard !data.contains(0), String(data: data, encoding: .utf8) != nil else {
             throw UIScriptError.unsupportedEncoding
@@ -17,7 +29,7 @@ enum UIScriptParser {
             throw UIScriptError.doctypeNotAllowed
         }
 
-        let collector = ElementCollector()
+        let collector = ElementCollector(kind: kind)
         let parser = XMLParser(data: data)
         parser.shouldResolveExternalEntities = false
         parser.delegate = collector
@@ -28,7 +40,76 @@ enum UIScriptParser {
         guard succeeded, let root = collector.root else {
             throw UIScriptError.malformed(line: parser.lineNumber, column: parser.columnNumber)
         }
-        return try buildScript(root: root, elements: collector.elements)
+        return (root, collector.elements)
+    }
+
+    private static func buildAppearance(root: Element, elements: [Element]) throws -> Appearance {
+        let rootReader = AttributeReader(root)
+        let version = try rootReader.integer("version") ?? 1
+        var images: [String: UIScript.ImageResource] = [:]
+        var styles: [String: UIScript.Style] = [:]
+        var scrollBar: Appearance.ScrollBar?
+        var ignoredAttributes = rootReader.unusedAttributes()
+
+        for element in elements {
+            let reader = AttributeReader(element)
+            switch element.name {
+            case "Image":
+                let name = try reader.requiredString("name")
+                guard images[name] == nil else {
+                    throw UIScriptError.duplicateName(name)
+                }
+                images[name] = try makeImage(reader)
+            case "Style":
+                let name = try reader.requiredString("name")
+                guard styles[name] == nil else {
+                    throw UIScriptError.duplicateName(name)
+                }
+                styles[name] = try makeStyle(reader)
+            case "ScrollBar":
+                guard scrollBar == nil else {
+                    throw UIScriptError.duplicateElement("ScrollBar", line: element.line)
+                }
+                scrollBar = try makeScrollBar(reader)
+            default:
+                throw UIScriptError.unexpectedAppearanceElement(element.name, line: element.line)
+            }
+            ignoredAttributes += reader.unusedAttributes()
+        }
+        return Appearance(
+            version: version,
+            images: images,
+            styles: styles,
+            scrollBar: scrollBar,
+            ignoredAttributes: ignoredAttributes
+        )
+    }
+
+    private static func makeScrollBar(_ reader: AttributeReader) throws -> Appearance.ScrollBar {
+        let width = try reader.number("width") ?? Appearance.defaultScrollBarWidth
+        guard width > 0 else {
+            throw reader.invalid("width", reader.string("width") ?? "")
+        }
+        let thumbCap = try reader.number("thumbCap") ?? 0
+        guard thumbCap >= 0 else {
+            throw reader.invalid("thumbCap", reader.string("thumbCap") ?? "")
+        }
+        return Appearance.ScrollBar(
+            width: width,
+            up: reader.string("up"),
+            down: reader.string("down"),
+            thumb: reader.string("thumb"),
+            thumbCap: thumbCap,
+            track: reader.string("track")
+        )
+    }
+
+    private static func makeImage(_ reader: AttributeReader) throws -> UIScript.ImageResource {
+        UIScript.ImageResource(
+            path: reader.string("path"),
+            assetID: reader.string("assetID"),
+            stateCount: try reader.integer("stateCount") ?? 1
+        )
     }
 
     private static func buildScript(root: Element, elements: [Element]) throws -> UIScript {
@@ -77,11 +158,7 @@ enum UIScriptParser {
                 guard images[name] == nil else {
                     throw UIScriptError.duplicateName(name)
                 }
-                images[name] = UIScript.ImageResource(
-                    path: reader.string("path"),
-                    assetID: reader.string("assetID"),
-                    stateCount: try reader.integer("stateCount") ?? 1
-                )
+                images[name] = try makeImage(reader)
             case "String":
                 let name = try reader.requiredString("name")
                 guard strings[name] == nil else {
@@ -295,12 +372,23 @@ private struct Element {
     let line: Int
 }
 
+/// The kinds of document the XML reader reads, which differ in their root and what they report.
+private enum DocumentKind {
+    case uiScript
+    case appearance
+}
+
 /// Gathers the document's elements, which all sit directly under the root.
 private final class ElementCollector: NSObject, XMLParserDelegate {
     private(set) var root: Element?
     private(set) var elements: [Element] = []
     private(set) var failure: UIScriptError?
     private var depth = 0
+    private let kind: DocumentKind
+
+    init(kind: DocumentKind) {
+        self.kind = kind
+    }
 
     private func fail(_ error: UIScriptError, _ parser: XMLParser) {
         failure = error
@@ -317,8 +405,13 @@ private final class ElementCollector: NSObject, XMLParserDelegate {
         let element = Element(name: elementName, attributes: attributes, line: parser.lineNumber)
         switch depth {
         case 0:
-            guard elementName == "UIScript" else {
+            switch kind {
+            case .uiScript where elementName != "UIScript":
                 return fail(.invalidRoot(elementName), parser)
+            case .appearance where elementName != "Appearance":
+                return fail(.invalidAppearanceRoot(elementName), parser)
+            default:
+                break
             }
             root = element
             // A newer document may use elements this reader rejects, so report its
@@ -329,7 +422,12 @@ private final class ElementCollector: NSObject, XMLParserDelegate {
         case 1:
             elements.append(element)
         default:
-            return fail(.unexpectedNesting(elementName, line: parser.lineNumber), parser)
+            switch kind {
+            case .uiScript:
+                return fail(.unexpectedNesting(elementName, line: parser.lineNumber), parser)
+            case .appearance:
+                return fail(.unexpectedAppearanceElement(elementName, line: parser.lineNumber), parser)
+            }
         }
         depth += 1
     }
@@ -354,6 +452,15 @@ private final class ElementCollector: NSObject, XMLParserDelegate {
     }
 
     private func compatibilityProblem(with attributes: [String: String]) -> UIScriptError? {
+        if kind == .appearance {
+            guard let value = attributes["version"] else {
+                return nil
+            }
+            guard let version = Int(value), version >= 1 else {
+                return .invalidAttribute(element: "Appearance", attribute: "version", value: value, line: 1)
+            }
+            return version > Appearance.supportedVersion ? .unsupportedAppearanceVersion(version) : nil
+        }
         if let value = attributes["version"] {
             guard let version = Int(value), version >= 1 else {
                 return .invalidAttribute(element: "UIScript", attribute: "version", value: value, line: 1)
