@@ -73,7 +73,8 @@ We don't know how TSO's game code connected the gizmo art to its lists, so this 
 | `thumbCap` | Pixels at the thumb image's top and bottom that keep their size while its middle stretches, 0 or more. Defaults to 0, which stretches the whole image. |
 | `track` | An image stretched behind the thumb, between the arrows. |
 
-- Each image is drawn at the bar's width.
+- Each image is drawn at the bar's width. A `slider` attribute, added later, names one packed image instead and draws
+  every part at its own size; see [Packed scroll bar art](2026-11-26-packed-scroll-bar.md).
 - A part with no image, or whose image the game couldn't load, draws as the classic bar does from the theme. A bar can
   take art for its arrows and keep the theme's thumb.
 - An image name that's in neither the appearance nor the window refuses the appearance or the window, with the name.

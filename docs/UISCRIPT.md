@@ -295,11 +295,42 @@ let view = UIView(script: chat, loadImage: textures.load) // Cache: windows shar
 | `thumb` | The thumb's image, stretched to the thumb's length. |
 | `thumbCap` | Pixels at the thumb image's top and bottom that keep their height while its middle stretches. Defaults to 0, which stretches it whole. |
 | `track` | An image stretched behind the thumb, between the arrows. |
+| `slider` | One image holding the track and the thumb, as The Sims Online packs them. See [Packed art](#packed-art). Can't be combined with `thumb`, `track`, `thumbCap`, or `width`. |
 
 A part with no image, or whose image couldn't be loaded, is drawn as the classic bar
 draws it, from the theme. The demo's Sims windows read with
-[`appearance.xml`](../Demo/Sources/hudini-demo/Resources/appearance.xml), and Move
-Lot overrides its thumb.
+[`appearance.xml`](../Demo/Sources/hudini-demo/Resources/appearance.xml), which uses
+packed art, and Move Lot overrides its slider.
+
+#### Packed art
+
+The Sims Online draws its scroll bars from wide, flat arrows and one image that holds
+both the track and the thumb. `slider` names such an image, and the
+[design note](design/2026-11-26-packed-scroll-bar.md) explains the choices:
+
+```xml
+<Image name="scrollUp" assetID="0x0000031200000001" stateCount="4"/>
+<Image name="scrollDown" assetID="0x0000031100000001" stateCount="4"/>
+<Image name="scrollBar" assetID="0x0000031000000001"/>
+<ScrollBar up="scrollUp" down="scrollDown" slider="scrollBar"/>
+```
+
+- **The image is packed top to bottom:** the track in its top three-quarters, the
+  thumb in its bottom quarter, rounded down when the height doesn't divide by four.
+- **Every part is drawn at its own size,** centered across a bar as wide as its
+  widest part: the slider image or one state of an arrow. With TSO's 21×8 arrows and
+  13×96 slider, the bar is 21 pixels wide.
+- **The track is cut in thirds:** its top and bottom thirds keep their height, so
+  rounded ends keep their shape, and its middle stretches.
+- **The thumb keeps its size** and only moves, so it doesn't show how much of the
+  content is visible. A track shorter than the thumb shrinks it.
+- **The whole bar takes clicks:** beside a track narrower than the arrows, a press
+  still pages toward the pointer.
+- A slider image that doesn't load draws the classic track and thumb, 15 pixels wide,
+  and an arrow without art draws the classic arrow across the bar, 15 pixels tall.
+
+An older Hudini skips `slider` and lists it in `ignoredAttributes`, drawing the
+theme's track and thumb with squashed arrows.
 
 ### Fonts
 
@@ -475,6 +506,10 @@ The spec's change log is in
 [VentureOS's spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#change-log),
 including the changes made while Hudini kept it. Changes to Hudini's reader:
 
+- **2026-11-26:** An appearance's `<ScrollBar>` takes `slider`, one image packing the
+  track and the thumb as The Sims Online does, and then draws every part at its own
+  size (`Appearance.ScrollBar.slider`). It refuses `thumb`, `track`, `thumbCap`, and
+  `width` beside it.
 - **2026-11-26:** `UIScript` reads `<Grid>` and `<Item>`, as the spec has had them
   since 2026-11-24, into a grid control's `grid`: its cell size, spacing, titles,
   and items. An item outside a grid is refused with `itemOutsideGrid`, and one with

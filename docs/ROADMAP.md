@@ -146,7 +146,11 @@ debug bar is in Maxis' format.
   was live. See [SwiftCST's specification](https://github.com/tonytins/swift-cst/blob/main/doc/CST.md#positions-wrapper) for this and
   its other unsettled rules.
 - **How should sliders draw their images?** Most real sliders name an image, and
-  two name a separate thumb image. The view draws a plain track and thumb for now.
+  two name a separate thumb image. Scroll bars now read TSO's gizmo slider image
+  packed, track above and thumb below
+  ([design note](design/2026-11-26-packed-scroll-bar.md)), and a horizontal slider
+  would read it the same way across. `<Slider>` still draws a plain track and thumb
+  until a game needs a `.uis` slider's art.
 
 ## Leopard — Control panels and object interfaces
 

@@ -146,51 +146,65 @@ func makePlaceholderTexture(for resource: UIScript.ImageResource) -> Texture2D {
     return LoadTextureFromImage(image)
 }
 
-/// Placeholder scroll bar art for appearance.xml, 15 pixels wide. Arrows are four slices (normal,
-/// pressed, hovered, disabled) with a triangle in each. The thumb has 6-pixel caps, which the
-/// appearance keeps from stretching, and grip lines in its middle; Move Lot's own thumb is orange.
+/// Placeholder scroll bar art for appearance.xml, shaped like The Sims Online's gizmo bar. Arrows
+/// are four 21x8 slices (normal, pressed, hovered, disabled) with a flat triangle in each. The
+/// slider is one 13x96 image: a channel with rounded ends in its top 72 rows, which the bar cuts in
+/// thirds so the ends keep their shape, and an 11x18 thumb with grip lines in its bottom 24.
+/// Move Lot's own slider has an orange thumb.
 func makeScrollBarPlaceholder(path: String, stateCount: Int32) -> Texture2D {
-    let size: Int32 = 15
     let ink = Color(r: 255, g: 249, b: 157, a: 255)
+    let edge = Color(r: 119, g: 136, b: 153, a: 255)
+    let clear = Color(r: 0, g: 0, b: 0, a: 0)
     if path.contains("up") || path.contains("down") {
+        let (width, height): (Int32, Int32) = (21, 8)
         let states = [
             Color(r: 55, g: 72, b: 90, a: 255),
             Color(r: 30, g: 42, b: 54, a: 255),
             Color(r: 82, g: 104, b: 128, a: 255),
             Color(r: 46, g: 50, b: 56, a: 255),
         ]
-        var image = GenImageColor(size * max(stateCount, 1), size, states[0])
+        var image = GenImageColor(width * max(stateCount, 1), height, states[0])
         defer { UnloadImage(image) }
         for slice in 0..<Int(max(stateCount, 1)) {
-            let x = Int32(slice) * size
-            ImageDrawRectangle(&image, x, 0, size, size, states[min(slice, states.count - 1)])
-            ImageDrawRectangleLines(&image, Rectangle(x: Float(x), y: 0, width: Float(size), height: Float(size)), 1,
-                                    Color(r: 119, g: 136, b: 153, a: 255))
+            let x = Int32(slice) * width
+            ImageDrawRectangle(&image, x, 0, width, height, states[min(slice, states.count - 1)])
+            ImageDrawRectangleLines(&image, Rectangle(x: Float(x), y: 0, width: Float(width), height: Float(height)), 1, edge)
             let triangleInk = slice == 3 ? Color(r: 110, g: 110, b: 110, a: 255) : ink
+            // Four rows, 1 to 7 pixels wide, wide and flat like TSO's.
             for row in Int32(0)..<4 {
                 let half = path.contains("up") ? row : 3 - row
-                ImageDrawRectangle(&image, x + 7 - half, 5 + row, (half * 2) + 1, 1, triangleInk)
+                ImageDrawRectangle(&image, x + 10 - half, 2 + row, (half * 2) + 1, 1, triangleInk)
             }
         }
         return LoadTextureFromImage(image)
     }
-    if path.contains("thumb") {
-        let fill = path.contains("private") ? Color(r: 214, g: 120, b: 48, a: 255) : Color(r: 64, g: 150, b: 170, a: 255)
-        let cap = Color(r: fill.r / 2, g: fill.g / 2, b: fill.b / 2, a: 255)
-        var image = GenImageColor(size, 32, fill)
-        defer { UnloadImage(image) }
-        ImageDrawRectangle(&image, 0, 0, size, 6, cap)
-        ImageDrawRectangle(&image, 0, 26, size, 6, cap)
-        for y: Int32 in [13, 16, 19] {
-            ImageDrawRectangle(&image, 4, y, size - 8, 1, ink)
-        }
-        return LoadTextureFromImage(image)
-    }
-    // The track: a dark channel with lighter edges.
-    var image = GenImageColor(size, 8, Color(r: 16, g: 24, b: 32, a: 255))
+    // The slider: track above, thumb below, on a transparent ground.
+    let (width, height): (Int32, Int32) = (13, 96)
+    var image = GenImageColor(width, height, clear)
     defer { UnloadImage(image) }
-    ImageDrawRectangle(&image, 0, 0, 1, 8, Color(r: 119, g: 136, b: 153, a: 255))
-    ImageDrawRectangle(&image, size - 1, 0, 1, 8, Color(r: 119, g: 136, b: 153, a: 255))
+    let channel = Color(r: 16, g: 24, b: 32, a: 255)
+    ImageDrawRectangle(&image, 0, 4, width, 64, channel)
+    ImageDrawRectangle(&image, 0, 4, 1, 64, edge)
+    ImageDrawRectangle(&image, width - 1, 4, 1, 64, edge)
+    // Rounded ends, narrowing over four rows at the top and bottom of the 72-row track.
+    for row: Int32 in 0..<4 {
+        let inset = 3 - row
+        ImageDrawRectangle(&image, inset, row, width - (2 * inset), 1, row == 0 ? edge : channel)
+        ImageDrawRectangle(&image, inset, 71 - row, width - (2 * inset), 1, row == 0 ? edge : channel)
+        ImageDrawRectangle(&image, inset, row, 1, 1, edge)
+        ImageDrawRectangle(&image, width - 1 - inset, row, 1, 1, edge)
+        ImageDrawRectangle(&image, inset, 71 - row, 1, 1, edge)
+        ImageDrawRectangle(&image, width - 1 - inset, 71 - row, 1, 1, edge)
+    }
+    let fill = path.contains("private") ? Color(r: 214, g: 120, b: 48, a: 255) : Color(r: 64, g: 150, b: 170, a: 255)
+    let cap = Color(r: fill.r / 2, g: fill.g / 2, b: fill.b / 2, a: 255)
+    // The thumb fills rows 75 to 92, 11 wide and centered, as TSO's art does.
+    ImageDrawRectangle(&image, 1, 75, 11, 18, fill)
+    ImageDrawRectangle(&image, 1, 75, 11, 2, cap)
+    ImageDrawRectangle(&image, 1, 91, 11, 2, cap)
+    for y: Int32 in [80, 83, 86] {
+        ImageDrawRectangle(&image, 3, y, 7, 1, ink)
+    }
     return LoadTextureFromImage(image)
 }
 

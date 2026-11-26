@@ -1,6 +1,6 @@
 # Packed scroll bar art
 
-**Status:** approved 2026-11-26; being built in phases. **Date:** 2026-11-26.
+**Status:** approved and built 2026-11-26. **Date:** 2026-11-26.
 
 The Sims Online draws its scroll bars from one image that holds both the track and the thumb, with arrows narrower
 in height and wider than the bar. An [appearance](2026-11-25-appearance.md)'s `<ScrollBar>` can't take art shaped
@@ -127,8 +127,8 @@ Hudini's `main`.
 
 - **Simburbia** adopts it in step E3: three `<Image>` lines and a `<ScrollBar>` in `Interface/appearance.xml`.
 - **depot-render** is pinned, so it sees `slider` only after it moves past the pin, and then draws it with no change of
-  its own. Depot's C# reader refuses appearance elements it doesn't know, but `slider` is an attribute, which it
-  should skip; that's checked in phase 4.
+  its own. Depot's C# reader (`HudiniAppearance.cs` at Depot `460de5b`) refuses appearance elements it doesn't
+  know, but only counts `<ScrollBar>` elements and reads none of their attributes, so `slider` passes.
 - **VentureOS** doesn't read appearances, so nothing changes there.
 - No public Swift API is removed or renamed. `Appearance.ScrollBar` gains a `slider` property.
 
