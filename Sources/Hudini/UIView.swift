@@ -235,6 +235,15 @@ public final class UIView {
             sizes[control.name] = size(of: control.frame, image: control.image)
         }
 
+        // A list or area a slider or buttons already scroll draws no bar of its own, so it never
+        // shows two.
+        for control in script.controls {
+            if let target = control.scrolls?.list {
+                lists[target]?.hasScrollBar = false
+                textAreas[target]?.hasScrollBar = false
+            }
+        }
+
         if let titleField = script.titleField {
             labels[titleField.name] = ""
         }
@@ -520,11 +529,15 @@ public final class UIView {
     }
 
     /// Handles this frame's input for a view whose corner is at `origin`.
+    ///
+    /// A press on a list's or text area's scroll bar is that control's alone: it presses no
+    /// button, selects nothing, and leaves focus where it was.
     public func update(at origin: Vector2) -> [Event] {
         var events: [Event] = []
         let pointer = GetMousePosition()
         let isPressed = IsMouseButtonPressed(MouseButton.left)
-        if isPressed {
+        let pressedBar = isPressed ? scrollBarControl(at: pointer, origin: origin) : nil
+        if isPressed, pressedBar == nil {
             if let event = pressButton(at: pointer, origin: origin) {
                 events.append(event)
             }
@@ -542,8 +555,12 @@ public final class UIView {
         }
         for control in script.controls where !hiddenNames.contains(control.name) {
             let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
-            // A press was handled above, so it reaches only the topmost control.
-            if !isPressed {
+            // A press was handled above, so it reaches only the topmost control. A press on a
+            // scroll bar goes only to its own control, so no other one takes or drops focus.
+            if let pressedBar, pressedBar != control.name {
+                continue
+            }
+            if !isPressed || pressedBar != nil {
                 lists[control.name]?.update(in: bounds)
             }
             if case let .submitted(text)? = textFields[control.name]?.update(in: bounds) {
@@ -582,6 +599,19 @@ public final class UIView {
         case nil:
             return nil
         }
+    }
+
+    /// The name of the list or text area whose scroll bar is under `point`, when it's the topmost
+    /// control there.
+    func scrollBarControl(at point: Vector2, origin: Vector2) -> String? {
+        guard let control = topmostControl(at: point, origin: origin) else {
+            return nil
+        }
+        let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
+        let isOnBar = lists[control.name]?.scrollBarContains(point, in: bounds)
+            ?? textAreas[control.name]?.scrollBarContains(point, in: bounds)
+            ?? false
+        return isOnBar ? control.name : nil
     }
 
     // The list or text area a slider or button scrolls.

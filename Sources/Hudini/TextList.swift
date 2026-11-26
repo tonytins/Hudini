@@ -5,6 +5,9 @@ import Raylib
 /// By default the list works as a log: it opens on its newest items and stays at the end as
 /// items arrive. A selectable list works as a pick list: it opens on its first items, stays where
 /// it is when items change, and a click selects an item.
+///
+/// Once its lines don't all fit, the list draws a classic scroll bar down its right edge, taking
+/// 15 pixels from its text: arrows scroll a line, the track a page, and the thumb drags.
 public final class TextList {
     private static let padding: Int = 6
     private static let lineGap: Int = 2
@@ -18,7 +21,20 @@ public final class TextList {
     // The index of the item each line came from.
     private var lineItems: [Int] = []
     private var lineWidth: Int?
+    // The visible line count `lines` was wrapped for, since that decides whether the bar shows.
+    private var wrappedVisibleLineCount: Int?
     private var visibleLineCount = 1
+    private var scrollBar = ScrollBar()
+    // Whether the lines overflowed, so they were wrapped short of the scroll bar.
+    private var showsScrollBar = false
+
+    /// Whether the list draws its own scroll bar when its lines overflow. A document's list that a
+    /// slider or scroll buttons already move has none, so it never shows two.
+    var hasScrollBar = true {
+        didSet {
+            lineWidth = nil
+        }
+    }
     private var pendingWheelLines: Float = 0
     // The item the last click landed on, and when, so a second one can make a double-click.
     private var lastClick: (index: Int, time: Double)?
@@ -158,11 +174,13 @@ public final class TextList {
         self.isSelectable = isSelectable
     }
 
-    /// Updates wheel and arrow-button scrolling for this frame, and selection on a selectable list.
+    /// Updates the scroll bar, wheel, and arrow-button scrolling for this frame, and selection on a
+    /// selectable list.
     ///
-    /// Positive values passed to `scroll(byLines:)` move toward older content. Returns an event
-    /// when a click selects a different item, or when a second click on the same item within
-    /// `doubleClickInterval` makes a double-click.
+    /// A press on the scroll bar, and the pointer until it's let go, belong to the bar, so they
+    /// never select an item. Positive values passed to `scroll(byLines:)` move toward older
+    /// content. Returns an event when a click selects a different item, or when a second click on
+    /// the same item within `doubleClickInterval` makes a double-click.
     @discardableResult
     public func update(
         in bounds: Rectangle,
@@ -171,6 +189,16 @@ public final class TextList {
     ) -> Event? {
         prepareLines(for: bounds)
         let mouse = GetMousePosition()
+        let tookPointer = updateScrollBar(
+            in: bounds,
+            pointer: mouse,
+            isPressed: IsMouseButtonPressed(MouseButton.left),
+            isDown: IsMouseButtonDown(MouseButton.left),
+            time: GetTime()
+        )
+        guard !tookPointer else {
+            return nil
+        }
         guard IsMouseButtonPressed(MouseButton.left) else {
             guard CheckCollisionPointRec(mouse, bounds) else {
                 return nil
@@ -194,12 +222,51 @@ public final class TextList {
         return nil
     }
 
+    // MARK: Scroll bar
+
+    private var scrollBarPosition: ScrollBar.Position {
+        ScrollBar.Position(
+            first: firstVisibleLine,
+            last: showsScrollBar ? max(0, lines.count - visibleLineCount) : 0,
+            shown: visibleLineCount
+        )
+    }
+
+    /// The scroll bar's parts at `bounds`, or `nil` when the list has no bar showing.
+    func scrollBarGeometry(in bounds: Rectangle) -> ScrollBar.Geometry? {
+        prepareLines(for: bounds)
+        return ScrollBar.geometry(in: bounds, position: scrollBarPosition)
+    }
+
+    /// Whether `point` is on the scroll bar the list shows at `bounds`.
+    func scrollBarContains(_ point: Vector2, in bounds: Rectangle) -> Bool {
+        scrollBarGeometry(in: bounds).map { CheckCollisionPointRec(point, $0.bar) } ?? false
+    }
+
+    /// Applies one frame of the pointer to the scroll bar, and reports whether the pointer is the
+    /// bar's this frame.
+    func updateScrollBar(in bounds: Rectangle, pointer: Vector2, isPressed: Bool, isDown: Bool, time: Double) -> Bool {
+        prepareLines(for: bounds)
+        let result = scrollBar.update(
+            pointer: pointer,
+            isPressed: isPressed,
+            isDown: isDown,
+            time: time,
+            in: bounds,
+            position: scrollBarPosition
+        )
+        if let first = result.first {
+            scrollOffset = max(0, lines.count - visibleLineCount) - first
+        }
+        return result.tookPointer
+    }
+
     /// Returns the index of the item drawn at `point`, or `nil` when no item is there. An item
     /// that wraps covers all of its lines. This works whether or not the list is selectable.
     public func itemIndex(at point: Vector2, in bounds: Rectangle) -> Int? {
         prepareLines(for: bounds)
         let distance = point.y - bounds.y - Float(Self.padding)
-        guard CheckCollisionPointRec(point, bounds), distance >= 0 else {
+        guard CheckCollisionPointRec(point, bounds), distance >= 0, !scrollBarContains(point, in: bounds) else {
             return nil
         }
         let row = Int(clamping: distance) / lineHeight
@@ -261,7 +328,7 @@ public final class TextList {
         }
     }
 
-    /// Draws the list background, border, and visible text.
+    /// Draws the list background, border, visible text, and its scroll bar when the text overflows.
     public func draw(in bounds: Rectangle) {
         prepareLines(for: bounds)
 
@@ -273,7 +340,7 @@ public final class TextList {
         let textBounds = Rectangle(
             x: bounds.x + 1,
             y: bounds.y + 1,
-            width: max(0, bounds.width - 2),
+            width: max(0, bounds.width - 2 - (showsScrollBar ? ScrollBar.width : 0)),
             height: max(0, bounds.height - 2)
         )
         BeginScissorMode(
@@ -290,6 +357,9 @@ public final class TextList {
             theme.drawText(lines[index], x: Int(clamping: bounds.x) + Self.padding, y: y, size: fontSize, color: textColor)
         }
         EndScissorMode()
+        if let geometry = ScrollBar.geometry(in: bounds, position: scrollBarPosition) {
+            ScrollBar.draw(geometry, theme: theme)
+        }
     }
 
     private var lineHeight: Int {
@@ -303,28 +373,39 @@ public final class TextList {
     func prepareLines(for bounds: Rectangle) {
         let previousFirstLine = firstVisibleLine
         let width = max(1, Int(clamping: bounds.width) - (Self.padding * 2) - 2)
-        if lineWidth != width {
-            lines = []
-            lineItems = []
-            for (index, item) in items.enumerated() {
-                let itemLines = item
-                    .split(separator: "\n", omittingEmptySubsequences: false)
-                    .flatMap { paragraph -> [String] in
-                        let wrapped = theme.wrappedLines(for: String(paragraph), size: fontSize, maximumWidth: width)
-                        return wrapped.isEmpty ? [""] : wrapped
-                    }
-                lines += itemLines
-                lineItems += repeatElement(index, count: itemLines.count)
-            }
-            lineWidth = width
-        }
         visibleLineCount = max(
             1,
             (Int(clamping: bounds.height) - (Self.padding * 2) + Self.lineGap) / lineHeight
         )
+        if lineWidth != width || wrappedVisibleLineCount != visibleLineCount {
+            wrap(to: width)
+            // The bar takes room only once the lines overflow, and wrapping short of it can only
+            // add lines, so it still shows afterward.
+            showsScrollBar = hasScrollBar && lines.count > visibleLineCount
+            if showsScrollBar {
+                wrap(to: max(1, width - Int(ScrollBar.width)))
+            }
+            lineWidth = width
+            wrappedVisibleLineCount = visibleLineCount
+        }
         // scrollOffset counts from the end, so a pick list works out again what keeps its top line.
         let maximumOffset = max(0, lines.count - visibleLineCount)
         scrollOffset = isSelectable ? max(0, maximumOffset - previousFirstLine) : min(scrollOffset, maximumOffset)
+    }
+
+    private func wrap(to width: Int) {
+        lines = []
+        lineItems = []
+        for (index, item) in items.enumerated() {
+            let itemLines = item
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .flatMap { paragraph -> [String] in
+                    let wrapped = theme.wrappedLines(for: String(paragraph), size: fontSize, maximumWidth: width)
+                    return wrapped.isEmpty ? [""] : wrapped
+                }
+            lines += itemLines
+            lineItems += repeatElement(index, count: itemLines.count)
+        }
     }
 }
 

@@ -3,8 +3,9 @@ import Raylib
 
 /// A multi-line text box. It takes typing while it has focus: Enter adds a line break, and
 /// Backspace removes the last character, repeating while held. Text wraps at spaces, and the area
-/// scrolls with the wheel and through `scroll(byLines:)` and `scroll(toFraction:)`, which a
-/// scrollbar or buttons can drive.
+/// scrolls with the wheel, through `scroll(byLines:)` and `scroll(toFraction:)`, and with the
+/// classic scroll bar it draws down its right edge once its text doesn't fit. The bar takes 15
+/// pixels from the text only then, and a press on it leaves focus where it was.
 ///
 /// The caret stays at the end of the text, and typing scrolls it back into view. The built-in
 /// raylib font draws printable ASCII, so other characters are ignored.
@@ -63,7 +64,20 @@ public final class TextArea: FormLayoutControl {
     private var lines: [String] = []
     // The width `lines` was wrapped to, or nil when the text has changed since.
     private var wrappedWidth: Int?
+    // The visible line count `lines` was wrapped for, since that decides whether the bar shows.
+    private var wrappedVisibleLineCount: Int?
     private var visibleLineCount = 1
+    private var scrollBar = ScrollBar()
+    // Whether the text overflowed, so it was wrapped short of the scroll bar.
+    private var showsScrollBar = false
+
+    /// Whether the area draws its own scroll bar when its text overflows. A document's area that a
+    /// slider or scroll buttons already move has none, so it never shows two.
+    var hasScrollBar = true {
+        didSet {
+            wrappedWidth = nil
+        }
+    }
     // The line at the top of the area.
     private var firstLine = 0
     // Whether the next layout moves to the last line, after typing or a followed change.
@@ -201,20 +215,27 @@ public final class TextArea: FormLayoutControl {
         update(in: bounds)
     }
 
-    /// Updates focus from pointer input, scrolls with the wheel while the pointer is over the area,
-    /// takes typing while focused, and reports whether typing changed the text. Clicking outside
-    /// the area gives up focus.
+    /// Updates focus from pointer input, scrolls with the wheel while the pointer is over the area
+    /// and with its scroll bar, takes typing while focused, and reports whether typing changed the
+    /// text. Clicking outside the area gives up focus; a press on its scroll bar changes nothing.
     public func update(in bounds: Rectangle) -> Bool {
         self.bounds = bounds
         prepareLines(for: bounds)
         let mouse = GetMousePosition()
+        let barTookPointer = updateScrollBar(
+            in: bounds,
+            pointer: mouse,
+            isPressed: IsMouseButtonPressed(MouseButton.left),
+            isDown: IsMouseButtonDown(MouseButton.left),
+            time: GetTime()
+        )
         if CheckCollisionPointRec(mouse, bounds) {
             scroll(byWheelMovement: GetMouseWheelMove())
         }
         guard !isReadOnly else {
             return false
         }
-        if IsMouseButtonPressed(MouseButton.left) {
+        if IsMouseButtonPressed(MouseButton.left), !barTookPointer {
             isFocused = CheckCollisionPointRec(mouse, bounds)
         }
         guard isFocused else {
@@ -333,25 +354,71 @@ public final class TextArea: FormLayoutControl {
         }
     }
 
+    // MARK: Scroll bar
+
+    private var scrollBarPosition: ScrollBar.Position {
+        ScrollBar.Position(first: firstLine, last: showsScrollBar ? lastFirstLine : 0, shown: visibleLineCount)
+    }
+
+    /// The scroll bar's parts at `bounds`, or `nil` when the area has no bar showing.
+    func scrollBarGeometry(in bounds: Rectangle) -> ScrollBar.Geometry? {
+        prepareLines(for: bounds)
+        return ScrollBar.geometry(in: bounds, position: scrollBarPosition)
+    }
+
+    /// Whether `point` is on the scroll bar the area shows at `bounds`.
+    func scrollBarContains(_ point: Vector2, in bounds: Rectangle) -> Bool {
+        scrollBarGeometry(in: bounds).map { CheckCollisionPointRec(point, $0.bar) } ?? false
+    }
+
+    /// Applies one frame of the pointer to the scroll bar, and reports whether the pointer is the
+    /// bar's this frame.
+    func updateScrollBar(in bounds: Rectangle, pointer: Vector2, isPressed: Bool, isDown: Bool, time: Double) -> Bool {
+        prepareLines(for: bounds)
+        let result = scrollBar.update(
+            pointer: pointer,
+            isPressed: isPressed,
+            isDown: isDown,
+            time: time,
+            in: bounds,
+            position: scrollBarPosition
+        )
+        if let first = result.first {
+            firstLine = first
+        }
+        return result.tookPointer
+    }
+
     /// Wraps the text to `bounds` and keeps the scroll position within it.
     func prepareLines(for bounds: Rectangle) {
         let width = max(1, Int(clamping: bounds.width) - (TextArea.padding * 2) - TextArea.caretRoom)
-        if wrappedWidth != width {
-            lines = _text
-                .split(separator: "\n", omittingEmptySubsequences: false)
-                .flatMap { paragraph -> [String] in
-                    let wrapped = theme.wrappedLines(for: String(paragraph), size: fontSize, maximumWidth: width)
-                    return wrapped.isEmpty ? [""] : wrapped
-                }
-            wrappedWidth = width
-        }
         visibleLineCount = max(1, (Int(clamping: bounds.height) - (TextArea.padding * 2) + TextArea.lineGap) / lineHeight)
+        if wrappedWidth != width || wrappedVisibleLineCount != visibleLineCount {
+            wrap(to: width)
+            // The bar takes room only once the text overflows, and wrapping short of it can only
+            // add lines, so it still shows afterward.
+            showsScrollBar = hasScrollBar && lines.count > visibleLineCount
+            if showsScrollBar {
+                wrap(to: max(1, width - Int(ScrollBar.width)))
+            }
+            wrappedWidth = width
+            wrappedVisibleLineCount = visibleLineCount
+        }
         if movesToEnd {
             firstLine = lastFirstLine
             movesToEnd = false
         } else {
             firstLine = min(firstLine, lastFirstLine)
         }
+    }
+
+    private func wrap(to width: Int) {
+        lines = _text
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .flatMap { paragraph -> [String] in
+                let wrapped = theme.wrappedLines(for: String(paragraph), size: fontSize, maximumWidth: width)
+                return wrapped.isEmpty ? [""] : wrapped
+            }
     }
 
     /// The first line the area shows, after the last `update(in:)` or `draw(in:)`.
@@ -367,15 +434,20 @@ public final class TextArea: FormLayoutControl {
     }
 
     /// Draws the area in `bounds`, with a caret at the end of the text when it has focus and the
-    /// end is in view. Contents are clipped to the area.
+    /// end is in view, and its scroll bar when the text overflows. Contents are clipped to the area.
     public func draw(in bounds: Rectangle) {
         prepareLines(for: bounds)
         theme.fillRectangle(bounds, backgroundColor)
         theme.outlineRectangle(bounds, isFocused ? theme.accent : borderColor)
+        defer {
+            if let geometry = ScrollBar.geometry(in: bounds, position: scrollBarPosition) {
+                ScrollBar.draw(geometry, theme: theme)
+            }
+        }
         BeginScissorMode(
             Int(clamping: bounds.x) + 1,
             Int(clamping: bounds.y) + 1,
-            max(0, Int(clamping: bounds.width) - 2),
+            max(0, Int(clamping: bounds.width) - 2 - (showsScrollBar ? Int(ScrollBar.width) : 0)),
             max(0, Int(clamping: bounds.height) - 2)
         )
         defer {
