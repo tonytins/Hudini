@@ -19,13 +19,14 @@ public struct UIScript: Sendable {
     ///
     /// Menus, sidebars, shelves, and panes were modules with these names until
     /// 2026-11-20, when they became ordinary elements. Documents written before
-    /// still name them, so they read as before; the elements themselves are
-    /// outside Hudini's subset, and refuse a document as unknown elements.
+    /// still name them, so they read as before. Hudini reads a sidebar of panes;
+    /// menus and shelves are outside its subset, and refuse a document as unknown
+    /// elements.
     public static let retiredFeatures: Set<String> = ["menus", "sidebar", "shelf", "panes"]
 
     /// Elements in the UIScript spec that Hudini's subset leaves out.
     public static let elementsOutsideSubset: Set<String> = [
-        "Menu", "MenuItem", "MenuSeparator", "Sidebar", "Pane", "Shelf",
+        "Menu", "MenuItem", "MenuSeparator", "Shelf",
     ]
 
     /// The document's format version.
@@ -61,6 +62,14 @@ public struct UIScript: Sendable {
     /// The editable title the document gives its window's title bar, if any. A view alone doesn't
     /// draw it: a `WindowFrame` made with the view does.
     public let titleField: TitleField?
+
+    /// The sets of controls and visuals the document's toolbar items switch, in document order.
+    /// The first starts selected. A control or visual in no tab shows on every tab.
+    public let tabs: [Tab]
+
+    /// The sidebar the document gives its window, or `nil` when it has none. A view alone doesn't
+    /// draw it.
+    public let sidebar: Sidebar?
 
     /// Every `SetControlProperties` entry in a `.uis` file, keyed by lowercased name.
     ///
@@ -133,6 +142,8 @@ public struct UIScript: Sendable {
         controls: [Control],
         toolbarItems: [ToolbarItem] = [],
         titleField: TitleField? = nil,
+        tabs: [Tab] = [],
+        sidebar: Sidebar? = nil,
         settings: [String: Setting] = [:],
         scrollBar: Appearance.ScrollBar? = nil,
         ignoredAttributes: [IgnoredAttribute],
@@ -148,6 +159,8 @@ public struct UIScript: Sendable {
         self.controls = controls
         self.toolbarItems = toolbarItems
         self.titleField = titleField
+        self.tabs = tabs
+        self.sidebar = sidebar
         self.settings = settings
         self.scrollBar = scrollBar
         self.ignoredAttributes = ignoredAttributes
@@ -189,6 +202,8 @@ public struct UIScript: Sendable {
             controls: controls,
             toolbarItems: toolbarItems,
             titleField: titleField,
+            tabs: tabs,
+            sidebar: sidebar,
             settings: settings,
             scrollBar: scrollBar,
             ignoredAttributes: ignoredAttributes,
@@ -228,8 +243,11 @@ public struct UIScript: Sendable {
         }
         try Self.validate(images: resources.images, styles: styles)
         try validateUniqueNames(
-            visuals.map(\.name) + controls.map(\.name) + toolbarItems.map(\.name) + [titleField?.name].compactMap { $0 }
+            visuals.map(\.name) + controls.map(\.name) + toolbarItems.map(\.name)
+                + [titleField?.name, sidebar?.name].compactMap { $0 }
+                + tabs.map(\.name) + (sidebar?.panes.map(\.name) ?? [])
         )
+        try validateTabs()
 
         for visual in visuals {
             try validateReference(
@@ -333,6 +351,23 @@ public struct UIScript: Sendable {
             }
             guard image.stateCount == 1 || image.stateCount == 4 || image.stateCount == 6 else {
                 throw UIScriptError.invalidStateCount(image: name)
+            }
+        }
+    }
+
+    /// Checks that exactly one toolbar item names each tab, and that each item's tab exists.
+    private func validateTabs() throws {
+        let tabNames = Set(tabs.map(\.name))
+        for item in toolbarItems {
+            if let tab = item.tab, !tabNames.contains(tab) {
+                throw UIScriptError.unknownReference(owner: item.name, property: "tab", reference: tab)
+            }
+        }
+        for tab in tabs {
+            switch toolbarItems.filter({ $0.tab == tab.name }).count {
+            case 0: throw UIScriptError.tabWithoutItem(tab.name)
+            case 1: break
+            default: throw UIScriptError.tabWithSeveralItems(tab.name)
             }
         }
     }
@@ -992,6 +1027,61 @@ public struct UIScript: Sendable {
 
         /// The text on the button.
         public let title: String
+
+        /// The name of the tab the item shows, or `nil` for an ordinary item.
+        public let tab: String?
+    }
+
+    /// A set of controls and visuals that a toolbar item shows in place of the other tabs'.
+    ///
+    /// A tab has no title: the toolbar item that names it gives its text.
+    public struct Tab: Sendable, Equatable {
+        /// The stable document-local name, which a toolbar item's `tab` refers to.
+        public let name: String
+
+        /// The names of the controls and visuals the tab holds, in document order.
+        public let contents: [String]
+    }
+
+    /// A list down the side of a window, beside its content.
+    public struct Sidebar: Sendable, Equatable {
+        /// The stable document-local name.
+        public let name: String
+
+        /// How wide the sidebar is, in pixels. It sits beside the content, so the window's size
+        /// and every position in the document are the content's.
+        public let width: Float
+
+        /// What the sidebar's rows are.
+        public let content: Content
+
+        /// What a sidebar's rows are.
+        ///
+        /// The UIScript spec has other kinds of sidebar: rows the host fills, and a sidebar that
+        /// holds controls of its own. Hudini reads a sidebar of panes, and refuses the others.
+        public enum Content: Sendable, Equatable {
+            /// Each row is a pane, in document order. The first starts selected.
+            case panes([Pane])
+        }
+
+        /// The sidebar's panes, in document order.
+        public var panes: [Pane] {
+            switch content {
+            case let .panes(panes): panes
+            }
+        }
+    }
+
+    /// A set of controls and visuals that a sidebar row shows in place of the other panes'.
+    public struct Pane: Sendable, Equatable {
+        /// The stable document-local name, which a control's `pane` refers to.
+        public let name: String
+
+        /// The text of the pane's sidebar row.
+        public let title: String
+
+        /// The names of the controls and visuals the pane holds, in document order.
+        public let contents: [String]
     }
 
     /// An editable window title, as an address bar is.
@@ -1101,8 +1191,34 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// An element is not part of the format.
     case unknownElement(String, line: Int)
 
-    /// An element appears inside one that does not hold elements.
+    /// An element appears inside one that holds nothing, or inside an element that is itself
+    /// inside another.
     case unexpectedNesting(String, line: Int)
+
+    /// A tab or pane holds something other than controls and visuals.
+    case invalidChild(String, parent: String, line: Int)
+
+    /// A sidebar holds controls, or has no panes, so its rows would be the host's. Hudini reads
+    /// only a sidebar of panes.
+    case unsupportedSidebar(line: Int)
+
+    /// A document has panes but no sidebar to switch them.
+    case panesWithoutSidebar(line: Int)
+
+    /// A pane holds controls and is also named by a control's `pane`. A pane uses one form.
+    case paneUsesBothForms(pane: String)
+
+    /// A control inside a tab or pane names a pane, which would put it in two of them.
+    case containedControlNamesPane(owner: String, line: Int)
+
+    /// A control has `tab`. Tabs only nest: their controls go inside the `Tab`.
+    case tabAttributeOnControl(owner: String, line: Int)
+
+    /// No toolbar item names a tab, so it could never be shown.
+    case tabWithoutItem(String)
+
+    /// More than one toolbar item names a tab.
+    case tabWithSeveralItems(String)
 
     /// Text appears outside of an attribute.
     case unexpectedText(line: Int)
@@ -1137,7 +1253,8 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A style has a nonpositive font size.
     case invalidFontSize(style: String)
 
-    /// Two controls, visuals, or title bar elements share a name, or two resources of a kind do.
+    /// Two controls, visuals, title bar elements, tabs, or panes share a name, or two resources of
+    /// a kind do.
     case duplicateName(String)
 
     /// An image resource has neither a path nor an asset ID.
@@ -1215,7 +1332,23 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
                 ? "UIScript line \(line): element '\(name)' is part of UIScript, but outside the subset Hudini reads."
                 : "UIScript line \(line): element '\(name)' is not supported."
         case let .unexpectedNesting(name, line):
-            "UIScript line \(line): element '\(name)' must be a direct child of 'UIScript'."
+            "UIScript line \(line): element '\(name)' can't be nested there. Only a 'Tab' or a 'Pane' holds elements, and what it holds holds nothing."
+        case let .invalidChild(name, parent, line):
+            "UIScript line \(line): a '\(parent)' holds controls and visuals, not '\(name)'."
+        case let .unsupportedSidebar(line):
+            "UIScript line \(line): Hudini reads a sidebar of panes. A sidebar that holds controls, or whose rows the host fills, is outside the subset it reads."
+        case let .panesWithoutSidebar(line):
+            "UIScript line \(line): panes need a 'Sidebar' to switch them."
+        case let .paneUsesBothForms(pane):
+            "Pane '\(pane)' holds controls and is also named by a control's 'pane'. A pane uses one form or the other."
+        case let .containedControlNamesPane(owner, line):
+            "UIScript line \(line): '\(owner)' is inside a tab or pane, so it can't also name a 'pane'."
+        case let .tabAttributeOnControl(owner, line):
+            "UIScript line \(line): '\(owner)' has 'tab'. A tab holds its controls, so put it inside the 'Tab'."
+        case let .tabWithoutItem(tab):
+            "Tab '\(tab)' needs a toolbar item that names it with 'tab', or it can never be shown."
+        case let .tabWithSeveralItems(tab):
+            "Tab '\(tab)' is named by more than one toolbar item. Each tab has exactly one."
         case let .unexpectedText(line):
             "Line \(line): text must be written in an attribute."
         case .missingElement("Window"):

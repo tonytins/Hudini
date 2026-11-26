@@ -199,7 +199,7 @@ func uiScriptRejectsInvalidVersions(version: String) {
     #expect(loaded.requiredFeatures == ["menus", "sidebar", "shelf", "panes"])
 }
 
-@Test(arguments: ["Menu", "MenuItem", "MenuSeparator", "Sidebar", "Pane", "Shelf"])
+@Test(arguments: ["Menu", "MenuItem", "MenuSeparator", "Shelf"])
 func uiScriptRefusesElementsOutsideItsSubset(element: String) {
     #expect(throws: UIScriptError.unknownElement(element, line: 1)) {
         try script("<\(element)/>", root: "requires='menus sidebar shelf panes'")
@@ -2243,7 +2243,7 @@ private func documentFrame(_ body: String = titleBarDocument) throws -> (WindowF
     let loaded = try script(titleBarDocument)
 
     #expect(loaded.ignoredAttributes.isEmpty)
-    #expect(loaded.toolbarItems == [.init(name: "back", title: "Back"), .init(name: "go", title: "Go")])
+    #expect(loaded.toolbarItems == [.init(name: "back", title: "Back", tab: nil), .init(name: "go", title: "Go", tab: nil)])
     #expect(loaded.titleField == .init(name: "address", placeholder: "Path"))
     #expect(try script("").titleField == nil)
 }

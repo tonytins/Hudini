@@ -152,8 +152,9 @@ enum UIScriptParser {
         // The element that gave the window or panel, so a second of either reports both names.
         var windowElement: Element?
         var panelEdge: UIScript.PanelEdge?
-        // The first title bar element, which a panel refuses wherever it appears.
-        var firstTitleBarElement: Element?
+        // The first title bar, tab, sidebar, or pane element, which a panel refuses wherever it
+        // appears.
+        var firstWindowOnlyElement: Element?
         var images: [String: UIScript.ImageResource] = [:]
         var strings: [String: UIScript.StringResource] = [:]
         var styles: [String: UIScript.Style] = [:]
@@ -161,7 +162,50 @@ enum UIScriptParser {
         var controls: [UIScript.Control] = []
         var toolbarItems: [UIScript.ToolbarItem] = []
         var titleField: UIScript.TitleField?
+        var tabs: [UIScript.Tab] = []
+        var sidebarElement: Element?
+        var sidebarName = ""
+        var sidebarWidth: Float = 0
+        // Panes in document order, with the element each came from and whether it holds anything.
+        var panes: [(pane: UIScript.Pane, element: Element)] = []
+        // The controls that name a pane with `pane`, in document order.
+        var flatPaneControls: [(control: String, pane: String)] = []
         var ignoredAttributes = rootReader.unusedAttributes()
+
+        // Reads a visual or control, directly under the root or inside `container`, a tab or pane,
+        // and returns its name.
+        func readContent(_ element: Element, in container: Element?) throws -> String {
+            let reader = AttributeReader(element)
+            defer { ignoredAttributes += reader.unusedAttributes() }
+            if element.name == "Visual" {
+                let visual = UIScript.Visual(
+                    name: try reader.requiredString("name"),
+                    image: try reader.requiredString("image"),
+                    frame: try makeFrame(reader),
+                    isInitiallyHidden: false
+                )
+                visuals.append(visual)
+                return visual.name
+            }
+            guard let type = controlTypes[element.name] else {
+                guard let container else {
+                    throw UIScriptError.unknownElement(element.name, line: element.line)
+                }
+                throw UIScriptError.invalidChild(element.name, parent: container.name, line: element.line)
+            }
+            let control = try makeControl(type: type, reader)
+            if reader.string("tab") != nil {
+                throw UIScriptError.tabAttributeOnControl(owner: control.name, line: element.line)
+            }
+            if let pane = reader.string("pane") {
+                guard container == nil else {
+                    throw UIScriptError.containedControlNamesPane(owner: control.name, line: element.line)
+                }
+                flatPaneControls.append((control.name, pane))
+            }
+            controls.append(control)
+            return control.name
+        }
 
         for element in elements {
             let reader = AttributeReader(element)
@@ -203,33 +247,65 @@ enum UIScriptParser {
                     throw UIScriptError.duplicateName(name)
                 }
                 styles[name] = try makeStyle(reader)
-            case "Visual":
-                visuals.append(UIScript.Visual(
-                    name: try reader.requiredString("name"),
-                    image: try reader.requiredString("image"),
-                    frame: try makeFrame(reader),
-                    isInitiallyHidden: false
-                ))
             case "ToolbarItem":
-                firstTitleBarElement = firstTitleBarElement ?? element
+                firstWindowOnlyElement = firstWindowOnlyElement ?? element
                 toolbarItems.append(UIScript.ToolbarItem(
                     name: try reader.requiredString("name"),
-                    title: try reader.requiredString("title")
+                    title: try reader.requiredString("title"),
+                    tab: reader.string("tab")
                 ))
+            case "Tab":
+                firstWindowOnlyElement = firstWindowOnlyElement ?? element
+                let name = try reader.requiredString("name")
+                tabs.append(UIScript.Tab(
+                    name: name,
+                    contents: try element.children.map { try readContent($0, in: element) }
+                ))
+            case "Pane":
+                firstWindowOnlyElement = firstWindowOnlyElement ?? element
+                let name = try reader.requiredString("name")
+                let title = try reader.requiredString("title")
+                let pane = UIScript.Pane(
+                    name: name,
+                    title: title,
+                    contents: try element.children.map { try readContent($0, in: element) }
+                )
+                panes.append((pane, element))
+            case "Sidebar":
+                if sidebarElement != nil {
+                    throw UIScriptError.duplicateElement("Sidebar", line: element.line)
+                }
+                firstWindowOnlyElement = firstWindowOnlyElement ?? element
+                sidebarElement = element
+                sidebarName = try reader.requiredString("name")
+                sidebarWidth = try reader.requiredNumber("width")
+                guard sidebarWidth > 0 else {
+                    throw reader.invalid("width", reader.string("width") ?? "")
+                }
+                // A sidebar that holds controls places them itself, which Hudini doesn't read.
+                // `edge` is left unread: the spec lets a reader draw the sidebar on the left.
+                if !element.children.isEmpty {
+                    throw UIScriptError.unsupportedSidebar(line: element.line)
+                }
             case "TitleField":
                 guard titleField == nil else {
                     throw UIScriptError.duplicateElement("TitleField", line: element.line)
                 }
-                firstTitleBarElement = firstTitleBarElement ?? element
+                firstWindowOnlyElement = firstWindowOnlyElement ?? element
                 titleField = UIScript.TitleField(
                     name: try reader.requiredString("name"),
                     placeholder: reader.string("placeholder")
                 )
             default:
-                guard let type = controlTypes[element.name] else {
-                    throw UIScriptError.unknownElement(element.name, line: element.line)
+                // Read with its own reader, which lists its ignored attributes.
+                _ = try readContent(element, in: nil)
+                if let child = element.children.first {
+                    throw UIScriptError.unexpectedNesting(child.name, line: child.line)
                 }
-                controls.append(try makeControl(type: type, reader))
+                continue
+            }
+            if !Self.holders.contains(element.name), let child = element.children.first {
+                throw UIScriptError.unexpectedNesting(child.name, line: child.line)
             }
             ignoredAttributes += reader.unusedAttributes()
         }
@@ -237,9 +313,13 @@ enum UIScriptParser {
         guard let window else {
             throw UIScriptError.missingElement("Window")
         }
-        if panelEdge != nil, let firstTitleBarElement {
-            throw UIScriptError.notAllowedInPanel(firstTitleBarElement.name, line: firstTitleBarElement.line)
+        if panelEdge != nil, let firstWindowOnlyElement {
+            throw UIScriptError.notAllowedInPanel(firstWindowOnlyElement.name, line: firstWindowOnlyElement.line)
         }
+        let sidebar = try makeSidebar(
+            element: sidebarElement, name: sidebarName, width: sidebarWidth,
+            panes: panes, flatPaneControls: flatPaneControls
+        )
         return UIScript(
             version: version,
             requiredFeatures: requiredFeatures,
@@ -251,7 +331,54 @@ enum UIScriptParser {
             controls: controls,
             toolbarItems: toolbarItems,
             titleField: titleField,
+            tabs: tabs,
+            sidebar: sidebar,
             ignoredAttributes: ignoredAttributes
+        )
+    }
+
+    /// The elements that may hold others in a document Hudini reads.
+    private static let holders: Set<String> = ["Tab", "Pane", "Sidebar"]
+
+    /// Puts the panes in their sidebar, adding the controls that name a pane with `pane`, or
+    /// returns `nil` when the document has neither.
+    private static func makeSidebar(
+        element: Element?,
+        name: String,
+        width: Float,
+        panes: [(pane: UIScript.Pane, element: Element)],
+        flatPaneControls: [(control: String, pane: String)]
+    ) throws -> UIScript.Sidebar? {
+        guard let element else {
+            if let first = panes.first {
+                throw UIScriptError.panesWithoutSidebar(line: first.element.line)
+            }
+            if let control = flatPaneControls.first {
+                throw UIScriptError.unknownReference(owner: control.control, property: "pane", reference: control.pane)
+            }
+            return nil
+        }
+        // A sidebar without panes is a list the host fills, which Hudini doesn't read.
+        guard !panes.isEmpty else {
+            throw UIScriptError.unsupportedSidebar(line: element.line)
+        }
+        let paneNames = Set(panes.map(\.pane.name))
+        for (control, pane) in flatPaneControls where !paneNames.contains(pane) {
+            throw UIScriptError.unknownReference(owner: control, property: "pane", reference: pane)
+        }
+        let filled = panes.map { entry in
+            let named = flatPaneControls.filter { $0.pane == entry.pane.name }.map(\.control)
+            return (entry.pane, named)
+        }
+        if let (pane, _) = filled.first(where: { !$0.0.contents.isEmpty && !$0.1.isEmpty }) {
+            throw UIScriptError.paneUsesBothForms(pane: pane.name)
+        }
+        return UIScript.Sidebar(
+            name: name,
+            width: width,
+            content: .panes(filled.map { pane, named in
+                UIScript.Pane(name: pane.name, title: pane.title, contents: pane.contents + named)
+            })
         )
     }
 
@@ -409,6 +536,9 @@ private struct Element {
     let name: String
     let attributes: [String: String]
     let line: Int
+    /// The elements directly inside this one. Which elements may hold others, and what, is the
+    /// document builder's to check.
+    var children: [Element] = []
 }
 
 /// The kinds of document the XML reader reads, which differ in their root and what they report.
@@ -417,7 +547,8 @@ private enum DocumentKind {
     case appearance
 }
 
-/// Gathers the document's elements, which all sit directly under the root.
+/// Gathers the document's elements, which sit directly under the root, with one level of
+/// elements inside them.
 private final class ElementCollector: NSObject, XMLParserDelegate {
     private(set) var root: Element?
     private(set) var elements: [Element] = []
@@ -460,6 +591,8 @@ private final class ElementCollector: NSObject, XMLParserDelegate {
             }
         case 1:
             elements.append(element)
+        case 2 where kind == .uiScript:
+            elements[elements.count - 1].children.append(element)
         default:
             switch kind {
             case .uiScript:

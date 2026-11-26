@@ -34,10 +34,13 @@ Maxis' `.uis` files into the same model; see [Reading `.uis` files](#reading-uis
 | `orientation` | Skipped and listed, as the spec says: a slider runs along its longer side |
 | `<Shelf>`, `<Grid>`, `<StatusItem>` | No: refused as unknown elements |
 | Title bar: `<ToolbarItem>` and `<TitleField>` | Yes |
+| `<Tab>`, and `tab` on toolbar items | Yes |
 | A window's `subtitle`, and toolbar items' `image` and `placement` | Skipped and listed, as unknown attributes: no subtitle, and every item is a text item at the right end |
 | Menus: `<Menu>`, `<MenuItem>`, `<MenuSeparator>` | No: refused as unknown elements |
-| `<Sidebar>` | No: refused as an unknown element |
-| `<Pane>`, and `pane` on controls | No: `<Pane>` is refused as an unknown element |
+| `<Sidebar>` of panes | Yes |
+| `<Sidebar>` with rows the host fills, or holding controls | No: refused (`UIScriptError.unsupportedSidebar`) |
+| `edge` on `<Sidebar>` | Skipped and listed, as the spec says: the sidebar is on the left |
+| `<Pane>`, nested or named by `pane` on controls | Yes |
 | `requires` | Accepts `menus`, `sidebar`, `shelf`, and `panes`, the names of the old modules, which mean nothing (`UIScript.retiredFeatures`). Any other name refuses the document. |
 
 An element outside the subset throws `UIScriptError.unknownElement`, whose message
@@ -58,8 +61,9 @@ for ignored in script.ignoredAttributes {
 
 See [`chatdialog.uix`](../Demo/Sources/hudini-demo/Resources/chatdialog.uix) and
 [`livepanel1024.uix`](../Demo/Sources/hudini-demo/Resources/livepanel1024.uix) for
-complete examples. VentureOS's tests read the demo's documents, so every document
-Hudini reads reads the same there.
+complete examples. VentureOS's tests read copies of the demo's documents, so every
+document Hudini reads reads the same there, except one with tabs: VentureOS refuses
+`<Tab>` until it shows tabs. Leave a tabbed document out of those copies until then.
 
 ## Using a document
 
@@ -399,6 +403,9 @@ the game's own package.
 
 ## Not yet supported
 
+A view shows the first tab and the first pane and hides the rest, but nothing
+switches them yet, and a `WindowFrame` doesn't draw a sidebar yet.
+
 Within its subset, a text area's caret stays at the end of its text. Clicking to
 place it, moving it with the arrow keys, selection, and the clipboard aren't
 supported yet. Typing in a text area reports no event.
@@ -412,6 +419,11 @@ The spec's change log is in
 [VentureOS's spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#change-log),
 including the changes made while Hudini kept it. Changes to Hudini's reader:
 
+- **2026-11-25:** Tabs and a sidebar of panes. `UIScript` reads `<Tab>`, `tab` on
+  `<ToolbarItem>`, `<Sidebar>`, and `<Pane>` in both its forms, into `tabs` and
+  `sidebar`, and a view shows the first tab and pane. Other sidebars are refused
+  with `unsupportedSidebar`. A nested `<Menu>` is now refused as outside the subset,
+  rather than as nesting.
 - **2026-11-25:** Appearances hold fonts: `<Font>` files, `<Fonts>` in place of
   the theme's, and shared styles naming a font. `UIView` takes `loadFont` and
   reports `missingFonts`, and `InterfaceTheme.withFonts(from:loadFont:)` fills the

@@ -82,7 +82,12 @@ public final class UIView {
     private var hoveredControl: String?
     private var hoveredSeconds: Float = 0
     private(set) var pendingTooltip: String?
+    // What the host hid, and separately what the selected tab and pane leave out, so switching
+    // tabs never shows what the host hid.
     private var hiddenNames: Set<String> = []
+    private var switchedOffNames: Set<String> = []
+    private var selectedTab: String?
+    private var selectedPane: String?
     private var disabledNames: Set<String> = []
     private var selectedNames: Set<String> = []
 
@@ -329,8 +334,14 @@ public final class UIView {
             script.visuals.filter(\.isInitiallyHidden).map(\.name)
                 + script.controls.filter(\.isInitiallyHidden).map(\.name)
         )
+        selectedTab = script.tabs.first?.name
+        selectedPane = script.sidebar?.panes.first?.name
+        if let tab = selectedTab, let item = script.toolbarItems.first(where: { $0.tab == tab }) {
+            selectedNames.insert(item.name)
+        }
         self.missingImages = missingImages.sorted()
         self.missingStrings = missingStrings.sorted()
+        updateSwitchedOffNames()
     }
 
     /// Returns the screen bounds of a control or visual in a view whose corner is
@@ -547,7 +558,7 @@ public final class UIView {
     public func containsPoint(_ point: Vector2, origin: Vector2) -> Bool {
         let names = script.controls.map(\.name) + script.visuals.map(\.name)
         return names.contains { name in
-            guard !hiddenNames.contains(name), let bounds = bounds(named: name, at: origin) else {
+            guard isShown(name), let bounds = bounds(named: name, at: origin) else {
                 return false
             }
             return CheckCollisionPointRec(point, bounds)
@@ -565,9 +576,26 @@ public final class UIView {
         }
     }
 
-    /// Returns whether a control or visual is hidden.
+    /// Returns whether the host hid a control or visual. One outside the selected tab or pane
+    /// isn't shown either, but isn't hidden by the host.
     public func isHidden(named name: String) -> Bool {
         hiddenNames.contains(name)
+    }
+
+    /// Whether a control or visual draws and takes input: the host hasn't hidden it, and it's in
+    /// the selected tab and pane, or in none.
+    func isShown(_ name: String) -> Bool {
+        !hiddenNames.contains(name) && !switchedOffNames.contains(name)
+    }
+
+    private func updateSwitchedOffNames() {
+        let tabs = script.tabs.filter { $0.name != selectedTab }.flatMap(\.contents)
+        let panes = (script.sidebar?.panes ?? []).filter { $0.name != selectedPane }.flatMap(\.contents)
+        switchedOffNames = Set(tabs + panes)
+        for name in switchedOffNames {
+            textFields[name]?.setFocused(false)
+            textAreas[name]?.setFocused(false)
+        }
     }
 
     /// Enables or disables a button, slider, toolbar item, or title field. A disabled button shows
@@ -631,7 +659,7 @@ public final class UIView {
             events.append(event)
         }
         events += sliderKeyEvents()
-        for control in script.controls where !hiddenNames.contains(control.name) {
+        for control in script.controls where isShown(control.name) {
             let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
             // A press was handled above, so it reaches only the topmost control. A press on a
             // scroll bar goes only to its own control, so no other one takes or drops focus.
@@ -656,7 +684,7 @@ public final class UIView {
 
     private func topmostControl(at point: Vector2, origin: Vector2) -> UIScript.Control? {
         script.controls.last { control in
-            !hiddenNames.contains(control.name)
+            isShown(control.name)
                 && CheckCollisionPointRec(point, screenRectangle(for: control.frame, named: control.name, at: origin))
         }
     }
@@ -726,7 +754,7 @@ public final class UIView {
     /// away from the thumb moves the thumb's center to the pointer.
     func beginSliderDrag(at point: Vector2, origin: Vector2) -> Bool {
         for control in script.controls.reversed()
-        where control.type == .slider && !hiddenNames.contains(control.name) {
+        where control.type == .slider && isShown(control.name) {
             let track = screenRectangle(for: control.frame, named: control.name, at: origin)
             guard CheckCollisionPointRec(point, track) else {
                 continue
@@ -749,7 +777,7 @@ public final class UIView {
     /// Moves the dragged slider toward `point`, reporting a change to a slider's value.
     func dragSlider(to point: Vector2, origin: Vector2) -> Event? {
         guard let dragged = draggedSlider, let control = script.control(named: dragged.name),
-              !hiddenNames.contains(dragged.name), !disabledNames.contains(dragged.name) else {
+              isShown(dragged.name), !disabledNames.contains(dragged.name) else {
             draggedSlider = nil
             return nil
         }
@@ -801,7 +829,7 @@ public final class UIView {
     /// Moves the focused slider by a key, reporting `.changed` then `.committed` when its value
     /// moves, and nothing when it can't, such as at an end, or while it's hidden or disabled.
     func pressSliderKey(_ key: SliderKey) -> [Event] {
-        guard let name = focusedSlider, !hiddenNames.contains(name), !disabledNames.contains(name),
+        guard let name = focusedSlider, isShown(name), !disabledNames.contains(name),
               let control = script.control(named: name), let current = values[name] else {
             return []
         }
@@ -883,7 +911,7 @@ public final class UIView {
     /// it's enabled.
     public func pressButton(at point: Vector2, origin: Vector2) -> Event? {
         for control in script.controls.reversed()
-        where control.type == .button && !hiddenNames.contains(control.name) {
+        where control.type == .button && isShown(control.name) {
             guard CheckCollisionPointRec(point, screenRectangle(for: control.frame, named: control.name, at: origin)) else {
                 continue
             }
@@ -903,14 +931,14 @@ public final class UIView {
         at origin: Vector2,
         drawRegion: (_ name: String, _ bounds: Rectangle) -> Void = { _, _ in }
     ) {
-        for visual in script.visuals where !hiddenNames.contains(visual.name) {
+        for visual in script.visuals where isShown(visual.name) {
             drawImage(
                 named: visual.image,
                 state: .normal,
                 in: screenRectangle(for: visual.frame, named: visual.name, at: origin)
             )
         }
-        for control in script.controls where !hiddenNames.contains(control.name) {
+        for control in script.controls where isShown(control.name) {
             let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
             switch control.type {
             case .text:

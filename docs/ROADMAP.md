@@ -222,3 +222,20 @@ and VentureOS proved the design first.
 - [x] Name fonts in the appearance: the theme's default and monospace fonts, and
   fonts for shared styles, so games stop naming font files in Swift. The demo draws
   its Sims windows in Comic Neue.
+
+## Mountain Lion — Tabs and sidebars
+
+Let a window switch between sets of its controls with no code of the game's.
+CityLimits' city panel has City, Ordinances, and Neighbours on its toolbar, and
+they act as tabs. VentureOS's sidebar of panes does the same down a window's side.
+Tabs and panes are separate elements, so a toolbar and a sidebar can never switch
+the same controls.
+
+- [x] Add `<Tab>`, which a toolbar item switches, to VentureOS's
+  [UIScript spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#tabs),
+  and read it, with `<Sidebar>` and `<Pane>`. A view shows the first of each.
+- [ ] Switch tabs when their toolbar items are pressed.
+- [ ] Draw a sidebar of panes beside a window's content, and switch panes from its
+  rows.
+- [ ] Show it in the CityLimits demo: the city panel's City, Ordinances, and
+  Neighbours tabs.
