@@ -9,6 +9,8 @@ This directory holds Hudini's design notes and roadmap.
 - The Sims Online's text tables are specified in
   [SwiftCST's CST format](https://github.com/tonytins/swift-cst/blob/main/doc/CST.md), which also reads them.
 - [Roadmap](ROADMAP.md) tracks the milestones so far and the questions still open.
+- [`design/`](design/) holds dated design notes, written and approved before a larger change
+  is built, such as [an appearance windows share](design/2026-11-25-appearance.md).
 
 ## Where Hudini came from
 
