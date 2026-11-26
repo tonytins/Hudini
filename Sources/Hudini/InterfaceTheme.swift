@@ -356,6 +356,25 @@ public struct InterfaceTheme: Sendable {
         }
     }
 
+    /// Shades a sidebar down a window's left edge with the title bar's color, rounding its bottom-left
+    /// corner by `radius` to follow the window's.
+    func fillSidebar(_ strip: Rectangle, radius: Float) {
+        let rowCount = Int(clamping: strip.height)
+        let cornerRows = min(Int(radius.rounded(.up)), rowCount)
+        DrawRectangleRec(
+            Rectangle(x: strip.x, y: strip.y, width: strip.width, height: Float(rowCount - cornerRows)),
+            titleBar
+        )
+        for row in 0..<cornerRows {
+            // Counted up from the bottom, which is where the corner is.
+            let inset = Self.cornerInset(ofRow: row, radius: radius)
+            DrawRectangleRec(
+                Rectangle(x: strip.x + inset, y: strip.y + Float(rowCount - 1 - row), width: strip.width - inset, height: 1),
+                titleBar
+            )
+        }
+    }
+
     /// Returns the radius `fillRectangle(_:_:)` draws `bounds` with: `cornerRadius`, or the largest
     /// that fits a smaller shape.
     public func cornerRadius(for bounds: Rectangle) -> Float {

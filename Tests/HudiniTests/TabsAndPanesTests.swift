@@ -307,3 +307,112 @@ private let paned = """
     #expect(frame.press(at: center(ofItem: 0), in: bounds) == [])
     #expect(view.selectedTab == "laws")
 }
+
+// MARK: Switching panes
+
+@Test func selectingAPaneByNameSwitchesPanesWithoutAnEvent() throws {
+    let view = UIView(script: try script(paned))
+
+    #expect(view.selectedPane == "general")
+    #expect(view.isSelected(named: "general"))
+    view.setSelected(true, named: "advanced")
+    #expect(view.selectedPane == "advanced")
+    #expect(!view.isSelected(named: "general"))
+    #expect(view.isShown("reset"))
+    #expect(!view.isShown("name"))
+    #expect(view.isShown("always"))
+}
+
+@Test func withNoPaneSelectedOnlyWhatsInNoPaneShows() throws {
+    let view = UIView(script: try script(paned))
+
+    // Deselecting a pane that isn't selected changes nothing.
+    view.setSelected(false, named: "advanced")
+    #expect(view.selectedPane == "general")
+    view.setSelected(false, named: "general")
+    #expect(view.selectedPane == nil)
+    #expect(!view.isShown("name"))
+    #expect(!view.isShown("reset"))
+    #expect(view.isShown("always"))
+}
+
+@Test func tabsAndPanesSwitchApart() throws {
+    let view = UIView(script: try script(paned + "<ToolbarItem name='a' title='A' tab='t'/><ToolbarItem name='b' title='B' tab='u'/><Tab name='t'><Text name='inT' \(box)/></Tab><Tab name='u'/>"))
+
+    view.setSelected(true, named: "advanced")
+    view.setSelected(true, named: "b")
+    #expect(view.selectedPane == "advanced")
+    #expect(view.selectedTab == "u")
+    #expect(view.isShown("reset"))
+    #expect(!view.isShown("inT"))
+}
+
+// MARK: A sidebar in a frame
+
+// The document's window is 100 by 80, and the sidebar 120 wide.
+private let sidebarFrameBounds = Rectangle(x: 0, y: 0, width: 220, height: 110)
+
+private func rowCenter(_ frame: WindowFrame, _ index: Int) throws -> Vector2 {
+    let row = try #require(frame.sidebarRowBounds(in: sidebarFrameBounds, index))
+    return Vector2(x: row.x + row.width / 2, y: row.y + row.height / 2)
+}
+
+@Test func aSidebarWidensTheWindowAndMovesTheViewBesideIt() throws {
+    let frame = WindowFrame(view: UIView(script: try script(paned)))
+
+    let placed = frame.place(at: Vector2(x: 0, y: 0))
+    #expect(placed.width == 220)
+    #expect(placed.height == 80 + Float(WindowFrame.titleHeight))
+    #expect(frame.viewBounds(in: placed) == Rectangle(x: 120, y: 30, width: 100, height: 80))
+    #expect(frame.sidebarBounds(in: placed) == Rectangle(x: 0, y: 30, width: 120, height: 80))
+}
+
+@Test func aFrameWithoutASidebarPlacesTheViewUnderTheBar() throws {
+    let frame = WindowFrame(view: UIView(script: try script("")))
+    let bounds = Rectangle(x: 10, y: 20, width: 100, height: 110)
+
+    #expect(frame.viewBounds(in: bounds) == WindowFrame.content(in: bounds))
+    #expect(frame.sidebarBounds(in: bounds) == nil)
+    #expect(frame.place(at: .zero).width == 100)
+}
+
+@Test func pressingARowSelectsItsPaneAndReportsTheSidebar() throws {
+    let view = UIView(script: try script(paned))
+    let frame = WindowFrame(view: view)
+
+    #expect(frame.press(at: try rowCenter(frame, 1), in: sidebarFrameBounds) == [.view(.selected(control: "places", index: 1))])
+    #expect(view.selectedPane == "advanced")
+    // The selected row again reports nothing, as a list does.
+    #expect(frame.press(at: try rowCenter(frame, 1), in: sidebarFrameBounds) == [])
+    // Below the rows, and in the content, nothing happens.
+    #expect(frame.press(at: Vector2(x: 60, y: 105), in: sidebarFrameBounds) == [])
+    #expect(frame.press(at: Vector2(x: 160, y: 60), in: sidebarFrameBounds) == [])
+    #expect(view.selectedPane == "advanced")
+}
+
+@Test func aRowThatDoesntFitIsntPressable() throws {
+    let rows = (0..<5).map { "<Pane name='p\($0)' title='P\($0)'/>" }.joined()
+    let view = UIView(script: try script("<Sidebar name='s' width='120'/>" + rows))
+    let frame = WindowFrame(view: view)
+
+    // 80 pixels of sidebar fit two 28-pixel rows after the 6-pixel inset.
+    #expect(frame.press(at: try rowCenter(frame, 1), in: sidebarFrameBounds) == [.view(.selected(control: "s", index: 1))])
+    #expect(frame.press(at: try rowCenter(frame, 2), in: sidebarFrameBounds) == [])
+}
+
+@Test func resizingKeepsTheSidebarsWidth() throws {
+    let resizable = """
+        <UIScript><Window width='100' height='80' resizable='true'/>
+        <Sidebar name='s' width='120'/><Pane name='p' title='P'/></UIScript>
+        """
+    let view = UIView(script: try UIScript(data: Data(resizable.utf8)))
+    let frame = WindowFrame(view: view)
+    let bounds = frame.place(at: .zero)
+    let grip = Vector2(x: bounds.width - 4, y: bounds.height - 4)
+
+    #expect(frame.beginResizing(at: grip, in: bounds))
+    // Far past a 400-wide screen: the content stops where the window meets its edge.
+    frame.resize(to: Vector2(x: 900, y: 100), isHeld: false, in: bounds, screen: Vector2(x: 400, y: 300))
+    #expect(view.windowSize.x == 400 - 120)
+    #expect(frame.place(at: .zero).width == 400)
+}

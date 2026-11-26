@@ -86,7 +86,11 @@ public final class UIView {
     // tabs never shows what the host hid.
     private var hiddenNames: Set<String> = []
     private var switchedOffNames: Set<String> = []
-    private var selectedPane: String?
+
+    /// The name of the selected pane, or `nil` when the document has no sidebar or no row is
+    /// selected. The first pane starts selected. Select another with `setSelected(_:named:)` on
+    /// its name.
+    public private(set) var selectedPane: String?
 
     /// The name of the selected tab, or `nil` when the document has none. The first tab starts
     /// selected, and one always is. Select another with `setSelected(_:named:)` on its toolbar item.
@@ -605,6 +609,14 @@ public final class UIView {
         updateSwitchedOffNames()
     }
 
+    private func selectPane(_ pane: String?) {
+        guard pane != selectedPane else {
+            return
+        }
+        selectedPane = pane
+        updateSwitchedOffNames()
+    }
+
     private func updateSwitchedOffNames() {
         let tabs = script.tabs.filter { $0.name != selectedTab }.flatMap(\.contents)
         let panes = (script.sidebar?.panes ?? []).filter { $0.name != selectedPane }.flatMap(\.contents)
@@ -639,10 +651,22 @@ public final class UIView {
     /// Selecting a toolbar item that names a tab selects that tab, showing its controls and
     /// visuals in place of the other tabs', and reports no event. One tab is always selected, so
     /// deselecting a tab's item does nothing.
+    ///
+    /// Selecting a pane by its name selects its sidebar row, showing its controls and visuals in
+    /// place of the other panes', and reports no event. Deselecting the selected pane leaves no
+    /// row selected, which shows only what's in no pane.
     public func setSelected(_ isSelected: Bool, named name: String) {
         if let tab = script.toolbarItems.first(where: { $0.name == name })?.tab {
             if isSelected {
                 selectTab(tab)
+            }
+            return
+        }
+        if script.sidebar?.panes.contains(where: { $0.name == name }) == true {
+            if isSelected {
+                selectPane(name)
+            } else if selectedPane == name {
+                selectPane(nil)
             }
             return
         }
@@ -653,9 +677,9 @@ public final class UIView {
         }
     }
 
-    /// Returns whether a button or toolbar item is selected.
+    /// Returns whether a button, toolbar item, or pane is selected.
     public func isSelected(named name: String) -> Bool {
-        selectedNames.contains(name)
+        selectedNames.contains(name) || (selectedPane != nil && selectedPane == name)
     }
 
     /// Handles this frame's input for a view whose corner is at `origin`.

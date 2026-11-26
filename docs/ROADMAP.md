@@ -235,7 +235,7 @@ the same controls.
   [UIScript spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#tabs),
   and read it, with `<Sidebar>` and `<Pane>`. A view shows the first of each.
 - [x] Switch tabs when their toolbar items are pressed.
-- [ ] Draw a sidebar of panes beside a window's content, and switch panes from its
+- [x] Draw a sidebar of panes beside a window's content, and switch panes from its
   rows.
 - [ ] Show it in the CityLimits demo: the city panel's City, Ordinances, and
   Neighbours tabs.

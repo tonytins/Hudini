@@ -34,6 +34,12 @@ public final class WindowFrame {
 
     private static let ellipsis: String = "..."
 
+    /// How tall each of a sidebar's rows is.
+    public static let sidebarRowHeight: Int = 28
+
+    // The space around a sidebar's rows, and to the left of their text.
+    private static let sidebarInset: Int = 6
+
     /// The size of the grip that resizes a resizable window, from its bottom-right corner.
     public static let gripSize: Float = 16
 
@@ -232,7 +238,8 @@ public final class WindowFrame {
         let width = start.size.x + point.x - start.pointer.x
         let height = start.size.y + point.y - start.pointer.y
         view.setWindowSize(Vector2(
-            x: max(smallest.width, min(width, screen.x - bounds.x)),
+            // The sidebar keeps its width, and the content takes the rest.
+            x: max(smallest.width, min(width, screen.x - bounds.x - sidebarWidth)),
             y: max(smallest.height, min(height, screen.y - bounds.y - Float(Self.titleHeight)))
         ))
         if !isHeld {
@@ -240,7 +247,8 @@ public final class WindowFrame {
         }
     }
 
-    /// The area under the title bar, where the window draws its own content.
+    /// The area under the title bar, where the window draws its own content. For a frame around a
+    /// view, `viewBounds(in:)` leaves out the view's sidebar.
     public static func content(in bounds: Rectangle) -> Rectangle {
         var contentBounds = bounds
         contentBounds.y += Float(titleHeight)
@@ -248,17 +256,69 @@ public final class WindowFrame {
         return contentBounds
     }
 
+    /// Where the view sits: under the title bar, and beside its document's sidebar, if any. This is
+    /// `content(in:)` for a frame without a sidebar.
+    public func viewBounds(in bounds: Rectangle) -> Rectangle {
+        var content = Self.content(in: bounds)
+        content.x += sidebarWidth
+        content.width = max(0, content.width - sidebarWidth)
+        return content
+    }
+
+    // How wide the view's sidebar is, or 0 without one.
+    private var sidebarWidth: Float {
+        view?.script.sidebar?.width ?? 0
+    }
+
+    /// The bounds of the sidebar down the window's left, under the title bar, or `nil` when the
+    /// view's document has none.
+    func sidebarBounds(in bounds: Rectangle) -> Rectangle? {
+        guard sidebarWidth > 0 else {
+            return nil
+        }
+        var strip = Self.content(in: bounds)
+        strip.width = min(sidebarWidth, strip.width)
+        return strip
+    }
+
+    /// The bounds of the sidebar row at `index`, which may run past the sidebar's bottom.
+    func sidebarRowBounds(in bounds: Rectangle, _ index: Int) -> Rectangle? {
+        guard let strip = sidebarBounds(in: bounds) else {
+            return nil
+        }
+        let inset = Float(Self.sidebarInset)
+        return Rectangle(
+            x: strip.x + inset,
+            y: strip.y + inset + Float(index * Self.sidebarRowHeight),
+            width: max(0, strip.width - (inset * 2)),
+            height: Float(Self.sidebarRowHeight)
+        )
+    }
+
+    // The index of the pane whose row is at `point`, when the row is shown in full.
+    private func paneRow(at point: Vector2, in bounds: Rectangle) -> Int? {
+        guard let strip = sidebarBounds(in: bounds), let panes = view?.script.sidebar?.panes else {
+            return nil
+        }
+        return panes.indices.first { index in
+            guard let row = sidebarRowBounds(in: bounds, index), row.y + row.height <= strip.y + strip.height else {
+                return false
+            }
+            return CheckCollisionPointRec(point, row)
+        }
+    }
+
     /// Returns bounds at the saved position or `start`, constrained to the screen.
     public func place(size: Vector2, at start: Vector2) -> Rectangle {
         placement.bounds(size: size, initialOrigin: start)
     }
 
-    /// Returns bounds that fit the view and the title bar, at the saved position or `start`,
-    /// constrained to the screen. A frame around the host's own content has no size of its own, so
-    /// use `place(size:at:)` for one.
+    /// Returns bounds that fit the view, its sidebar, and the title bar, at the saved position or
+    /// `start`, constrained to the screen. A frame around the host's own content has no size of its
+    /// own, so use `place(size:at:)` for one.
     public func place(at start: Vector2) -> Rectangle {
         let size = view?.windowSize ?? .zero
-        return place(size: Vector2(x: size.x, y: size.y + Float(Self.titleHeight)), at: start)
+        return place(size: Vector2(x: size.x + sidebarWidth, y: size.y + Float(Self.titleHeight)), at: start)
     }
 
     // MARK: Toolbar items and title
@@ -434,7 +494,7 @@ public final class WindowFrame {
         guard !gripHasPointer else {
             return events
         }
-        let content = Self.content(in: bounds)
+        let content = viewBounds(in: bounds)
         events += view.update(at: Vector2(x: content.x, y: content.y)).map(Event.view)
         return events
     }
@@ -469,6 +529,14 @@ public final class WindowFrame {
             return []
         }
         cancelEdit()
+        if let view, let sidebar = view.script.sidebar, let row = paneRow(at: point, in: bounds) {
+            let pane = sidebar.panes[row].name
+            guard !view.isSelected(named: pane) else {
+                return []
+            }
+            view.setSelected(true, named: pane)
+            return [.view(.selected(control: sidebar.name, index: row))]
+        }
         return []
     }
 
@@ -534,7 +602,8 @@ public final class WindowFrame {
     public func draw(in bounds: Rectangle) {
         drawBar(in: bounds)
         if let view {
-            let content = Self.content(in: bounds)
+            drawSidebar(in: bounds)
+            let content = viewBounds(in: bounds)
             view.draw(at: Vector2(x: content.x, y: content.y), drawRegion: drawRegion ?? { _, _ in })
             if isResizable {
                 drawGrip(in: bounds)
@@ -556,10 +625,44 @@ public final class WindowFrame {
         }
     }
 
+    // The sidebar's shade, a line between it and the content, and a row per pane, the selected one
+    // filled and in the accent, as toolbar items are. Rows past the bottom aren't drawn, and a title
+    // too long for its row ends in an ellipsis.
+    private func drawSidebar(in bounds: Rectangle) {
+        guard let view, let panes = view.script.sidebar?.panes, let strip = sidebarBounds(in: bounds) else {
+            return
+        }
+        theme.fillSidebar(strip, radius: theme.cornerRadius(for: bounds))
+        let edge = Int(clamping: strip.x + strip.width)
+        DrawLine(edge, Int(clamping: strip.y), edge, Int(clamping: strip.y + strip.height), theme.border)
+        theme.outlineRectangle(bounds, theme.border)
+        let mouse = GetMousePosition()
+        BeginScissorMode(Int32(clamping: Int(strip.x)), Int32(clamping: Int(strip.y)), Int32(clamping: Int(strip.width)), Int32(clamping: Int(strip.height)))
+        defer { EndScissorMode() }
+        for (index, pane) in panes.enumerated() {
+            guard let row = sidebarRowBounds(in: bounds, index), row.y + row.height <= strip.y + strip.height else {
+                break
+            }
+            let isSelected = view.isSelected(named: pane.name)
+            if isSelected {
+                theme.fillRectangle(row, theme.selectedItem)
+            }
+            let color = if isSelected {
+                theme.accent
+            } else if CheckCollisionPointRec(mouse, row) {
+                theme.text
+            } else {
+                theme.secondaryText
+            }
+            let room = row.width - Float(Self.sidebarInset * 2)
+            theme.drawText(fitted(pane.title, size: theme.textSizes.body, in: room), x: Int(clamping: row.x) + Self.sidebarInset, y: Int(clamping: row.y + ((row.height - Float(theme.textSizes.body)) / 2)), size: theme.textSizes.body, color: color)
+        }
+    }
+
     /// Draws the tooltip of the view's control the pointer rests on, for a frame around a view.
     /// Call this after drawing every window, so nothing covers it.
     public func drawTooltip(in bounds: Rectangle) {
-        let content = Self.content(in: bounds)
+        let content = viewBounds(in: bounds)
         view?.drawTooltip(at: Vector2(x: content.x, y: content.y))
     }
 
@@ -660,15 +763,20 @@ public final class WindowFrame {
             return shownTitle
         }
         (shownFor, shownRoom) = (text, room)
-        shownTitle = text
-        if Float(theme.textWidth(of: text, size: theme.textSizes.title)) > room {
-            var length = text.count
-            while length > 0 && Float(theme.textWidth(of: String(text.prefix(length)) + WindowFrame.ellipsis, size: theme.textSizes.title)) > room {
-                length -= 1
-            }
-            shownTitle = String(text.prefix(length)) + WindowFrame.ellipsis
-        }
+        shownTitle = fitted(text, size: theme.textSizes.title, in: room)
         return shownTitle
+    }
+
+    // `text`, cut and ended with an ellipsis when it's wider than `room`.
+    private func fitted(_ text: String, size: Int, in room: Float) -> String {
+        guard Float(theme.textWidth(of: text, size: size)) > room else {
+            return text
+        }
+        var length = text.count
+        while length > 0 && Float(theme.textWidth(of: String(text.prefix(length)) + WindowFrame.ellipsis, size: size)) > room {
+            length -= 1
+        }
+        return String(text.prefix(length)) + WindowFrame.ellipsis
     }
 
     // The close button sits in the first slot at the bar's left, and the minimize button after it,

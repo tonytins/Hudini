@@ -99,6 +99,11 @@ view.drawTooltip(at: origin) // After every view, so nothing covers it.
   its item does nothing. Hiding a control with `setHidden(_:named:)` is separate:
   switching tabs never shows what the host hid, and `isHidden(named:)` only reports
   what the host hid.
+- Panes switch the same way from a `WindowFrame`'s sidebar: clicking a row shows
+  that pane and reports `.selected` with the sidebar's name and the row's index.
+  `selectedPane` says which is showing, and `setSelected(_:named:)` with a pane's
+  name selects it, or, deselecting it, leaves no row selected, which shows only
+  what's in no pane. Neither reports an event.
 - Call `setWindowSize(_:)` when the space around anchored controls changes, then
   size the window around the view from `windowSize`. A size below the document's
   minimum uses the minimum on that axis.
@@ -187,6 +192,12 @@ draw into the view's regions, since the frame, not the host, calls
 `draw(at:drawRegion:)`. The frame also draws a resizable window's grip and resizes
 the view by it, and `isResizing` says while it's being dragged. A `UIView` drawn on
 its own ignores the title bar's elements and the grip.
+
+A document's sidebar is the frame's too. The frame draws it down the window's left,
+under the bar, makes the window wider by its width, and draws the view beside it,
+at `viewBounds(in:)`; `WindowFrame.content(in:)` is still the whole area under the
+bar. Resizing keeps the sidebar's width, and the view takes the rest. A view drawn
+on its own doesn't draw its sidebar.
 
 ### Panels inside panels
 
@@ -410,8 +421,8 @@ the game's own package.
 
 ## Not yet supported
 
-A view shows the first pane and hides the rest, but nothing switches panes yet, and
-a `WindowFrame` doesn't draw a sidebar yet.
+A sidebar shows the rows that fit and has no scroll bar, so a pane whose row
+doesn't fit can only be selected by the host. A long title ends in an ellipsis.
 
 Within its subset, a text area's caret stays at the end of its text. Clicking to
 place it, moving it with the arrow keys, selection, and the clipboard aren't
@@ -429,7 +440,9 @@ including the changes made while Hudini kept it. Changes to Hudini's reader:
 - **2026-11-25:** Tabs and a sidebar of panes. `UIScript` reads `<Tab>`, `tab` on
   `<ToolbarItem>`, `<Sidebar>`, and `<Pane>` in both its forms, into `tabs` and
   `sidebar`. Pressing a tab's toolbar item switches tabs, and `selectedTab` says
-  which is showing; a view shows the first pane. Other sidebars are refused
+  which is showing. A `WindowFrame` draws a sidebar of panes beside the view, at
+  `viewBounds(in:)`, and its rows switch panes, reporting `.selected`; `selectedPane`
+  says which is showing. Other sidebars are refused
   with `unsupportedSidebar`. A nested `<Menu>` is now refused as outside the subset,
   rather than as nesting.
 - **2026-11-25:** Appearances hold fonts: `<Font>` files, `<Fonts>` in place of
