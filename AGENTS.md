@@ -21,7 +21,9 @@ their own handlers.
 - Run the test suite with `swift test`. Some tests read the demo's documents from
   `Demo/Sources/hudini-demo/Resources`.
 - Build the demo with `swift build --package-path Demo`, and run it with
-  `swift run --package-path Demo hudini-demo`.
+  `swift run --package-path Demo hudini-demo`. `swift test --package-path Demo`
+  checks the demo's own content, such as its CST text, which it reads with
+  SwiftCST; Hudini itself doesn't depend on SwiftCST.
 - Keep tests that do not need a graphics context headless. Text measurement and
   drawing that depend on an initialized raylib window need a separate runtime
   check.

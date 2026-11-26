@@ -36,6 +36,14 @@ let package = Package(
                 .copy("Resources/uitext")
             ]
         ),
+        // Checks of the demo's own content, such as its text, which don't need a window.
+        .testTarget(
+            name: "DemoTests",
+            dependencies: [
+                .product(name: "Hudini", package: "Hudini"),
+                .product(name: "SwiftCST", package: "swift-cst"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

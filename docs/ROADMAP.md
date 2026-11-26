@@ -187,8 +187,9 @@ already learned. CST files are not known to appear in any other game.
   Improved text, without committing them. Every string their `.uis` files use is found.
 
 The reader and specification have since moved to swift-cst, which now reads every
-version of TSO. Hudini's `CSTCatalog` wraps it and is deprecated, and games read text
-with swift-cst directly through `resolveString`. It goes once Simburbia has moved over.
+version of TSO. Hudini's `CSTCatalog` wrapped it until 2026-11-25, when Simburbia had
+moved to swift-cst's `UIText`; it's gone, and Hudini no longer depends on swift-cst.
+Games read text with swift-cst directly through `resolveString`.
 
 ## Lion — Windows a game can run on
 

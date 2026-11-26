@@ -334,9 +334,10 @@ let view = UIView(script: script, resolveString: { resource in
 reads a game's own folder of files named `_<id>_<name>.cst`. See the
 [CST specification](https://github.com/tonytins/swift-cst/blob/main/doc/CST.md) for the format and how sure each rule is.
 
-Hudini's `CSTCatalog` did this before, and is deprecated. It still works, so games can
-move to SwiftCST in their own time: create a `UIText` the same way, and call
-`textIfPresent` where you called `text`. It finds the same text.
+Hudini's `CSTCatalog` did this before, and was removed on 2026-11-25. A game that
+still uses it creates a `UIText` the same way, and calls `textIfPresent` where it
+called `text`; it finds the same text. Hudini doesn't depend on SwiftCST: add it to
+the game's own package.
 
 ## Not yet supported
 
@@ -353,6 +354,8 @@ The spec's change log is in
 [VentureOS's spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#change-log),
 including the changes made while Hudini kept it. Changes to Hudini's reader:
 
+- **2026-11-25:** `CSTCatalog` and `CSTError` are gone, and Hudini no longer depends
+  on SwiftCST. Games read `.cst` text with SwiftCST's `UIText` themselves.
 - **2026-11-25:** Appearances: `Appearance`, read from `<Appearance>` documents,
   and `UIScript(contentsOf:appearance:)`, so windows share images, styles, and
   scroll bar art. A Hudini feature; the spec is unchanged.
