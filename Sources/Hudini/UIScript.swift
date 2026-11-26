@@ -74,6 +74,11 @@ public struct UIScript: Sendable {
     /// misspelled attribute also lands here, so hosts may want to log them.
     public let ignoredAttributes: [IgnoredAttribute]
 
+    /// The art the document's lists and text areas draw their scroll bars with, from the appearance
+    /// it was read with, or `nil` for the theme's classic bar. Only a document with a list or text
+    /// area takes one.
+    public let scrollBar: Appearance.ScrollBar?
+
     /// What a `.uis` file held that the model could not represent faithfully.
     ///
     /// This is always empty for XML documents, which fail instead. Game code
@@ -81,15 +86,25 @@ public struct UIScript: Sendable {
     public let conversionNotes: [ConversionNote]
 
     /// Parses and validates a UIScript XML document, which must be UTF-8.
-    public init(data: Data) throws {
-        let document = try UIScriptParser.parse(data)
+    ///
+    /// With an `appearance`, the document's `style` and `image` references that it doesn't define
+    /// itself resolve against the appearance, and a document with a list or text area takes the
+    /// appearance's scroll bar. A name the document defines replaces the appearance's of that
+    /// name, whole, including the images a scroll bar names. Only what the document uses is
+    /// copied in, so `resources` and `styles` hold the document's own and those.
+    public init(data: Data, appearance: Appearance? = nil) throws {
+        var document = try UIScriptParser.parse(data)
+        if let appearance {
+            document = document.inheriting(appearance)
+        }
         try document.validate()
         self = document
     }
 
-    /// Loads and validates a UIScript XML document from a file URL.
-    public init(contentsOf url: URL) throws {
-        try self.init(data: Data(contentsOf: url))
+    /// Loads and validates a UIScript XML document from a file URL, inheriting from `appearance`
+    /// as `init(data:appearance:)` does.
+    public init(contentsOf url: URL, appearance: Appearance? = nil) throws {
+        try self.init(data: Data(contentsOf: url), appearance: appearance)
     }
 
     /// Reads a Maxis `.uis` file.
@@ -119,6 +134,7 @@ public struct UIScript: Sendable {
         toolbarItems: [ToolbarItem] = [],
         titleField: TitleField? = nil,
         settings: [String: Setting] = [:],
+        scrollBar: Appearance.ScrollBar? = nil,
         ignoredAttributes: [IgnoredAttribute],
         conversionNotes: [ConversionNote] = []
     ) {
@@ -133,8 +149,44 @@ public struct UIScript: Sendable {
         self.toolbarItems = toolbarItems
         self.titleField = titleField
         self.settings = settings
+        self.scrollBar = scrollBar
         self.ignoredAttributes = ignoredAttributes
         self.conversionNotes = conversionNotes
+    }
+
+    /// This document with the styles, images, and scroll bar it uses from `appearance` added. What
+    /// the document defines itself wins. A reference neither defines is left for validation to
+    /// refuse.
+    func inheriting(_ appearance: Appearance) -> UIScript {
+        var styles = self.styles
+        for name in Set(controls.compactMap(\.style)) where styles[name] == nil {
+            styles[name] = appearance.styles[name]
+        }
+
+        let scrolls = controls.contains { $0.type == .list || $0.type == .textArea }
+        let scrollBar = scrolls ? appearance.scrollBar : nil
+        var images = resources.images
+        let usedImages = visuals.map(\.image) + controls.compactMap(\.image) + (scrollBar?.imageNames ?? [])
+        for name in usedImages where images[name] == nil {
+            images[name] = appearance.images[name]
+        }
+
+        return UIScript(
+            version: version,
+            requiredFeatures: requiredFeatures,
+            window: window,
+            panelEdge: panelEdge,
+            resources: Resources(images: images, strings: resources.strings),
+            styles: styles,
+            visuals: visuals,
+            controls: controls,
+            toolbarItems: toolbarItems,
+            titleField: titleField,
+            settings: settings,
+            scrollBar: scrollBar,
+            ignoredAttributes: ignoredAttributes,
+            conversionNotes: conversionNotes
+        )
     }
 
     /// Returns the style a control refers to, or `nil` when it has none.

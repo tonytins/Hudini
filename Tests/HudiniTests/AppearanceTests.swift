@@ -142,3 +142,117 @@ func anAppearanceHoldsOnlyImagesStylesAndAScrollBar(body: String, element: Strin
 
     #expect(try Appearance(contentsOf: url).scrollBar?.width == 12)
 }
+
+// MARK: Inheriting
+
+private let shared = """
+    <Appearance version='1'>
+      <Image name='scrollThumb' path='shared/thumb.png'/>
+      <Image name='scrollUp' path='shared/up.png' stateCount='4'/>
+      <Image name='logo' path='shared/logo.png'/>
+      <Image name='unused' path='shared/unused.png'/>
+      <ScrollBar thumb='scrollThumb' thumbCap='4' up='scrollUp'/>
+      <Style name='chatText' textColor='#FFF99D' fontSize='body'/>
+      <Style name='unusedStyle' textColor='#000000'/>
+    </Appearance>
+    """
+
+private func window(_ body: String, appearance: Appearance? = nil) throws -> UIScript {
+    try UIScript(data: Data("<UIScript version='1'><Window width='400' height='300'/>\(body)</UIScript>".utf8),
+                 appearance: appearance)
+}
+
+private func sharedAppearance() throws -> Appearance {
+    try Appearance(data: Data(shared.utf8))
+}
+
+@Test func aWindowUsesSharedStylesAndImagesAsItsOwn() throws {
+    let chat = try window("""
+        <Visual name='badge' image='logo' x='0' y='0' width='10' height='10'/>
+        <List name='history' x='0' y='20' width='200' height='100' style='chatText'/>
+        """, appearance: try sharedAppearance())
+
+    #expect(chat.style(for: try #require(chat.control(named: "history")))?.textColor == Color(r: 255, g: 249, b: 157, a: 255))
+    #expect(chat.resources.images["logo"]?.path == "shared/logo.png")
+    #expect(chat.scrollBar?.thumb == "scrollThumb")
+    #expect(chat.scrollBar?.thumbCap == 4)
+    #expect(chat.resources.images["scrollThumb"]?.path == "shared/thumb.png")
+    #expect(chat.resources.images["scrollUp"]?.stateCount == 4)
+}
+
+@Test func onlyWhatAWindowUsesIsCopiedIn() throws {
+    let chat = try window("<List name='history' x='0' y='0' width='200' height='100' style='chatText'/>",
+                          appearance: try sharedAppearance())
+
+    #expect(Set(chat.resources.images.keys) == ["scrollThumb", "scrollUp"])
+    #expect(Set(chat.styles.keys) == ["chatText"])
+}
+
+@Test func aWindowWithoutAListOrTextAreaTakesNoScrollBar() throws {
+    let buttons = try window("<Button name='ok' x='0' y='0' width='40' height='20' style='chatText'/>",
+                             appearance: try sharedAppearance())
+
+    #expect(buttons.scrollBar == nil)
+    #expect(buttons.resources.images.isEmpty)
+
+    let notes = try window("<TextArea name='notes' x='0' y='0' width='200' height='100'/>", appearance: try sharedAppearance())
+    #expect(notes.scrollBar?.thumb == "scrollThumb")
+}
+
+@Test func aWindowOverridesASharedNameWhole() throws {
+    let privateChat = try window("""
+        <Image name='scrollThumb' path='private/thumb.png'/>
+        <Style name='chatText' fontSize='title'/>
+        <List name='history' x='0' y='0' width='200' height='100' style='chatText'/>
+        """, appearance: try sharedAppearance())
+
+    #expect(privateChat.resources.images["scrollThumb"]?.path == "private/thumb.png")
+    // The window's other scroll bar image still comes from the appearance.
+    #expect(privateChat.resources.images["scrollUp"]?.path == "shared/up.png")
+    // Replaced whole: the window's style has no text color from the shared one.
+    let style = privateChat.styles["chatText"]
+    #expect(style?.size == .role(.title))
+    #expect(style?.textColor == nil)
+}
+
+@Test func aNameNeitherDefinesIsStillRefused() throws {
+    #expect(throws: UIScriptError.unknownReference(owner: "history", property: "style", reference: "missing")) {
+        try window("<List name='history' x='0' y='0' width='200' height='100' style='missing'/>",
+                   appearance: try sharedAppearance())
+    }
+    // Without the appearance, a window that leans on it is refused, as VentureOS refuses it.
+    #expect(throws: UIScriptError.unknownReference(owner: "history", property: "style", reference: "chatText")) {
+        try window("<List name='history' x='0' y='0' width='200' height='100' style='chatText'/>")
+    }
+}
+
+@Test func withoutAnAppearanceAWindowReadsAsBefore() throws {
+    let plain = try window("<List name='history' x='0' y='0' width='200' height='100'/>")
+
+    #expect(plain.scrollBar == nil)
+    #expect(plain.resources.images.isEmpty)
+}
+
+@Test func aViewLoadsInheritedImagesLikeItsOwn() throws {
+    let chat = try window("""
+        <Visual name='badge' image='logo' x='0' y='0' width='10' height='10'/>
+        <List name='history' x='0' y='20' width='200' height='100'/>
+        """, appearance: try sharedAppearance())
+    var asked: [String] = []
+    let view = UIView(script: chat, loadImage: { resource in
+        asked.append(resource.path ?? "")
+        return nil
+    })
+
+    #expect(Set(asked) == ["shared/logo.png", "shared/thumb.png", "shared/up.png"])
+    #expect(view.missingImages == ["logo", "scrollThumb", "scrollUp"])
+}
+
+@Test func aWindowFileReadsWithAnAppearance() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("hudini-window-\(UUID()).uix")
+    try Data("<UIScript version='1'><Window width='9' height='9'/><Text name='t' x='0' y='0' width='9' height='9' style='chatText'/></UIScript>".utf8).write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let loaded = try UIScript(contentsOf: url, appearance: try sharedAppearance())
+    #expect(loaded.styles["chatText"] != nil)
+}
