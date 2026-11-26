@@ -480,6 +480,7 @@ private struct UISBuilder {
             valueRange: nil,
             step: nil,
             follows: false,
+            grid: nil,
             isInitiallyHidden: true
         )
     }
@@ -609,6 +610,7 @@ private struct UISBuilder {
             valueRange: makeValueRange(type, reader, tag),
             step: nil,
             follows: false,
+            grid: nil,
             isInitiallyHidden: false
         )
     }

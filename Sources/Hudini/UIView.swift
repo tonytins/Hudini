@@ -256,6 +256,9 @@ public final class UIView {
                 )
             case .slider, .progressBar, .region:
                 break
+            case .grid:
+                // Grids don't draw yet.
+                break
             }
         }
 
@@ -1011,6 +1014,8 @@ public final class UIView {
                 drawProgressBar(control, in: bounds)
             case .region:
                 drawRegion(control.name, bounds)
+            case .grid:
+                break
             }
         }
     }

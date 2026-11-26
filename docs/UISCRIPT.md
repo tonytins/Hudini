@@ -32,7 +32,8 @@ Maxis' `.uis` files into the same model; see [Reading `.uis` files](#reading-uis
 | `alignment` on `<TextField>` and `<TextArea>` | Yes |
 | `scrolls` and `direction` | Refused, as the spec says, since nothing scrolls by hand |
 | `orientation` | Skipped and listed, as the spec says: a slider runs along its longer side |
-| `<Shelf>`, `<Grid>`, `<StatusItem>` | No: refused as unknown elements |
+| `<Grid>` and `<Item>` | Read into each grid control's `grid`, at the top, in a tab, or in a pane. A view doesn't draw grids yet. |
+| `<Shelf>`, `<StatusItem>` | No: refused as unknown elements |
 | Title bar: `<ToolbarItem>` and `<TitleField>` | Yes |
 | `<Tab>`, and `tab` on toolbar items | Yes |
 | A window's `subtitle`, and toolbar items' `image` and `placement` | Skipped and listed, as unknown attributes: no subtitle, and every item is a text item at the right end |
@@ -439,6 +440,13 @@ with a plain track and thumb.
 The spec's change log is in
 [VentureOS's spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#change-log),
 including the changes made while Hudini kept it. Changes to Hudini's reader:
+
+- **2026-11-26:** `UIScript` reads `<Grid>` and `<Item>`, as the spec has had them
+  since 2026-11-24, into a grid control's `grid`: its cell size, spacing, titles,
+  and items. An item outside a grid is refused with `itemOutsideGrid`, and one with
+  nothing to show with `emptyGridItem`. A grid in a tab or pane holds its items too,
+  so elements now nest three deep there. A grid's item images and scroll bar come
+  from an appearance as a list's do. A view doesn't draw grids yet.
 
 - **2026-11-25:** Tabs and a sidebar of panes. `UIScript` reads `<Tab>`, `tab` on
   `<ToolbarItem>`, `<Sidebar>`, and `<Pane>` in both its forms, into `tabs` and

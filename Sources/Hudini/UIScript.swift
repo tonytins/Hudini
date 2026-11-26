@@ -176,10 +176,11 @@ public struct UIScript: Sendable {
             styles[name] = appearance.styles[name]
         }
 
-        let scrolls = controls.contains { $0.type == .list || $0.type == .textArea }
+        let scrolls = controls.contains { $0.type == .list || $0.type == .textArea || $0.type == .grid }
         let scrollBar = scrolls ? appearance.scrollBar : nil
         var images = resources.images
-        let usedImages = visuals.map(\.image) + controls.compactMap(\.image) + (scrollBar?.imageNames ?? [])
+        let usedImages = visuals.map(\.image) + controls.compactMap(\.image) + gridImageNames
+            + (scrollBar?.imageNames ?? [])
         for name in usedImages where images[name] == nil {
             images[name] = appearance.images[name]
         }
@@ -209,6 +210,13 @@ public struct UIScript: Sendable {
             ignoredAttributes: ignoredAttributes,
             conversionNotes: conversionNotes
         )
+    }
+
+    /// The images the document's grid items show, in document order.
+    private var gridImageNames: [String] {
+        controls.flatMap { $0.grid?.items ?? [] }.compactMap { item in
+            if case let .image(name) = item.content { name } else { nil }
+        }
     }
 
     /// Returns the style a control refers to, or `nil` when it has none.
@@ -246,6 +254,7 @@ public struct UIScript: Sendable {
             visuals.map(\.name) + controls.map(\.name) + toolbarItems.map(\.name)
                 + [titleField?.name, sidebar?.name].compactMap { $0 }
                 + tabs.map(\.name) + (sidebar?.panes.map(\.name) ?? [])
+                + controls.flatMap { $0.grid?.items.compactMap(\.name) ?? [] }
         )
         try validateTabs()
 
@@ -334,7 +343,26 @@ public struct UIScript: Sendable {
                     reference: tooltip
                 )
             }
+            if let grid = control.grid {
+                try validate(grid: grid, owner: control.name)
+            }
             try validate(frame: control.frame, owner: control.name)
+        }
+    }
+
+    /// Checks what a grid's items refer to. An unnamed item is named for its grid and place in it.
+    private func validate(grid: Grid, owner: String) throws {
+        for (index, item) in grid.items.enumerated() {
+            let itemOwner = item.name ?? "item \(index + 1) of \(owner)"
+            if case let .image(image) = item.content {
+                try validateReference(image, in: resources.images, owner: itemOwner, property: "image")
+            }
+            if case let .string(stringName)? = item.title {
+                try validateReference(stringName, in: resources.strings, owner: itemOwner, property: "string")
+            }
+            if let tooltip = item.tooltip {
+                try validateReference(tooltip, in: resources.strings, owner: itemOwner, property: "tooltip")
+            }
         }
     }
 
@@ -519,7 +547,7 @@ public struct UIScript: Sendable {
     }
 
     /// A width and height in pixels.
-    public struct Size: Sendable {
+    public struct Size: Sendable, Equatable {
         /// The width.
         public let width: Float
 
@@ -1009,6 +1037,10 @@ public struct UIScript: Sendable {
 
         /// A named area Hudini positions and the host draws into.
         case region
+
+        /// Items of one size, pictures, colors, or plain tiles, in rows that wrap and scroll, one
+        /// of them chosen. Its `grid` holds the rest.
+        case grid
     }
 
     /// Text content expressed literally or by a localized-string reference.
@@ -1084,6 +1116,74 @@ public struct UIScript: Sendable {
         public let contents: [String]
     }
 
+    /// What a grid control holds beyond the rules for controls: the size of its cells, and its
+    /// items.
+    public struct Grid: Sendable, Equatable {
+        /// The size of every item's cell, in pixels. A picture is scaled to fill it, and a title,
+        /// when one shows, sits under it.
+        public let itemSize: Size
+
+        /// The room between cells, across and down, in pixels.
+        public let spacing: Float
+
+        /// Which items show their titles.
+        public let titles: Titles
+
+        /// The items the document lists, in document order. The host may replace them.
+        public let items: [Item]
+
+        /// The room between cells when a document leaves out `spacing`.
+        public static let defaultSpacing: Float = 8
+
+        /// Which items in a grid show their titles under their cells.
+        public enum Titles: String, Sendable {
+            /// Every item's title shows.
+            case below
+
+            /// Only the chosen item's title shows, as a row of colors names the one in use.
+            case selected
+
+            /// No title shows. A plain tile still shows its title inside it.
+            case none
+        }
+
+        /// One cell of a grid.
+        public struct Item: Sendable, Equatable {
+            /// What the grid reports when the item is chosen, unique in the document like any
+            /// name, or `nil` for an item with no name.
+            public let name: String?
+
+            /// What the item's called, literal or a localized string.
+            public let title: Text?
+
+            /// What the cell shows.
+            public let content: Content
+
+            /// The name of a localized string shown while the pointer rests on the item.
+            public let tooltip: String?
+
+            /// What a grid item's cell shows.
+            public enum Content: Sendable, Equatable {
+                /// An image from `resources.images`, scaled to fill the cell.
+                case image(String)
+
+                /// A color, drawn as a circle.
+                case color(Color)
+
+                /// A plain tile with the item's title inside it.
+                case plain
+            }
+
+            /// Creates an item. A plain item needs a `title`, since it has nothing else to show.
+            public init(name: String? = nil, title: Text? = nil, content: Content, tooltip: String? = nil) {
+                self.name = name
+                self.title = title
+                self.content = content
+                self.tooltip = tooltip
+            }
+        }
+    }
+
     /// An editable window title, as an address bar is.
     public struct TitleField: Sendable, Equatable {
         /// The stable document-local name, which a submitted edit reports.
@@ -1147,6 +1247,9 @@ public struct UIScript: Sendable {
         /// Whether a text area stays at its last line when its text changes while it shows it.
         public let follows: Bool
 
+        /// A grid's cell size, spacing, titles, and items, or `nil` for every other control.
+        public let grid: Grid?
+
         /// Whether the control stays hidden until the host shows it.
         public let isInitiallyHidden: Bool
     }
@@ -1195,8 +1298,15 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// inside another.
     case unexpectedNesting(String, line: Int)
 
-    /// A tab or pane holds something other than controls and visuals.
+    /// A tab or pane holds something other than controls and visuals, or a grid holds something
+    /// other than items.
     case invalidChild(String, parent: String, line: Int)
+
+    /// An `Item` appears outside a `Grid`, the only element that holds items.
+    case itemOutsideGrid(line: Int)
+
+    /// A grid item has no image, color, or title, so it would show nothing.
+    case emptyGridItem(grid: String, line: Int)
 
     /// A sidebar holds controls, or has no panes, so its rows would be the host's. Hudini reads
     /// only a sidebar of panes.
@@ -1332,9 +1442,15 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
                 ? "UIScript line \(line): element '\(name)' is part of UIScript, but outside the subset Hudini reads."
                 : "UIScript line \(line): element '\(name)' is not supported."
         case let .unexpectedNesting(name, line):
-            "UIScript line \(line): element '\(name)' can't be nested there. Only a 'Tab' or a 'Pane' holds elements, and what it holds holds nothing."
+            "UIScript line \(line): element '\(name)' can't be nested there. Only a 'Tab', a 'Pane', or a 'Grid' holds elements, and only a grid inside a tab or pane holds anything in turn."
+        case let .invalidChild(name, "Grid", line):
+            "UIScript line \(line): a 'Grid' holds only 'Item's, not '\(name)'."
         case let .invalidChild(name, parent, line):
             "UIScript line \(line): a '\(parent)' holds controls and visuals, not '\(name)'."
+        case let .itemOutsideGrid(line):
+            "UIScript line \(line): an 'Item' belongs only in a 'Grid'."
+        case let .emptyGridItem(grid, line):
+            "UIScript line \(line): an item in grid '\(grid)' needs an 'image', a 'color', or a 'title' or 'string' to show."
         case let .unsupportedSidebar(line):
             "UIScript line \(line): Hudini reads a sidebar of panes. A sidebar that holds controls, or whose rows the host fills, is outside the subset it reads."
         case let .panesWithoutSidebar(line):

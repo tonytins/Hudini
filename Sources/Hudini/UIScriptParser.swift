@@ -173,10 +173,13 @@ enum UIScriptParser {
         var ignoredAttributes = rootReader.unusedAttributes()
 
         // Reads a visual or control, directly under the root or inside `container`, a tab or pane,
-        // and returns its name.
+        // and returns its name. Only a grid holds anything: its items.
         func readContent(_ element: Element, in container: Element?) throws -> String {
             let reader = AttributeReader(element)
             defer { ignoredAttributes += reader.unusedAttributes() }
+            if element.name == "Item" {
+                throw UIScriptError.itemOutsideGrid(line: element.line)
+            }
             if element.name == "Visual" {
                 let visual = UIScript.Visual(
                     name: try reader.requiredString("name"),
@@ -184,6 +187,9 @@ enum UIScriptParser {
                     frame: try makeFrame(reader),
                     isInitiallyHidden: false
                 )
+                if let child = element.children.first {
+                    throw UIScriptError.unexpectedNesting(child.name, line: child.line)
+                }
                 visuals.append(visual)
                 return visual.name
             }
@@ -193,7 +199,11 @@ enum UIScriptParser {
                 }
                 throw UIScriptError.invalidChild(element.name, parent: container.name, line: element.line)
             }
-            let control = try makeControl(type: type, reader)
+            let grid = type == .grid ? try makeGrid(element, reader, ignoredAttributes: &ignoredAttributes) : nil
+            let control = try makeControl(type: type, reader, grid: grid)
+            if type != .grid, let child = element.children.first {
+                throw UIScriptError.unexpectedNesting(child.name, line: child.line)
+            }
             if reader.string("tab") != nil {
                 throw UIScriptError.tabAttributeOnControl(owner: control.name, line: element.line)
             }
@@ -297,11 +307,9 @@ enum UIScriptParser {
                     placeholder: reader.string("placeholder")
                 )
             default:
-                // Read with its own reader, which lists its ignored attributes.
+                // Read with its own reader, which lists its ignored attributes and checks what the
+                // element holds.
                 _ = try readContent(element, in: nil)
-                if let child = element.children.first {
-                    throw UIScriptError.unexpectedNesting(child.name, line: child.line)
-                }
                 continue
             }
             if !Self.holders.contains(element.name), let child = element.children.first {
@@ -337,7 +345,8 @@ enum UIScriptParser {
         )
     }
 
-    /// The elements that may hold others in a document Hudini reads.
+    /// The elements outside the controls that may hold others in a document Hudini reads. A grid
+    /// holds its items too, which `readContent` checks.
     private static let holders: Set<String> = ["Tab", "Pane", "Sidebar"]
 
     /// Puts the panes in their sidebar, adding the controls that name a pane with `pane`, or
@@ -391,7 +400,8 @@ enum UIScriptParser {
         "List": .list,
         "Slider": .slider,
         "ProgressBar": .progressBar,
-        "Region": .region
+        "Region": .region,
+        "Grid": .grid
     ]
 
     private static func makeWindow(_ reader: AttributeReader) throws -> UIScript.Window {
@@ -483,9 +493,73 @@ enum UIScriptParser {
         )
     }
 
+    /// Reads what a grid takes beyond the rules for controls, and the items it holds.
+    private static func makeGrid(
+        _ element: Element,
+        _ reader: AttributeReader,
+        ignoredAttributes: inout [UIScript.IgnoredAttribute]
+    ) throws -> UIScript.Grid {
+        func positive(_ attribute: String) throws -> Float {
+            let value = try reader.requiredNumber(attribute)
+            guard value > 0 else {
+                throw reader.invalid(attribute, reader.string(attribute) ?? "")
+            }
+            return value
+        }
+        let itemSize = UIScript.Size(width: try positive("itemWidth"), height: try positive("itemHeight"))
+        let spacing = try reader.number("spacing") ?? UIScript.Grid.defaultSpacing
+        guard spacing >= 0 else {
+            throw reader.invalid("spacing", reader.string("spacing") ?? "")
+        }
+        var titles = UIScript.Grid.Titles.below
+        if let value = reader.string("titles") {
+            guard let named = UIScript.Grid.Titles(rawValue: value) else {
+                throw reader.invalid("titles", value)
+            }
+            titles = named
+        }
+        let gridName = try reader.requiredString("name")
+
+        let items = try element.children.map { child in
+            guard child.name == "Item" else {
+                throw UIScriptError.invalidChild(child.name, parent: "Grid", line: child.line)
+            }
+            let itemReader = AttributeReader(child)
+            defer { ignoredAttributes += itemReader.unusedAttributes() }
+            let title = try itemReader.text(literal: "title", reference: "string")
+            let content: UIScript.Grid.Item.Content
+            switch (itemReader.string("image"), try itemReader.color("color")) {
+            case let (image?, nil):
+                content = .image(image)
+            case let (nil, color?):
+                content = .color(color)
+            case (nil, nil):
+                guard title != nil else {
+                    throw UIScriptError.emptyGridItem(grid: gridName, line: child.line)
+                }
+                content = .plain
+            case (_?, _?):
+                throw UIScriptError.conflictingAttributes(
+                    element: "Item", first: "image", second: "color", line: child.line
+                )
+            }
+            if let grandchild = child.children.first {
+                throw UIScriptError.unexpectedNesting(grandchild.name, line: grandchild.line)
+            }
+            return UIScript.Grid.Item(
+                name: itemReader.string("name"),
+                title: title,
+                content: content,
+                tooltip: itemReader.string("tooltip")
+            )
+        }
+        return UIScript.Grid(itemSize: itemSize, spacing: spacing, titles: titles, items: items)
+    }
+
     private static func makeControl(
         type: UIScript.ControlType,
-        _ reader: AttributeReader
+        _ reader: AttributeReader,
+        grid: UIScript.Grid? = nil
     ) throws -> UIScript.Control {
         let name = try reader.requiredString("name")
         // Refused rather than ignored: a control left in place would do nothing.
@@ -510,6 +584,7 @@ enum UIScriptParser {
             valueRange: try makeValueRange(owner: name, reader),
             step: try reader.number("step"),
             follows: try reader.boolean("follows") ?? false,
+            grid: grid,
             isInitiallyHidden: false
         )
     }
@@ -537,7 +612,7 @@ private struct Element {
     let attributes: [String: String]
     let line: Int
     /// The elements directly inside this one. Which elements may hold others, and what, is the
-    /// document builder's to check.
+    /// document builder's to check, at every depth.
     var children: [Element] = []
 }
 
@@ -547,13 +622,16 @@ private enum DocumentKind {
     case appearance
 }
 
-/// Gathers the document's elements, which sit directly under the root, with one level of
-/// elements inside them.
+/// Gathers the document's elements, which sit directly under the root, with the elements inside
+/// them. An appearance's elements hold nothing.
 private final class ElementCollector: NSObject, XMLParserDelegate {
     private(set) var root: Element?
     private(set) var elements: [Element] = []
     private(set) var failure: UIScriptError?
     private var depth = 0
+    // The elements under the root that are open, outermost first. Each joins its parent, or
+    // `elements`, once it ends, so it has all its children by then.
+    private var open: [Element] = []
     private let kind: DocumentKind
 
     init(kind: DocumentKind) {
@@ -589,17 +667,11 @@ private final class ElementCollector: NSObject, XMLParserDelegate {
             if let problem = compatibilityProblem(with: attributes) {
                 return fail(problem, parser)
             }
-        case 1:
-            elements.append(element)
-        case 2 where kind == .uiScript:
-            elements[elements.count - 1].children.append(element)
         default:
-            switch kind {
-            case .uiScript:
-                return fail(.unexpectedNesting(elementName, line: parser.lineNumber), parser)
-            case .appearance:
+            guard depth == 1 || kind == .uiScript else {
                 return fail(.unexpectedAppearanceElement(elementName, line: parser.lineNumber), parser)
             }
+            open.append(element)
         }
         depth += 1
     }
@@ -611,6 +683,14 @@ private final class ElementCollector: NSObject, XMLParserDelegate {
         qualifiedName: String?
     ) {
         depth -= 1
+        guard depth > 0, let element = open.popLast() else {
+            return
+        }
+        if open.isEmpty {
+            elements.append(element)
+        } else {
+            open[open.count - 1].children.append(element)
+        }
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
