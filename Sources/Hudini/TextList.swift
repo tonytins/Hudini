@@ -201,7 +201,15 @@ public final class TextList {
     /// The scroll bar's parts at `bounds`, or `nil` when the list has no bar showing.
     func scrollBarGeometry(in bounds: Rectangle) -> ScrollBar.Geometry? {
         prepareLines(for: bounds)
-        return ScrollBar.geometry(in: bounds, position: scrollBarPosition)
+        return scrollBar.geometry(in: bounds, position: scrollBarPosition)
+    }
+
+    /// Gives the scroll bar a width and an appearance's art, or `nil` art for the theme's classic
+    /// bar. Text wraps short of the new width from the next layout.
+    func useScrollBar(width: Float, art: ScrollBar.Art?) {
+        scrollBar.width = width
+        scrollBar.art = art
+        lineWidth = nil
     }
 
     /// Whether `point` is on the scroll bar the list shows at `bounds`.
@@ -306,7 +314,7 @@ public final class TextList {
         let textBounds = Rectangle(
             x: bounds.x + 1,
             y: bounds.y + 1,
-            width: max(0, bounds.width - 2 - (showsScrollBar ? ScrollBar.width : 0)),
+            width: max(0, bounds.width - 2 - (showsScrollBar ? scrollBar.width : 0)),
             height: max(0, bounds.height - 2)
         )
         BeginScissorMode(
@@ -323,8 +331,8 @@ public final class TextList {
             theme.drawText(lines[index], x: Int(clamping: bounds.x) + Self.padding, y: y, size: fontSize, color: textColor)
         }
         EndScissorMode()
-        if let geometry = ScrollBar.geometry(in: bounds, position: scrollBarPosition) {
-            ScrollBar.draw(geometry, theme: theme)
+        if let geometry = scrollBar.geometry(in: bounds, position: scrollBarPosition) {
+            scrollBar.draw(geometry, position: scrollBarPosition, theme: theme)
         }
     }
 
@@ -349,7 +357,7 @@ public final class TextList {
             // add lines, so it still shows afterward.
             showsScrollBar = lines.count > visibleLineCount
             if showsScrollBar {
-                wrap(to: max(1, width - Int(ScrollBar.width)))
+                wrap(to: max(1, width - Int(scrollBar.width)))
             }
             lineWidth = width
             wrappedVisibleLineCount = visibleLineCount

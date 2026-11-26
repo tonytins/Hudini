@@ -133,9 +133,10 @@ Nothing changes for a game that doesn't load an appearance.
 2. **Scaffolding:** `Appearance` and its reader, with tests. Nothing uses it yet.
 3. **Inheritance:** `UIScript(…, appearance:)` resolves shared names, a window overrides by name, and the merged
    document reaches `UIView`.
-4. **Scroll bar art:** the bar draws from its images, falling back to the theme. The demo gets an `appearance.xml`:
-   its chat window and live panel share styles, and one window overrides the scroll bar art. The demo's art is
-   plain placeholder art, marked as such.
+4. **Scroll bar art:** the bar draws from its images, falling back to the theme. The demo gets an `appearance.xml`
+   with shared scroll bar art, and Move Lot overrides its thumb. The demo's art is plain placeholder art, marked as
+   such. The demo doesn't share styles: its documents are VentureOS's and Depot's test fixtures, which must read
+   alone, so they keep their own. Tests cover shared styles.
 5. **Docs and Depot:** `UISCRIPT.md` and the README; `depot-render --appearance`, and Depot choosing one.
 6. **Cleanup:** remove `CSTCatalog` and Hudini's swift-cst dependency, since Simburbia reads text with swift-cst's
    `UIText` now.

@@ -169,3 +169,70 @@ private let downArrow = Vector2(x: 690, y: 595)
     #expect(view.scrollBarControl(at: Vector2(x: 50, y: 50), origin: .zero) == nil)
     #expect(view.scrollBarControl(at: Vector2(x: 190, y: 200), origin: .zero) == nil)
 }
+
+// MARK: Art from an appearance
+
+@Test func anAppearancesWidthSizesTheBar() throws {
+    let appearance = try Appearance(data: Data("<Appearance><ScrollBar width='20'/></Appearance>".utf8))
+    let view = UIView(script: try UIScript(data: Data("""
+        <UIScript version="1"><Window width="400" height="300"/>
+          <List name="history" x="0" y="0" width="200" height="100"/>
+        </UIScript>
+        """.utf8), appearance: appearance))
+    view.list(named: "history")?.items = (0..<20).map { "Item \($0)" }
+    let bounds = Rectangle(x: 0, y: 0, width: 200, height: 100)
+
+    let bar = try #require(view.list(named: "history")?.scrollBarGeometry(in: bounds))
+    #expect(bar.bar == Rectangle(x: 179, y: 1, width: 20, height: 98))
+    #expect(bar.up.height == 20)
+}
+
+@Test func aThumbImageStretchesOnlyBetweenItsCaps() {
+    let source = Rectangle(x: 0, y: 0, width: 15, height: 32)
+
+    let tall = ScrollBar.thumbSlices(source: source, box: Rectangle(x: 10, y: 100, width: 15, height: 60), cap: 6)
+    #expect(tall.map(\.from) == [
+        Rectangle(x: 0, y: 0, width: 15, height: 6),
+        Rectangle(x: 0, y: 6, width: 15, height: 20),
+        Rectangle(x: 0, y: 26, width: 15, height: 6),
+    ])
+    #expect(tall.map(\.to) == [
+        Rectangle(x: 10, y: 100, width: 15, height: 6),
+        Rectangle(x: 10, y: 106, width: 15, height: 48),
+        Rectangle(x: 10, y: 154, width: 15, height: 6),
+    ])
+
+    // Too short for both caps: they shrink evenly, and the middle is left out.
+    let short = ScrollBar.thumbSlices(source: source, box: Rectangle(x: 0, y: 0, width: 15, height: 8), cap: 6)
+    #expect(short.map(\.to) == [
+        Rectangle(x: 0, y: 0, width: 15, height: 4),
+        Rectangle(x: 0, y: 4, width: 15, height: 4),
+    ])
+
+    // No cap stretches the whole image, and a cap past half the image stops at half.
+    #expect(ScrollBar.thumbSlices(source: source, box: Rectangle(x: 0, y: 0, width: 15, height: 60), cap: 0).count == 1)
+    let halves = ScrollBar.thumbSlices(source: source, box: Rectangle(x: 0, y: 0, width: 15, height: 60), cap: 40)
+    #expect(halves.map(\.from.height) == [16, 16])
+}
+
+@Test func anArrowImageShowsItsState() throws {
+    var bar = ScrollBar()
+    let bounds = Rectangle(x: 0, y: 0, width: 200, height: 100)
+    let middle = ScrollBar.Position(first: 5, last: 10, shown: 5)
+    let geometry = try #require(bar.geometry(in: bounds, position: middle))
+    let away = Vector2(x: 50, y: 50)
+    let onUp = Vector2(x: geometry.up.x + 5, y: geometry.up.y + 5)
+
+    #expect(bar.arrowState(.up, in: geometry.up, position: middle, pointer: away, isDown: false) == .normal)
+    #expect(bar.arrowState(.up, in: geometry.up, position: middle, pointer: onUp, isDown: false) == .hovered)
+    // At its end, an arrow can't scroll, so it shows disabled.
+    let top = ScrollBar.Position(first: 0, last: 10, shown: 5)
+    #expect(bar.arrowState(.up, in: geometry.up, position: top, pointer: onUp, isDown: false) == .disabled)
+    let bottom = ScrollBar.Position(first: 10, last: 10, shown: 5)
+    #expect(bar.arrowState(.down, in: geometry.down, position: bottom, pointer: away, isDown: false) == .disabled)
+
+    // Held down, it shows pressed until it's let go.
+    _ = bar.update(pointer: onUp, isPressed: true, isDown: true, time: 0, in: bounds, position: middle)
+    #expect(bar.arrowState(.up, in: geometry.up, position: middle, pointer: onUp, isDown: true) == .pressed)
+    #expect(bar.arrowState(.down, in: geometry.down, position: middle, pointer: onUp, isDown: true) == .normal)
+}

@@ -23,6 +23,7 @@ let package = Package(
                 .product(name: "SwiftCST", package: "swift-cst"),
             ],
             resources: [
+                .copy("Resources/appearance.xml"),
                 .copy("Resources/chatdialog.uix"),
                 .copy("Resources/city"),
                 .copy("Resources/debugbar.uis"),

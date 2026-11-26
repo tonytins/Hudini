@@ -260,6 +260,29 @@ public final class UIView {
         self.monospaceNames = monospaceNames
         self.textures = textures
         self.sizes = sizes
+        // The appearance's scroll bar art, from the same textures as any image. A part whose
+        // image couldn't be loaded is drawn from the theme, and the image is in missingImages.
+        if let bar = script.scrollBar {
+            func image(_ name: String?) -> ScrollBar.Art.Image? {
+                guard let name, let texture = textures[name], let resource = script.resources.images[name] else {
+                    return nil
+                }
+                return ScrollBar.Art.Image(texture: texture, resource: resource)
+            }
+            let art = ScrollBar.Art(
+                up: image(bar.up),
+                down: image(bar.down),
+                thumb: image(bar.thumb),
+                track: image(bar.track),
+                thumbCap: bar.thumbCap
+            )
+            for list in lists.values {
+                list.useScrollBar(width: bar.width, art: art)
+            }
+            for area in textAreas.values {
+                area.useScrollBar(width: bar.width, art: art)
+            }
+        }
         tooltips = script.controls.reduce(into: [:]) { result, control in
             if let name = control.tooltip, let text = strings[name] {
                 result[control.name] = text

@@ -349,7 +349,15 @@ public final class TextArea: FormLayoutControl {
     /// The scroll bar's parts at `bounds`, or `nil` when the area has no bar showing.
     func scrollBarGeometry(in bounds: Rectangle) -> ScrollBar.Geometry? {
         prepareLines(for: bounds)
-        return ScrollBar.geometry(in: bounds, position: scrollBarPosition)
+        return scrollBar.geometry(in: bounds, position: scrollBarPosition)
+    }
+
+    /// Gives the scroll bar a width and an appearance's art, or `nil` art for the theme's classic
+    /// bar. Text wraps short of the new width from the next layout.
+    func useScrollBar(width: Float, art: ScrollBar.Art?) {
+        scrollBar.width = width
+        scrollBar.art = art
+        wrappedWidth = nil
     }
 
     /// Whether `point` is on the scroll bar the area shows at `bounds`.
@@ -386,7 +394,7 @@ public final class TextArea: FormLayoutControl {
             showsScrollBar = lines.count > visibleLineCount
             lineRoom = width
             if showsScrollBar {
-                lineRoom = max(1, width - Int(ScrollBar.width))
+                lineRoom = max(1, width - Int(scrollBar.width))
                 wrap(to: lineRoom)
             }
             wrappedWidth = width
@@ -428,14 +436,14 @@ public final class TextArea: FormLayoutControl {
         theme.fillRectangle(bounds, backgroundColor)
         theme.outlineRectangle(bounds, isFocused ? theme.accent : borderColor)
         defer {
-            if let geometry = ScrollBar.geometry(in: bounds, position: scrollBarPosition) {
-                ScrollBar.draw(geometry, theme: theme)
+            if let geometry = scrollBar.geometry(in: bounds, position: scrollBarPosition) {
+                scrollBar.draw(geometry, position: scrollBarPosition, theme: theme)
             }
         }
         BeginScissorMode(
             Int(clamping: bounds.x) + 1,
             Int(clamping: bounds.y) + 1,
-            max(0, Int(clamping: bounds.width) - 2 - (showsScrollBar ? Int(ScrollBar.width) : 0)),
+            max(0, Int(clamping: bounds.width) - 2 - (showsScrollBar ? Int(scrollBar.width) : 0)),
             max(0, Int(clamping: bounds.height) - 2)
         )
         defer {

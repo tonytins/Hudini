@@ -1,15 +1,17 @@
 import Raylib
 
-/// The classic scroll bar a `TextList` or `TextArea` draws down its right edge once its lines don't
-/// all fit, so a game never has to place a control beside one to scroll it.
+/// The scroll bar a `TextList` or `TextArea` draws down its right edge once its lines don't all
+/// fit, so a game never has to place a control beside one to scroll it.
 ///
-/// It follows VentureOS's classic bar: 15 pixels wide, taken from the content while it shows, with
-/// an up arrow at its top, a down arrow at its bottom, and a thumb in the theme's accent between
-/// them. An arrow scrolls a line and the track a page, both repeating while held, and the thumb
-/// drags. A press on the bar belongs to the bar alone, so it never selects a row or moves focus.
+/// Without art it's VentureOS's classic bar, drawn from the theme: 15 pixels wide, taken from the
+/// content while it shows, with an up arrow at its top, a down arrow at its bottom, and a thumb in
+/// the theme's accent between them. An appearance's `<ScrollBar>` can give it a width and images
+/// for any of its parts; a part without one is drawn from the theme. An arrow scrolls a line and
+/// the track a page, both repeating while held, and the thumb drags. A press on the bar belongs to
+/// the bar alone, so it never selects a row or moves focus.
 struct ScrollBar {
-    /// How wide the bar is, and how tall its arrows: Aqua's 15 pixels.
-    static let width: Float = 15
+    /// The classic bar's width, and how tall its arrows are: Aqua's 15 pixels.
+    static let defaultWidth: Float = Appearance.defaultScrollBarWidth
 
     static let minimumThumbLength: Float = 18
 
@@ -38,6 +40,30 @@ struct ScrollBar {
         var thumb: Rectangle
     }
 
+    /// The images a bar draws with, from an appearance. A part left out is drawn from the theme.
+    struct Art {
+        /// A loaded image and how it's sliced.
+        struct Image {
+            var texture: Texture2D
+            var resource: UIScript.ImageResource
+        }
+
+        var up: Image?
+        var down: Image?
+        var thumb: Image?
+        var track: Image?
+
+        /// Pixels at the thumb image's top and bottom that keep their size while its middle
+        /// stretches.
+        var thumbCap: Float = 0
+    }
+
+    /// How wide the bar is, and how tall its arrows are.
+    var width: Float = defaultWidth
+
+    /// The images the bar draws with, or `nil` for the theme's classic bar.
+    var art: Art?
+
     // An arrow or the track held down, and when it next repeats.
     private var hold: (part: Part, next: Double)?
     // Where the thumb was grabbed, from its top, while it's dragged.
@@ -50,7 +76,7 @@ struct ScrollBar {
 
     /// Places the bar inside a control's one-pixel outline, or returns `nil` when everything fits
     /// and there is no bar.
-    static func geometry(in bounds: Rectangle, position: Position) -> Geometry? {
+    func geometry(in bounds: Rectangle, position: Position) -> Geometry? {
         guard position.last > 0 else {
             return nil
         }
@@ -68,7 +94,7 @@ struct ScrollBar {
         let shown = Float(max(1, position.shown))
         let length = min(
             track.height,
-            max(min(minimumThumbLength, track.height), (track.height * shown / (Float(position.last) + shown)).rounded(.down))
+            max(min(Self.minimumThumbLength, track.height), (track.height * shown / (Float(position.last) + shown)).rounded(.down))
         )
         let fraction = Float(min(max(position.first, 0), position.last)) / Float(position.last)
         let thumb = Rectangle(
@@ -109,7 +135,7 @@ struct ScrollBar {
         in bounds: Rectangle,
         position: Position
     ) -> (tookPointer: Bool, first: Int?) {
-        guard isDown, let geometry = Self.geometry(in: bounds, position: position) else {
+        guard isDown, let geometry = geometry(in: bounds, position: position) else {
             hold = nil
             grab = nil
             return (false, nil)
@@ -159,26 +185,115 @@ struct ScrollBar {
         return min(max(position.first + change, 0), position.last)
     }
 
-    /// Draws the bar: a shaded track, an arrow at each end, and a glossy thumb in the accent.
-    static func draw(_ geometry: Geometry, theme: InterfaceTheme) {
-        let bar = geometry.bar
-        DrawRectangleGradientV(
-            Int(clamping: bar.x),
-            Int(clamping: bar.y),
-            Int(clamping: bar.width),
-            Int(clamping: bar.height),
-            blend(theme.inputBackground, theme.border, 0.35),
-            blend(theme.inputBackground, theme.border, 0.15)
-        )
-        DrawRectangleRec(Rectangle(x: bar.x, y: bar.y, width: 1, height: bar.height), theme.border)
-        drawArrow(in: geometry.up, pointsUp: true, theme: theme)
-        drawArrow(in: geometry.down, pointsUp: false, theme: theme)
+    /// The state an arrow's image shows: disabled at its end, pressed while held, hovered under
+    /// the pointer, and otherwise normal.
+    func arrowState(_ part: Part, in box: Rectangle, position: Position, pointer: Vector2, isDown: Bool) -> UIScript.ButtonState {
+        let atEnd = part == .up ? position.first <= 0 : position.first >= position.last
+        if atEnd {
+            return .disabled
+        }
+        if isDown, hold?.part == part {
+            return .pressed
+        }
+        return CheckCollisionPointRec(pointer, box) ? .hovered : .normal
+    }
 
+    /// Draws the bar, with art for the parts that have it and the classic bar's look for the rest.
+    func draw(_ geometry: Geometry, position: Position, theme: InterfaceTheme) {
+        let pointer = GetMousePosition()
+        let isDown = IsMouseButtonDown(MouseButton.left)
+
+        if let track = art?.track {
+            Self.drawImage(track, in: geometry.track, source: Self.source(of: track, state: .normal))
+        } else {
+            let bar = geometry.bar
+            DrawRectangleGradientV(
+                Int(clamping: bar.x),
+                Int(clamping: bar.y),
+                Int(clamping: bar.width),
+                Int(clamping: bar.height),
+                Self.blend(theme.inputBackground, theme.border, 0.35),
+                Self.blend(theme.inputBackground, theme.border, 0.15)
+            )
+            DrawRectangleRec(Rectangle(x: bar.x, y: bar.y, width: 1, height: bar.height), theme.border)
+        }
+
+        for (part, box, image) in [(Part.up, geometry.up, art?.up), (.down, geometry.down, art?.down)] {
+            if let image {
+                let state = arrowState(part, in: box, position: position, pointer: pointer, isDown: isDown)
+                Self.drawImage(image, in: box, source: Self.source(of: image, state: state))
+            } else {
+                Self.drawArrow(in: box, pointsUp: part == .up, theme: theme)
+            }
+        }
+
+        if let thumb = art?.thumb {
+            Self.drawThumb(thumb, in: geometry.thumb, cap: art?.thumbCap ?? 0)
+        } else {
+            Self.drawClassicThumb(in: geometry.thumb, theme: theme)
+        }
+    }
+
+    // The part of an image a state shows: one slice of a multi-state image, or all of it.
+    private static func source(of image: Art.Image, state: UIScript.ButtonState) -> Rectangle {
+        image.resource.sourceRectangle(
+            for: state,
+            textureWidth: Float(image.texture.width),
+            textureHeight: Float(image.texture.height)
+        )
+    }
+
+    private static func drawImage(_ image: Art.Image, in box: Rectangle, source: Rectangle) {
+        guard box.width > 0, box.height > 0 else {
+            return
+        }
+        DrawTexturePro(image.texture, source, box, Vector2(x: 0, y: 0), 0, Color(r: 255, g: 255, b: 255, a: 255))
+    }
+
+    /// Draws a thumb image in three slices: its top and bottom `cap` pixels keep their height and
+    /// its middle stretches. A thumb too short for both caps shrinks them evenly.
+    static func drawThumb(_ image: Art.Image, in box: Rectangle, cap: Float) {
+        let source = source(of: image, state: .normal)
+        for (from, to) in thumbSlices(source: source, box: box, cap: cap) {
+            drawImage(image, in: to, source: from)
+        }
+    }
+
+    /// The thumb's slices as pairs of where they come from in the image and where they're drawn.
+    static func thumbSlices(source: Rectangle, box: Rectangle, cap: Float) -> [(from: Rectangle, to: Rectangle)] {
+        let sourceCap = min(max(cap, 0), source.height / 2)
+        guard sourceCap > 0 else {
+            return [(source, box)]
+        }
+        let drawnCap = min(sourceCap, box.height / 2)
+        let middleSource = source.height - (2 * sourceCap)
+        let middleDrawn = box.height - (2 * drawnCap)
+        var slices: [(Rectangle, Rectangle)] = [
+            (
+                Rectangle(x: source.x, y: source.y, width: source.width, height: sourceCap),
+                Rectangle(x: box.x, y: box.y, width: box.width, height: drawnCap)
+            ),
+        ]
+        if middleSource > 0, middleDrawn > 0 {
+            slices.append((
+                Rectangle(x: source.x, y: source.y + sourceCap, width: source.width, height: middleSource),
+                Rectangle(x: box.x, y: box.y + drawnCap, width: box.width, height: middleDrawn)
+            ))
+        }
+        slices.append((
+            Rectangle(x: source.x, y: source.y + source.height - sourceCap, width: source.width, height: sourceCap),
+            Rectangle(x: box.x, y: box.y + box.height - drawnCap, width: box.width, height: drawnCap)
+        ))
+        return slices
+    }
+
+    // The classic thumb: a glossy pill in the accent.
+    private static func drawClassicThumb(in box: Rectangle, theme: InterfaceTheme) {
         let thumb = Rectangle(
-            x: geometry.thumb.x + 3,
-            y: geometry.thumb.y + 1,
-            width: geometry.thumb.width - 5,
-            height: max(0, geometry.thumb.height - 2)
+            x: box.x + 3,
+            y: box.y + 1,
+            width: box.width - 5,
+            height: max(0, box.height - 2)
         )
         guard thumb.width > 0, thumb.height > 0 else {
             return

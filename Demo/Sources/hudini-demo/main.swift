@@ -52,12 +52,28 @@ func logProblems(in script: UIScript, file: String) {
     }
 }
 
-func loadUIScript(named name: String) -> UIScript {
+/// The Sims demo's shared appearance: its windows' scroll bar art.
+func loadAppearance() -> Appearance {
+    do {
+        guard let url = Bundle.module.url(forResource: "appearance", withExtension: "xml") else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let appearance = try Appearance(contentsOf: url)
+        for ignored in appearance.ignoredAttributes {
+            log("appearance.xml line \(ignored.line): \(ignored.element) ignores '\(ignored.attribute)'")
+        }
+        return appearance
+    } catch {
+        fail("Unable to load appearance.xml: \(error.localizedDescription)")
+    }
+}
+
+func loadUIScript(named name: String, appearance: Appearance? = nil) -> UIScript {
     do {
         guard let url = Bundle.module.url(forResource: name, withExtension: "uix") else {
             throw CocoaError(.fileNoSuchFile)
         }
-        let script = try UIScript(contentsOf: url)
+        let script = try UIScript(contentsOf: url, appearance: appearance)
         logProblems(in: script, file: "\(name).uix")
         return script
     } catch {
@@ -114,6 +130,9 @@ func standLotBounds(groundBottom height: Int32) -> Rectangle {
 /// A multi-state image holds its slices left to right: normal, pressed, hovered, disabled.
 func makePlaceholderTexture(for resource: UIScript.ImageResource) -> Texture2D {
     let path = resource.path ?? ""
+    if path.hasPrefix("scroll/") {
+        return makeScrollBarPlaceholder(path: path, stateCount: Int32(resource.stateCount))
+    }
     if resource.stateCount >= 4 {
         return makeButtonPlaceholder(path: path, stateCount: Int32(resource.stateCount))
     }
@@ -123,6 +142,54 @@ func makePlaceholderTexture(for resource: UIScript.ImageResource) -> Texture2D {
     if height > 2 {
         ImageDrawRectangle(&image, 0, 0, width, 2, Color(r: 255, g: 255, b: 255, a: 60))
     }
+    return LoadTextureFromImage(image)
+}
+
+/// Placeholder scroll bar art for appearance.xml, 15 pixels wide. Arrows are four slices (normal,
+/// pressed, hovered, disabled) with a triangle in each. The thumb has 6-pixel caps, which the
+/// appearance keeps from stretching, and grip lines in its middle; Move Lot's own thumb is orange.
+func makeScrollBarPlaceholder(path: String, stateCount: Int32) -> Texture2D {
+    let size: Int32 = 15
+    let ink = Color(r: 255, g: 249, b: 157, a: 255)
+    if path.contains("up") || path.contains("down") {
+        let states = [
+            Color(r: 55, g: 72, b: 90, a: 255),
+            Color(r: 30, g: 42, b: 54, a: 255),
+            Color(r: 82, g: 104, b: 128, a: 255),
+            Color(r: 46, g: 50, b: 56, a: 255),
+        ]
+        var image = GenImageColor(size * max(stateCount, 1), size, states[0])
+        defer { UnloadImage(image) }
+        for slice in 0..<Int(max(stateCount, 1)) {
+            let x = Int32(slice) * size
+            ImageDrawRectangle(&image, x, 0, size, size, states[min(slice, states.count - 1)])
+            ImageDrawRectangleLines(&image, Rectangle(x: Float(x), y: 0, width: Float(size), height: Float(size)), 1,
+                                    Color(r: 119, g: 136, b: 153, a: 255))
+            let triangleInk = slice == 3 ? Color(r: 110, g: 110, b: 110, a: 255) : ink
+            for row in Int32(0)..<4 {
+                let half = path.contains("up") ? row : 3 - row
+                ImageDrawRectangle(&image, x + 7 - half, 5 + row, (half * 2) + 1, 1, triangleInk)
+            }
+        }
+        return LoadTextureFromImage(image)
+    }
+    if path.contains("thumb") {
+        let fill = path.contains("private") ? Color(r: 214, g: 120, b: 48, a: 255) : Color(r: 64, g: 150, b: 170, a: 255)
+        let cap = Color(r: fill.r / 2, g: fill.g / 2, b: fill.b / 2, a: 255)
+        var image = GenImageColor(size, 32, fill)
+        defer { UnloadImage(image) }
+        ImageDrawRectangle(&image, 0, 0, size, 6, cap)
+        ImageDrawRectangle(&image, 0, 26, size, 6, cap)
+        for y: Int32 in [13, 16, 19] {
+            ImageDrawRectangle(&image, 4, y, size - 8, 1, ink)
+        }
+        return LoadTextureFromImage(image)
+    }
+    // The track: a dark channel with lighter edges.
+    var image = GenImageColor(size, 8, Color(r: 16, g: 24, b: 32, a: 255))
+    defer { UnloadImage(image) }
+    ImageDrawRectangle(&image, 0, 0, 1, 8, Color(r: 119, g: 136, b: 153, a: 255))
+    ImageDrawRectangle(&image, size - 1, 0, 1, 8, Color(r: 119, g: 136, b: 153, a: 255))
     return LoadTextureFromImage(image)
 }
 
@@ -366,11 +433,13 @@ func demoString(_ resource: UIScript.StringResource) -> String? {
     }
 }
 
-let chatScript = loadUIScript(named: "chatdialog")
-let panelScript = loadUIScript(named: "livepanel1024")
-let statsScript = loadUIScript(named: "statspanel")
-let optionsScript = loadUIScript(named: "optionspanel")
-let moveLotScript = loadUIScript(named: "movelot")
+// Every Sims window shares this appearance's scroll bar art.
+let appearance = loadAppearance()
+let chatScript = loadUIScript(named: "chatdialog", appearance: appearance)
+let panelScript = loadUIScript(named: "livepanel1024", appearance: appearance)
+let statsScript = loadUIScript(named: "statspanel", appearance: appearance)
+let optionsScript = loadUIScript(named: "optionspanel", appearance: appearance)
+let moveLotScript = loadUIScript(named: "movelot", appearance: appearance)
 let barScript = loadUIS(named: "debugbar")
 let standScript = loadUIS(named: "lemonadestand")
 
