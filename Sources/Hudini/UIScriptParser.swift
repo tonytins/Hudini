@@ -265,6 +265,7 @@ enum UIScriptParser {
             isSelectable: try reader.boolean("selectable") ?? false,
             alignment: try reader.alignment("alignment") ?? .left,
             valueRange: try makeValueRange(owner: name, reader),
+            step: try reader.number("step"),
             follows: try reader.boolean("follows") ?? false,
             isInitiallyHidden: false
         )

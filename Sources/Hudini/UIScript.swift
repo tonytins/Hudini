@@ -219,6 +219,12 @@ public struct UIScript: Sendable {
                 || (control.type != .slider && control.type != .progressBar) {
                 throw UIScriptError.invalidValueRange(owner: control.name)
             }
+            if let step = control.step {
+                let range = control.valueRange ?? 0...1
+                guard control.type == .slider, step > 0, step <= range.upperBound - range.lowerBound else {
+                    throw UIScriptError.invalidStep(owner: control.name)
+                }
+            }
             if let style = control.style, styles[style] == nil {
                 throw UIScriptError.unknownReference(
                     owner: control.name,
@@ -942,6 +948,10 @@ public struct UIScript: Sendable {
         /// The values a slider or progress bar covers, or `nil` for the default of 0 to 1.
         public let valueRange: ClosedRange<Float>?
 
+        /// The step a slider's value snaps to, counted from the bottom of its range, or `nil` for
+        /// any value in the range.
+        public let step: Float?
+
         /// Whether a text area stays at its last line when its text changes while it shows it.
         public let follows: Bool
 
@@ -1062,6 +1072,10 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
     /// A value range is empty, or is attached to a control other than a slider or progress bar.
     case invalidValueRange(owner: String)
 
+    /// A step isn't above 0, is more than its slider's range, or is on a control other than a
+    /// slider.
+    case invalidStep(owner: String)
+
     public var errorDescription: String? {
         switch self {
         case .unsupportedEncoding:
@@ -1136,8 +1150,21 @@ public enum UIScriptError: Error, LocalizedError, Sendable, Equatable {
             "UIScript selectable for '\(owner)' requires a list control."
         case let .retiredScrolling(owner):
             "UIScript '\(owner)' has scrolls or direction. Lists and text areas show their own scroll bars, so nothing scrolls them by hand any more; remove it."
+        case let .invalidStep(owner):
+            "UIScript step for '\(owner)' must be above 0 and no more than its range, and requires a slider."
         case let .invalidValueRange(owner):
             "UIScript value range for '\(owner)' must have minValue below maxValue and requires a slider or progress bar."
+        }
+    }
+}
+
+extension UIScript.TextAlignment {
+    /// How far from the left of `room` pixels to start something `width` pixels wide.
+    func offset(ofWidth width: Int, in room: Int) -> Int {
+        switch self {
+        case .left: 0
+        case .center: (room - width) / 2
+        case .right: room - width
         }
     }
 }

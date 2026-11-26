@@ -478,6 +478,7 @@ private struct UISBuilder {
             isSelectable: false,
             alignment: .left,
             valueRange: nil,
+            step: nil,
             follows: false,
             isInitiallyHidden: true
         )
@@ -606,6 +607,7 @@ private struct UISBuilder {
             isSelectable: false,
             alignment: alignment,
             valueRange: makeValueRange(type, reader, tag),
+            step: nil,
             follows: false,
             isInitiallyHidden: false
         )

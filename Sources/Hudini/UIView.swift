@@ -72,6 +72,11 @@ public final class UIView {
     private var values: [String: Float]
     private var boundsOverrides: [String: Rectangle] = [:]
     private var draggedSlider: (name: String, grab: Float)?
+
+    /// The slider the arrow keys, Home, and End move, if any: the last one pressed, until a press
+    /// lands elsewhere or `clearFocus()` is called. A host that uses those keys itself, such as to
+    /// move a camera, leaves them alone while this is set.
+    public private(set) var focusedSlider: String?
     private var hoveredControl: String?
     private var hoveredSeconds: Float = 0
     private(set) var pendingTooltip: String?
@@ -101,8 +106,13 @@ public final class UIView {
         case pressed(control: String)
         /// A text field submitted its text.
         case submitted(control: String, text: String)
-        /// Dragging moved a slider to a new value.
+        /// A slider moved to a new value, by dragging, a click on its track, or a key. With a
+        /// `step`, the value is always on a step.
         case changed(control: String, value: Float)
+        /// A slider was let go after a drag, or a key moved it, with the value it ended on: the one
+        /// place a host that only wants the final value listens. A drag reports it even when the
+        /// value ended where it started.
+        case committed(control: String, value: Float)
         /// A click on a selectable list changed its selected item.
         case selected(control: String, index: Int)
     }
@@ -233,6 +243,11 @@ public final class UIView {
         }
         for control in script.controls {
             sizes[control.name] = size(of: control.frame, image: control.image)
+        }
+
+        for control in script.controls {
+            textFields[control.name]?.alignment = control.alignment
+            textAreas[control.name]?.alignment = control.alignment
         }
 
         if let titleField = script.titleField {
@@ -424,14 +439,27 @@ public final class UIView {
         values[name]
     }
 
-    /// Sets the value of a slider or progress bar, kept within its range. This is cheap enough
-    /// to call every frame. It reports no event, and other controls are left alone.
+    /// Sets the value of a slider or progress bar, kept within its range and, for a slider with a
+    /// `step`, on the nearest step. This is cheap enough to call every frame. It reports no
+    /// event, and other controls are left alone.
     public func setValue(_ value: Float, named name: String) {
         guard values[name] != nil, value.isFinite, let control = script.control(named: name) else {
             return
         }
-        let range = Self.range(of: control)
-        values[name] = min(max(value, range.lowerBound), range.upperBound)
+        values[name] = Self.snapped(value, for: control)
+    }
+
+    /// A value kept within a control's range and, for a slider with a step, on the nearest step,
+    /// never past the last step that fits in the range.
+    static func snapped(_ value: Float, for control: UIScript.Control) -> Float {
+        let range = range(of: control)
+        let clamped = min(max(value, range.lowerBound), range.upperBound)
+        guard control.type == .slider, let step = control.step else {
+            return clamped
+        }
+        let steps = ((clamped - range.lowerBound) / step).rounded()
+        let last = (((range.upperBound - range.lowerBound) / step) + 0.0001).rounded(.down)
+        return range.lowerBound + (min(steps, last) * step)
     }
 
     private static func range(of control: UIScript.Control) -> ClosedRange<Float> {
@@ -444,9 +472,10 @@ public final class UIView {
             / (range.upperBound - range.lowerBound)
     }
 
-    /// Removes keyboard focus from the view's text fields and text areas. Call this when a view
+    /// Removes keyboard focus from the view's text fields, text areas, and sliders. Call this when a view
     /// stops being shown, so it does not hold focus while it is away.
     public func clearFocus() {
+        focusedSlider = nil
         for field in textFields.values {
             field.setFocused(false)
         }
@@ -535,15 +564,18 @@ public final class UIView {
             if let event = selectListItem(at: pointer, origin: origin, time: GetTime()) {
                 events.append(event)
             }
-            _ = beginSliderDrag(at: pointer, origin: origin)
+            if !beginSliderDrag(at: pointer, origin: origin) {
+                focusedSlider = nil
+            }
         }
         if IsMouseButtonDown(MouseButton.left) {
             if let event = dragSlider(to: pointer, origin: origin) {
                 events.append(event)
             }
-        } else {
-            draggedSlider = nil
+        } else if let event = releaseSlider() {
+            events.append(event)
         }
+        events += sliderKeyEvents()
         for control in script.controls where !hiddenNames.contains(control.name) {
             let bounds = screenRectangle(for: control.frame, named: control.name, at: origin)
             // A press was handled above, so it reaches only the topmost control. A press on a
@@ -641,6 +673,7 @@ public final class UIView {
                 ? (isVertical ? point.y - thumb.y : point.x - thumb.x)
                 : (isVertical ? thumb.height : thumb.width) / 2
             draggedSlider = (control.name, grab)
+            focusedSlider = control.name
             return true
         }
         return false
@@ -656,20 +689,93 @@ public final class UIView {
         let track = screenRectangle(for: control.frame, named: control.name, at: origin)
         let thumb = sliderThumb(of: control, in: track)
         let isVertical = Self.isVertical(track)
-        let fraction = Self.sliderFraction(
+        let along = Self.sliderFraction(
             pointer: isVertical ? point.y : point.x,
             trackStart: isVertical ? track.y : track.x,
             trackLength: isVertical ? track.height : track.width,
             thumbLength: isVertical ? thumb.height : thumb.width,
             grab: dragged.grab
         )
+        // An upright slider runs bottom to top, so its lowest value is at the bottom.
+        let fraction = isVertical ? 1 - along : along
         let range = Self.range(of: control)
-        let value = range.lowerBound + (fraction * (range.upperBound - range.lowerBound))
+        let value = Self.snapped(range.lowerBound + (fraction * (range.upperBound - range.lowerBound)), for: control)
         guard value != values[control.name] else {
             return nil
         }
         values[control.name] = value
         return .changed(control: control.name, value: value)
+    }
+
+    /// Ends a slider drag, reporting `.committed` with the value it ended on, even an unchanged
+    /// one. Returns `nil` when no slider was being dragged.
+    func releaseSlider() -> Event? {
+        defer {
+            draggedSlider = nil
+        }
+        guard let name = draggedSlider?.name, let value = values[name] else {
+            return nil
+        }
+        return .committed(control: name, value: value)
+    }
+
+    /// What a key does to the focused slider.
+    enum SliderKey {
+        /// Up or Right: a step, or a tenth of the range without one, toward the top.
+        case increase
+        /// Down or Left: the same toward the bottom.
+        case decrease
+        /// Home: the bottom of the range.
+        case toStart
+        /// End: the top of the range.
+        case toEnd
+    }
+
+    /// Moves the focused slider by a key, reporting `.changed` then `.committed` when its value
+    /// moves, and nothing when it can't, such as at an end, or while it's hidden or disabled.
+    func pressSliderKey(_ key: SliderKey) -> [Event] {
+        guard let name = focusedSlider, !hiddenNames.contains(name), !disabledNames.contains(name),
+              let control = script.control(named: name), let current = values[name] else {
+            return []
+        }
+        let range = Self.range(of: control)
+        let step = control.step ?? ((range.upperBound - range.lowerBound) / 10)
+        let target = switch key {
+        case .increase: current + step
+        case .decrease: current - step
+        case .toStart: range.lowerBound
+        case .toEnd: range.upperBound
+        }
+        let value = Self.snapped(target, for: control)
+        guard value != current else {
+            return []
+        }
+        values[name] = value
+        return [.changed(control: name, value: value), .committed(control: name, value: value)]
+    }
+
+    // This frame's keys for the focused slider. Arrows repeat while held; Home and End don't.
+    private func sliderKeyEvents() -> [Event] {
+        guard focusedSlider != nil else {
+            return []
+        }
+        func pressed(_ key: KeyboardKey) -> Bool {
+            IsKeyPressed(key) || IsKeyPressedRepeat(key)
+        }
+        var events: [Event] = []
+        if pressed(.right) || pressed(.up) {
+            events += pressSliderKey(.increase)
+        }
+        if pressed(.left) || pressed(.down) {
+            events += pressSliderKey(.decrease)
+        }
+        if IsKeyPressed(.home) {
+            events += pressSliderKey(.toStart)
+        }
+        if IsKeyPressed(.end) {
+            events += pressSliderKey(.toEnd)
+        }
+        return events
     }
 
     /// Converts a pointer position to a slider position from 0 to 1. The thumb travels inside
@@ -700,7 +806,7 @@ public final class UIView {
         let height = max(0, track.height - 2)
         if Self.isVertical(track) {
             let thumb = min(length, height)
-            return Rectangle(x: track.x + 1, y: track.y + 1 + ((height - thumb) * fraction), width: width, height: thumb)
+            return Rectangle(x: track.x + 1, y: track.y + 1 + ((height - thumb) * (1 - fraction)), width: width, height: thumb)
         }
         let thumb = min(length, width)
         return Rectangle(x: track.x + 1 + ((width - thumb) * fraction), y: track.y + 1, width: thumb, height: height)
@@ -829,11 +935,7 @@ public final class UIView {
         let room = Int(clamping: bounds.width) - (inset * 2)
         var y = Int(clamping: bounds.y) + inset
         for line in label.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
-            let x = switch control.alignment {
-            case .left: left
-            case .center: left + ((room - theme.textWidth(of: line, size: fontSize)) / 2)
-            case .right: left + room - theme.textWidth(of: line, size: fontSize)
-            }
+            let x = left + control.alignment.offset(ofWidth: theme.textWidth(of: line, size: fontSize), in: room)
             theme.drawText(line, x: x, y: y, size: fontSize, color: style?.textColor ?? theme.text)
             y += fontSize + Self.textLineGap
         }
@@ -878,7 +980,8 @@ public final class UIView {
     private func drawSlider(_ control: UIScript.Control, in bounds: Rectangle) {
         let style = resolvedStyle(for: control)
         theme.fillRectangle(bounds, style?.backgroundColor ?? theme.panel)
-        theme.outlineRectangle(bounds, style?.borderColor ?? theme.border)
+        // Outlined in the accent while it has the keyboard, as a focused text field is.
+        theme.outlineRectangle(bounds, focusedSlider == control.name ? theme.accent : (style?.borderColor ?? theme.border))
         let color = disabledNames.contains(control.name) ? theme.secondaryText : (style?.fillColor ?? theme.accent)
         theme.fillRectangle(sliderThumb(of: control, in: bounds), color)
     }

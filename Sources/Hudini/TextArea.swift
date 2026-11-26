@@ -63,6 +63,8 @@ public final class TextArea: FormLayoutControl {
     private var lines: [String] = []
     // The width `lines` was wrapped to, or nil when the text has changed since.
     private var wrappedWidth: Int?
+    // The room lines were wrapped into, short of the scroll bar when it shows, which they align in.
+    private var lineRoom = 1
     // The visible line count `lines` was wrapped for, since that decides whether the bar shows.
     private var wrappedVisibleLineCount: Int?
     private var visibleLineCount = 1
@@ -98,6 +100,10 @@ public final class TextArea: FormLayoutControl {
 
     /// The area's most recently assigned bounds.
     public private(set) var bounds = Rectangle()
+
+    /// Where each line sits across the area. The caret follows the end of the last line, and the
+    /// placeholder is placed the same way.
+    public var alignment: UIScript.TextAlignment = .left
 
     /// Creates an area that accepts at most `maximumLength` characters, counting line breaks.
     /// Without a `fontSize`, it uses the theme's `input` size.
@@ -378,8 +384,10 @@ public final class TextArea: FormLayoutControl {
             // The bar takes room only once the text overflows, and wrapping short of it can only
             // add lines, so it still shows afterward.
             showsScrollBar = lines.count > visibleLineCount
+            lineRoom = width
             if showsScrollBar {
-                wrap(to: max(1, width - Int(ScrollBar.width)))
+                lineRoom = max(1, width - Int(ScrollBar.width))
+                wrap(to: lineRoom)
             }
             wrappedWidth = width
             wrappedVisibleLineCount = visibleLineCount
@@ -435,12 +443,15 @@ public final class TextArea: FormLayoutControl {
         }
         let x = Int(clamping: bounds.x) + TextArea.padding
         let top = Int(clamping: bounds.y) + TextArea.padding
+        func lineX(_ line: String) -> Int {
+            x + alignment.offset(ofWidth: theme.textWidth(of: line, size: fontSize), in: lineRoom)
+        }
         if _text.isEmpty, let placeholder {
-            theme.drawText(placeholder, x: x, y: top, size: fontSize, color: theme.secondaryText)
+            theme.drawText(placeholder, x: max(x, lineX(placeholder)), y: top, size: fontSize, color: theme.secondaryText)
         } else {
             let end = min(lines.count, firstLine + visibleLineCount)
             for index in firstLine..<end {
-                theme.drawText(lines[index], x: x, y: top + ((index - firstLine) * lineHeight), size: fontSize, color: textColor)
+                theme.drawText(lines[index], x: lineX(lines[index]), y: top + ((index - firstLine) * lineHeight), size: fontSize, color: textColor)
             }
         }
         let caretLine = max(lines.count, 1) - 1
@@ -448,7 +459,7 @@ public final class TextArea: FormLayoutControl {
            caretLine >= firstLine, caretLine < firstLine + visibleLineCount {
             let last = lines.last ?? ""
             DrawRectangle(
-                x + theme.textWidth(of: last, size: fontSize) + 2,
+                lineX(last) + theme.textWidth(of: last, size: fontSize) + 2,
                 top + ((caretLine - firstLine) * lineHeight),
                 2,
                 fontSize,

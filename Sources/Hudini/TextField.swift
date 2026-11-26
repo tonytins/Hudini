@@ -75,6 +75,10 @@ public final class TextField: FormLayoutControl {
     /// The field's most recently assigned bounds.
     public private(set) var bounds = Rectangle()
 
+    /// Where the text sits while all of it fits, with the caret and placeholder placed with it.
+    /// Text that doesn't fit fills the field from the left and scrolls, whatever the alignment.
+    public var alignment: UIScript.TextAlignment = .left
+
     /// Creates a field that accepts at most `maximumLength` characters. Without a `fontSize`, it
     /// uses the theme's `input` size.
     public convenience init(
@@ -256,8 +260,11 @@ public final class TextField: FormLayoutControl {
         let text = shownText
         let left = Int(clamping: bounds.x) + TextField.padding
         let room = max(0, Int(clamping: bounds.width) - (TextField.padding * 2))
-        let overflow = max(0, theme.textWidth(of: text, size: fontSize) + TextField.caretRoom - room)
-        let x = left - overflow
+        let textWidth = theme.textWidth(of: text, size: fontSize)
+        let overflow = max(0, textWidth + TextField.caretRoom - room)
+        let x = overflow > 0
+            ? left - overflow
+            : left + alignment.offset(ofWidth: textWidth + TextField.caretRoom, in: room)
         let y = Int(clamping: bounds.y) + ((Int(clamping: bounds.height) - fontSize) / 2)
         BeginScissorMode(
             left,
@@ -269,12 +276,13 @@ public final class TextField: FormLayoutControl {
             EndScissorMode()
         }
         if text.isEmpty, let placeholder {
-            theme.drawText(placeholder, x: x, y: y, size: fontSize, color: theme.secondaryText)
+            let placeholderX = left + alignment.offset(ofWidth: theme.textWidth(of: placeholder, size: fontSize), in: room)
+            theme.drawText(placeholder, x: max(left, placeholderX), y: y, size: fontSize, color: theme.secondaryText)
         } else {
             theme.drawText(text, x: x, y: y, size: fontSize, color: textColor)
         }
         if isFocused, Int(clamping: GetTime() * 2) % 2 == 0 {
-            let caretX = x + theme.textWidth(of: text, size: fontSize) + 2
+            let caretX = x + textWidth + 2
             DrawRectangle(caretX, y, 2, fontSize, textColor)
         }
     }
