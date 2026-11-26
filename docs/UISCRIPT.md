@@ -64,7 +64,8 @@ See [`chatdialog.uix`](../Demo/Sources/hudini-demo/Resources/chatdialog.uix) and
 [`livepanel1024.uix`](../Demo/Sources/hudini-demo/Resources/livepanel1024.uix) for
 complete examples, and
 [`city/citypanel.uix`](../Demo/Sources/hudini-demo/Resources/city/citypanel.uix) for
-tabs. VentureOS's tests read copies of the demo's documents, so every
+tabs, and [`city/tools.uix`](../Demo/Sources/hudini-demo/Resources/city/tools.uix) for
+a grid. VentureOS's tests read copies of the demo's documents, so every
 document Hudini reads reads the same there, except one with tabs: VentureOS refuses
 `<Tab>` until it shows tabs. Leave a tabbed document, such as `city/citypanel.uix`,
 out of those copies until then.
@@ -191,7 +192,10 @@ wallpapers.items = files.map { file in
 wallpapers.items.append(.init(name: "earthset", title: "Earthset", content: view.gridPicture(named: "earthset")))
 ```
 
-The host owns the textures it passes in, as it owns those `loadImage` returns.
+The host owns the textures it passes in, as it owns those `loadImage` returns. The
+CityLimits demo's tool palette,
+[`city/tools.uix`](../Demo/Sources/hudini-demo/Resources/city/tools.uix), is a grid
+of colors and plain tiles.
 
 ### Styles
 

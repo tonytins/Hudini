@@ -229,7 +229,8 @@ Let a window switch between sets of its controls with no code of the game's.
 CityLimits' city panel has City, Ordinances, and Neighbours on its toolbar, and
 they act as tabs. VentureOS's sidebar of panes does the same down a window's side.
 Tabs and panes are separate elements, so a toolbar and a sidebar can never switch
-the same controls.
+the same controls. Grids join them: VentureOS's `<Grid>` chooses one of a set of
+pictures, colors, or tiles, as a palette or a picker does.
 
 - [x] Add `<Tab>`, which a toolbar item switches, to VentureOS's
   [UIScript spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#tabs),
@@ -239,3 +240,9 @@ the same controls.
   rows.
 - [x] Show it in the CityLimits demo: the city panel's City, Ordinances, and
   Neighbours tabs.
+- [x] Read VentureOS's
+  [`<Grid>` and `<Item>`](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#grid),
+  and draw grids of pictures, colors, and plain tiles that wrap, scroll, and choose
+  one, reporting the chosen item's name.
+- [x] Show it in the CityLimits demo: the tool palette is a grid, with the zones as
+  circles in their map colors.

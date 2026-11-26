@@ -5,7 +5,8 @@
 // - HUD panels that never stack, outside the WindowManager: the tool palette (city/tools.uix), the
 //   overview with its minimap (city/overview.uix), and the status bar with its news ticker
 //   (city/status.uix), a <Panel> along the screen's bottom. The host draws them under the windows and
-//   keeps clicks on them off the map.
+//   keeps clicks on them off the map. The tool palette is a <Grid>: the zones are circles in their
+//   map colors, the other tools plain tiles, and choosing one reports its name.
 // - Windows run by a WindowManager, each a small class with its own handler, so its logic lives with
 //   it rather than in one big switch in the game loop:
 //   - BudgetWindow (city/budget.uix) is modal, and the city pauses while any modal window is open.
@@ -87,7 +88,7 @@ enum Tile: Equatable {
     }
 }
 
-/// A tool in the palette. Its raw value is its button's name in city/tools.uix.
+/// A tool in the palette. Its raw value is its item's name in city/tools.uix.
 enum Tool: String, CaseIterable {
     case residential, commercial, industrial, road, park, bulldoze
 
@@ -758,7 +759,7 @@ final class CityDemo {
     }
 
     private func updateHUD() {
-        for case let .pressed(control: name) in tools.update(at: toolsOrigin) {
+        for case let .selected(control: "tools", index: _, item: name?) in tools.update(at: toolsOrigin) {
             if let chosen = Tool(rawValue: name) {
                 choose(chosen)
             }
@@ -784,8 +785,9 @@ final class CityDemo {
 
     private func choose(_ chosen: Tool) {
         tool = chosen
-        for each in Tool.allCases {
-            tools.setSelected(each == chosen, named: each.rawValue)
+        // A click already chose it in the grid; this is for choosing a tool in code.
+        if let grid = tools.grid(named: "tools") {
+            grid.selectedIndex = grid.items.firstIndex { $0.name == chosen.rawValue }
         }
         tools.setText(chosen.label, named: "toolName")
     }
@@ -833,6 +835,8 @@ final class CityDemo {
         drawMinimizedIcons()
 
         windows.draw()
+        // Resting on a tool names it, since the palette shows no titles.
+        tools.drawTooltip(at: toolsOrigin)
         windows.drawTooltip()
         EndDrawing()
     }

@@ -12,8 +12,9 @@ The demo (`Demo/Sources/hudini-demo`) opens on a menu (`Menu.swift`) with two
 demos. The Sims Online-style one is the rest of `main.swift`, with its documents in
 `Resources`. The CityLimits-style one is `CityDemo.swift`, with its documents in
 `Resources/city`. It's the reference for how a Swift port of CityLimits could use
-Hudini: HUD panels outside a `WindowManager`, windows as small classes with their
-own handlers, and a city panel whose tabs switch with no code of the demo's.
+Hudini: HUD panels outside a `WindowManager`, a tool palette that's a `<Grid>`,
+windows as small classes with their own handlers, and a city panel whose tabs switch
+with no code of the demo's.
 
 ## Build and test
 
