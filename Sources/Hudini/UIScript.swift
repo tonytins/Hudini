@@ -154,8 +154,8 @@ public struct UIScript: Sendable {
         self.conversionNotes = conversionNotes
     }
 
-    /// This document with the styles, images, and scroll bar it uses from `appearance` added. What
-    /// the document defines itself wins. A reference neither defines is left for validation to
+    /// This document with the styles, images, fonts, and scroll bar it uses from `appearance` added.
+    /// What the document defines itself wins. A reference neither defines is left for validation to
     /// refuse.
     func inheriting(_ appearance: Appearance) -> UIScript {
         var styles = self.styles
@@ -170,13 +170,20 @@ public struct UIScript: Sendable {
         for name in usedImages where images[name] == nil {
             images[name] = appearance.images[name]
         }
+        // A window's own style can't name a font, so only shared styles bring one.
+        var fonts: [String: FontResource] = [:]
+        for name in Set(controls.compactMap(\.style)) {
+            if let fontName = styles[name]?.fontName {
+                fonts[fontName] = appearance.fonts[fontName]
+            }
+        }
 
         return UIScript(
             version: version,
             requiredFeatures: requiredFeatures,
             window: window,
             panelEdge: panelEdge,
-            resources: Resources(images: images, strings: resources.strings),
+            resources: Resources(images: images, strings: resources.strings, fonts: fonts),
             styles: styles,
             visuals: visuals,
             controls: controls,
@@ -492,6 +499,20 @@ public struct UIScript: Sendable {
 
         /// Localized strings keyed by their document-local names.
         public let strings: [String: StringResource]
+
+        /// Font files keyed by name, which only an appearance gives: those its styles name, for
+        /// the styles the document uses. `UIView` loads them through its `loadFont`.
+        public let fonts: [String: FontResource]
+
+        init(
+            images: [String: ImageResource],
+            strings: [String: StringResource],
+            fonts: [String: FontResource] = [:]
+        ) {
+            self.images = images
+            self.strings = strings
+            self.fonts = fonts
+        }
     }
 
     /// The state a button image shows.

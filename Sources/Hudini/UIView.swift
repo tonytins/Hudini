@@ -66,6 +66,8 @@ public final class UIView {
     private let textAreas: [String: TextArea]
     // Controls whose style asks for `font="monospace"`.
     private let monospaceNames: Set<String>
+    // The appearance font each control's style names, for those whose font loaded.
+    private let namedFonts: [String: Font]
     private let textures: [String: Texture2D]
     private let sizes: [String: Vector2]
     private let tooltips: [String: String]
@@ -89,6 +91,11 @@ public final class UIView {
     /// Controls and visuals using these images draw a red outline instead. When
     /// they also leave out their size, they use a small fallback size.
     public let missingImages: [String]
+
+    /// The names of appearance fonts the host could not supply, in sorted order.
+    ///
+    /// Text in a style naming one of these draws in the theme's font instead.
+    public let missingFonts: [String]
 
     /// The names of string resources the host could not supply, in sorted order.
     ///
@@ -129,11 +136,18 @@ public final class UIView {
     /// passing it must create the view after `InitWindow`. The host owns the
     /// textures and unloads them before `CloseWindow`. A control or visual that
     /// leaves out its size takes it from one slice of its image.
+    ///
+    /// `loadFont` supplies each font an appearance style the document uses names, once, during
+    /// creation, after `InitWindow`. The host owns the fonts, as it does textures, and caches them,
+    /// since many windows share them. Text in a style whose font it can't supply draws in the
+    /// theme's font, and the font is listed in `missingFonts`. The theme's own fonts come from
+    /// `InterfaceTheme.withFonts(from:loadFont:)`, not from here.
     public init(
         script: UIScript,
         theme: InterfaceTheme = .standard,
         resolveString: (UIScript.StringResource) -> String? = { _ in nil },
-        loadImage: (UIScript.ImageResource) -> Texture2D? = { _ in nil }
+        loadImage: (UIScript.ImageResource) -> Texture2D? = { _ in nil },
+        loadFont: (UIScript.FontResource) -> Font? = { _ in nil }
     ) {
         self.script = script
         self.theme = theme
@@ -166,11 +180,27 @@ public final class UIView {
         var textFields: [String: TextField] = [:]
         var textAreas: [String: TextArea] = [:]
         let monospaceNames = Set(script.controls.filter { script.style(for: $0)?.font == .monospace }.map(\.name))
+
+        var fonts: [String: Font] = [:]
+        var missingFonts: [String] = []
+        for (name, resource) in script.resources.fonts {
+            if let font = loadFont(resource), font.texture.id != 0 {
+                fonts[name] = font
+            } else {
+                missingFonts.append(name)
+            }
+        }
+        let namedFonts: [String: Font] = script.controls.reduce(into: [:]) { result, control in
+            if let fontName = script.style(for: control)?.fontName, let font = fonts[fontName] {
+                result[control.name] = font
+            }
+        }
+
         let resolvedStyles = self.resolvedStyles
         for control in script.controls {
             let style = control.style.flatMap { resolvedStyles[$0] }
             let text = resolved(control.text)
-            let theme = monospaceNames.contains(control.name) ? theme.monospaced : theme
+            let theme = Self.theme(theme, for: control.name, namedFonts: namedFonts, monospaceNames: monospaceNames)
             switch control.type {
             case .text, .formattedText, .button:
                 labels[control.name] = text
@@ -258,6 +288,8 @@ public final class UIView {
         self.textFields = textFields
         self.textAreas = textAreas
         self.monospaceNames = monospaceNames
+        self.namedFonts = namedFonts
+        self.missingFonts = missingFonts.sorted()
         self.textures = textures
         self.sizes = sizes
         // The appearance's scroll bar art, from the same textures as any image. A part whose
@@ -660,10 +692,22 @@ public final class UIView {
         return isOnBar ? control.name : nil
     }
 
-    // The theme a control draws with: the view's, in its monospace font when the control's style
-    // asks for one.
-    private func theme(for name: String) -> InterfaceTheme {
-        monospaceNames.contains(name) ? theme.monospaced : theme
+    // The theme a control draws and measures with: the view's, in the appearance font its style
+    // names, or in its monospace font when the style asks for one.
+    func theme(for name: String) -> InterfaceTheme {
+        Self.theme(theme, for: name, namedFonts: namedFonts, monospaceNames: monospaceNames)
+    }
+
+    private static func theme(
+        _ theme: InterfaceTheme,
+        for name: String,
+        namedFonts: [String: Font],
+        monospaceNames: Set<String>
+    ) -> InterfaceTheme {
+        if let font = namedFonts[name] {
+            return theme.drawing(in: font)
+        }
+        return monospaceNames.contains(name) ? theme.monospaced : theme
     }
 
     /// Tracks how long the pointer has rested on the topmost control under it. A negative

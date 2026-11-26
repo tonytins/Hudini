@@ -215,7 +215,45 @@ public struct InterfaceTheme: Sendable {
         guard let monospaceFont, monospaceFont.texture.id != 0 else {
             return self
         }
-        return InterfaceTheme(
+        return replacingFonts(font: monospaceFont, monospaceFont: monospaceFont)
+    }
+
+    /// This theme drawing its text in `font`, for a style that names an appearance font. Its
+    /// monospace font stays.
+    func drawing(in font: Font) -> InterfaceTheme {
+        replacingFonts(font: font, monospaceFont: monospaceFont)
+    }
+
+    /// Returns this theme with the fonts `appearance`'s `<Fonts>` names in place of its own.
+    ///
+    /// `loadFont` is called for each font `<Fonts>` names, after `InitWindow`. As with the theme's
+    /// own fonts, the host owns them: it caches them, so a font a `UIView` also loads isn't loaded
+    /// twice, and unloads them before `CloseWindow`. A font `<Fonts>` leaves out, or that
+    /// `loadFont` can't supply, keeps the theme's, so the host's `loadFont` is the place to report
+    /// a font that didn't load.
+    ///
+    /// Pass the result to every component the game draws, including `WindowFrame`, `ButtonRow`,
+    /// and `NoticePanel`, and call this again on a new theme, such as when switching to dark mode.
+    /// See `docs/design/2026-11-25-fonts.md`.
+    public func withFonts(from appearance: Appearance, loadFont: (UIScript.FontResource) -> Font?) -> InterfaceTheme {
+        guard let fonts = appearance.themeFonts else {
+            return self
+        }
+        func load(_ name: String?) -> Font? {
+            guard let name, let resource = appearance.fonts[name], let font = loadFont(resource),
+                  font.texture.id != 0 else {
+                return nil
+            }
+            return font
+        }
+        return replacingFonts(
+            font: load(fonts.default) ?? font,
+            monospaceFont: load(fonts.monospace) ?? monospaceFont
+        )
+    }
+
+    private func replacingFonts(font: Font?, monospaceFont: Font?) -> InterfaceTheme {
+        InterfaceTheme(
             accent: accent,
             inputBackground: inputBackground,
             closeButton: closeButton,
@@ -231,7 +269,7 @@ public struct InterfaceTheme: Sendable {
             titleBar: titleBar,
             titleBarBottom: titleBarBottom,
             selectedItem: selectedItem,
-            font: monospaceFont,
+            font: font,
             monospaceFont: monospaceFont,
             fontSpacing: fontSpacing,
             textSizes: textSizes,

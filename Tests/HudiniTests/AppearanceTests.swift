@@ -353,3 +353,138 @@ private func sharedAppearance() throws -> Appearance {
     let loaded = try UIScript(contentsOf: url, appearance: try sharedAppearance())
     #expect(loaded.styles["chatText"] != nil)
 }
+
+// MARK: Resolving fonts
+
+private let fontAppearance = """
+    <Appearance version='1'>
+      <Font name='text' path='fonts/text.ttf' size='32'/>
+      <Font name='code' path='fonts/code.ttf' size='24'/>
+      <Font name='tiles' path='fonts/tiles.ttf' size='48'/>
+      <Font name='unused' path='fonts/unused.ttf' size='12'/>
+      <Fonts default='text' monospace='code'/>
+      <Style name='tile' font='tiles' fontSize='20'/>
+      <Style name='plain' textColor='#FFFFFF'/>
+    </Appearance>
+    """
+
+// A stand-in for a loaded font, told apart by its base size. A texture ID of 0 means it failed.
+private func fakeFont(_ baseSize: Int32, loaded: Bool = true) -> Font {
+    var font = Font()
+    font.baseSize = baseSize
+    font.texture.id = loaded ? 1 : 0
+    return font
+}
+
+// Loads each font at its size, except the paths in `failing`, and records what was asked for.
+private final class FontLoader {
+    var requested: [UIScript.FontResource] = []
+    let failing: Set<String>
+
+    init(failing: Set<String> = []) {
+        self.failing = failing
+    }
+
+    func load(_ resource: UIScript.FontResource) -> Font? {
+        requested.append(resource)
+        return failing.contains(resource.path) ? nil : fakeFont(Int32(resource.size))
+    }
+}
+
+@Test func aWindowTakesOnlyTheFontsItsSharedStylesName() throws {
+    let board = try window("""
+        <List name='tiles' x='0' y='0' width='200' height='100' style='tile'/>
+        <List name='labels' x='0' y='100' width='200' height='100' style='plain'/>
+        """, appearance: try Appearance(data: Data(fontAppearance.utf8)))
+
+    #expect(board.resources.fonts == ["tiles": UIScript.FontResource(path: "fonts/tiles.ttf", size: 48)])
+    #expect(board.style(for: try #require(board.control(named: "tiles")))?.fontName == "tiles")
+}
+
+@Test func aWindowOverridingAStyleDropsItsFont() throws {
+    // The window's own `tile` replaces the shared one whole, and a window's style can't name a font.
+    let board = try window("""
+        <Style name='tile' fontSize='20'/>
+        <List name='tiles' x='0' y='0' width='200' height='100' style='tile'/>
+        """, appearance: try Appearance(data: Data(fontAppearance.utf8)))
+
+    #expect(board.resources.fonts.isEmpty)
+}
+
+@Test func aViewDrawsAndMeasuresAStyledControlInItsFont() throws {
+    let board = try window("""
+        <Style name='code' font='monospace'/>
+        <List name='tiles' x='0' y='0' width='200' height='100' style='tile'/>
+        <TextField name='entry' x='0' y='100' width='200' height='20' style='tile'/>
+        <List name='log' x='0' y='120' width='200' height='100' style='code'/>
+        <List name='labels' x='0' y='220' width='200' height='50'/>
+        """, appearance: try Appearance(data: Data(fontAppearance.utf8)))
+    let loader = FontLoader()
+    let theme = InterfaceTheme(font: fakeFont(10), monospaceFont: fakeFont(11))
+    let view = UIView(script: board, theme: theme, loadFont: loader.load)
+
+    #expect(loader.requested == [UIScript.FontResource(path: "fonts/tiles.ttf", size: 48)])
+    #expect(view.missingFonts.isEmpty)
+    // The list and field measure through the theme they draw with.
+    #expect(view.list(named: "tiles")?.theme.font?.baseSize == 48)
+    #expect(view.textField(named: "entry")?.theme.font?.baseSize == 48)
+    #expect(view.theme(for: "tiles").monospaceFont?.baseSize == 11)
+    #expect(view.list(named: "log")?.theme.font?.baseSize == 11)
+    #expect(view.list(named: "labels")?.theme.font?.baseSize == 10)
+
+    // A new theme keeps each control's font.
+    view.theme = InterfaceTheme(font: fakeFont(20), monospaceFont: fakeFont(21))
+    #expect(view.list(named: "tiles")?.theme.font?.baseSize == 48)
+    #expect(view.list(named: "log")?.theme.font?.baseSize == 21)
+    #expect(view.list(named: "labels")?.theme.font?.baseSize == 20)
+}
+
+@Test func aFontThatDoesntLoadFallsBackToTheThemesAndIsListed() throws {
+    let board = try window("<List name='tiles' x='0' y='0' width='200' height='100' style='tile'/>",
+                           appearance: try Appearance(data: Data(fontAppearance.utf8)))
+    let view = UIView(script: board, theme: InterfaceTheme(font: fakeFont(10)),
+                      loadFont: FontLoader(failing: ["fonts/tiles.ttf"]).load)
+
+    #expect(view.missingFonts == ["tiles"])
+    #expect(view.list(named: "tiles")?.theme.font?.baseSize == 10)
+
+    // So does one that returns a font without a texture.
+    let unloaded = UIView(script: board, theme: InterfaceTheme(font: fakeFont(10)), loadFont: { _ in fakeFont(48, loaded: false) })
+    #expect(unloaded.missingFonts == ["tiles"])
+    #expect(unloaded.list(named: "tiles")?.theme.font?.baseSize == 10)
+
+    // Without a loadFont, every named font is missing.
+    #expect(UIView(script: board).missingFonts == ["tiles"])
+}
+
+@Test func anAppearanceFillsTheThemesFonts() throws {
+    let appearance = try Appearance(data: Data(fontAppearance.utf8))
+    let loader = FontLoader()
+    let theme = InterfaceTheme(font: fakeFont(10), monospaceFont: fakeFont(11), fontSpacing: 2)
+        .withFonts(from: appearance, loadFont: loader.load)
+
+    // The appearance wins over the theme's own.
+    #expect(theme.font?.baseSize == 32)
+    #expect(theme.monospaceFont?.baseSize == 24)
+    #expect(theme.fontSpacing == 2)
+    #expect(Set(loader.requested.map(\.path)) == ["fonts/text.ttf", "fonts/code.ttf"])
+}
+
+@Test func aThemeKeepsAFontTheAppearanceDoesntGive() throws {
+    let base = InterfaceTheme(font: fakeFont(10), monospaceFont: fakeFont(11))
+    let onlyMonospace = try appearance("<Font name='code' path='code.ttf' size='24'/><Fonts monospace='code'/>")
+    let failing = try Appearance(data: Data(fontAppearance.utf8))
+
+    let filled = base.withFonts(from: onlyMonospace, loadFont: FontLoader().load)
+    #expect(filled.font?.baseSize == 10)
+    #expect(filled.monospaceFont?.baseSize == 24)
+
+    let fallback = base.withFonts(from: failing, loadFont: FontLoader(failing: ["fonts/text.ttf"]).load)
+    #expect(fallback.font?.baseSize == 10)
+    #expect(fallback.monospaceFont?.baseSize == 24)
+
+    // No <Fonts> at all: nothing is loaded.
+    let loader = FontLoader()
+    #expect(base.withFonts(from: try appearance("<Font name='a' path='a.ttf' size='9'/>"), loadFont: loader.load).font?.baseSize == 10)
+    #expect(loader.requested.isEmpty)
+}
