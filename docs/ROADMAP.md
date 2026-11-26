@@ -215,3 +215,6 @@ and VentureOS proved the design first.
   bars of their own, `<Slider>` only chooses a value, with `step`, `committed`, and
   the keyboard, and scroll sliders and buttons are refused. Text fields and areas
   follow `alignment`.
+- [x] Let windows share an appearance: images, styles, and scroll bar art in one
+  document the game loads, which a window overrides by name, as The Sims Online's
+  windows shared their scroll bar art.

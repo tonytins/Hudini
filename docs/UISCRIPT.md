@@ -186,6 +186,59 @@ in `WindowFrame(view:)` instead, and give several such windows to a `WindowManag
 to stack them. The host decides which view gets the pointer when they overlap, and
 `drawTooltip(at:)` shows nothing for a view that was not updated that frame.
 
+## Appearances
+
+A game's windows usually share a look: the same scroll bar art, the same text styles.
+An **appearance** is one document holding what they share, which the game loads once
+and reads every window with. It's a Hudini feature, not part of the UIScript spec; the
+[design note](design/2026-11-25-appearance.md) explains why and how.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Appearance version="1">
+  <Image name="scrollUp" path="scroll/up.png" stateCount="4"/>
+  <Image name="scrollDown" path="scroll/down.png" stateCount="4"/>
+  <Image name="scrollThumb" path="scroll/thumb.png"/>
+  <ScrollBar width="15" up="scrollUp" down="scrollDown" thumb="scrollThumb" thumbCap="6"/>
+  <Style name="chatText" textColor="#FFF99D" fontSize="body"/>
+</Appearance>
+```
+
+```swift
+let appearance = try Appearance(contentsOf: appearanceURL)
+let chat = try UIScript(contentsOf: chatURL, appearance: appearance)
+let view = UIView(script: chat, loadImage: textures.load) // Cache: windows share images.
+```
+
+- It holds UIScript's own `<Image>`, with `path`, `assetID`, or both, and `<Style>`,
+  and at most one `<ScrollBar>`. Its rules are a window's: no text, no `DOCTYPE`,
+  elements directly under the root, unknown attributes listed in
+  `ignoredAttributes`, and a newer `version` refused.
+- A window's `style` and `image` references it doesn't define itself come from the
+  appearance, and a window with a list or text area takes its `<ScrollBar>` as
+  `UIScript.scrollBar`. Only what a window uses is copied into it, and `UIView`
+  loads those images through `loadImage` like its own.
+- **A window overrides by name.** Its own `<Image>` or `<Style>` replaces the
+  appearance's of that name, whole. To give one window its own scroll bar art,
+  define an `<Image>` with the name the `<ScrollBar>` uses.
+- A window that leans on shared names doesn't read without the appearance, in
+  Hudini or in VentureOS, which refuses the names it can't find.
+
+`<ScrollBar>` takes these attributes, all optional:
+
+| Attribute | Value |
+| --- | --- |
+| `width` | The bar's width in pixels, above 0, which defaults to 15. The arrows are as tall as the bar is wide. |
+| `up`, `down` | The arrows' images. With four states, they show normal, pressed, hovered, and disabled; an arrow shows disabled at its end. |
+| `thumb` | The thumb's image, stretched to the thumb's length. |
+| `thumbCap` | Pixels at the thumb image's top and bottom that keep their height while its middle stretches. Defaults to 0, which stretches it whole. |
+| `track` | An image stretched behind the thumb, between the arrows. |
+
+A part with no image, or whose image couldn't be loaded, is drawn as the classic bar
+draws it, from the theme. The demo's Sims windows read with
+[`appearance.xml`](../Demo/Sources/hudini-demo/Resources/appearance.xml), and Move
+Lot overrides its thumb.
+
 ## Errors
 
 `UIScript(data:)` and `UIScript(contentsOf:)` throw `UIScriptError`, whose
@@ -300,6 +353,9 @@ The spec's change log is in
 [VentureOS's spec](https://github.com/tonytins/VentureOS/blob/main/docs/uiscript/README.md#change-log),
 including the changes made while Hudini kept it. Changes to Hudini's reader:
 
+- **2026-11-25:** Appearances: `Appearance`, read from `<Appearance>` documents,
+  and `UIScript(contentsOf:appearance:)`, so windows share images, styles, and
+  scroll bar art. A Hudini feature; the spec is unchanged.
 - **2026-11-25:** Hudini follows the spec's changes of 2026-11-24 and 2026-11-25.
   Lists and text areas draw their own scroll bars, and a control with `scrolls` or
   `direction` refuses the document (`UIScriptError.retiredScrolling`), where it used

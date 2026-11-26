@@ -68,7 +68,7 @@ We don't know how TSO's game code connected the gizmo art to its lists, so this 
 | Attribute | Value |
 | --- | --- |
 | `width` | The bar's width in pixels, above 0. Defaults to 15. The arrows are as tall as the bar is wide. |
-| `up`, `down` | The arrows' images. With four states, they show normal, hovered, pressed, and disabled, as a button's do. |
+| `up`, `down` | The arrows' images. With four states, they show normal, pressed, hovered, and disabled, as a button's do. |
 | `thumb` | The thumb's image, stretched to the thumb's length. |
 | `thumbCap` | Pixels at the thumb image's top and bottom that keep their size while its middle stretches, 0 or more. Defaults to 0, which stretches the whole image. |
 | `track` | An image stretched behind the thumb, between the arrows. |

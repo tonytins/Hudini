@@ -46,7 +46,7 @@ public struct Appearance: Sendable {
         /// The bar's width in pixels, above 0. The arrows are as tall as the bar is wide.
         public let width: Float
 
-        /// The up arrow's image. With four states, it shows normal, hovered, pressed, and disabled.
+        /// The up arrow's image. With four states, it shows normal, pressed, hovered, and disabled.
         public let up: String?
 
         /// The down arrow's image, sliced as `up` is.

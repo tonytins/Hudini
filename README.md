@@ -14,6 +14,7 @@ form layout.
 - Editable window titles with optional validation
 - Single-line and multiline text fields
 - Scrollable plain-text lists and text areas, with their own scroll bars
+- Appearances: one document holding the images, styles, and scroll bar art a game's windows share, which any window can override
 - Tooltips, value sliders with steps and the keyboard, and progress bars
 - Panels that swap by mode, sit inside each other, or open in their own window
 - Confirmation and notice panels
