@@ -6,7 +6,9 @@ import Raylib
 /// Without art it's VentureOS's classic bar, drawn from the theme: 15 pixels wide, taken from the
 /// content while it shows, with an up arrow at its top, a down arrow at its bottom, and a thumb in
 /// the theme's accent between them. An appearance's `<ScrollBar>` can give it a width and images
-/// for any of its parts; a part without one is drawn from the theme. An arrow scrolls a line and
+/// for any of its parts; a part without one is drawn from the theme. Its `slider` instead names one
+/// image packed as The Sims Online packs its scroll bar, and then every part is drawn at its own
+/// size (`docs/design/2026-11-26-packed-scroll-bar.md`). An arrow scrolls a line and
 /// the track a page, both repeating while held, and the thumb drags. A press on the bar belongs to
 /// the bar alone, so it never selects a row or moves focus.
 struct ScrollBar {
@@ -56,6 +58,22 @@ struct ScrollBar {
         /// Pixels at the thumb image's top and bottom that keep their size while its middle
         /// stretches.
         var thumbCap: Float = 0
+
+        /// Whether the appearance named a packed `slider`, so every part is drawn at its own size.
+        /// It stays set when the slider's image couldn't be loaded, and the classic track and
+        /// thumb take its place.
+        var isPacked = false
+
+        /// The packed image: the track in its top three-quarters, the thumb in its bottom quarter.
+        var slider: Image?
+
+        /// The bar's width with packed art: as wide as its widest part, the slider image or one
+        /// state of an arrow. A slider that couldn't be loaded counts as the classic bar's width.
+        var packedWidth: Float {
+            let slider = slider.map { Float($0.texture.width) } ?? ScrollBar.defaultWidth
+            let arrows = [up, down].compactMap { $0 }.map { ScrollBar.stateSize(of: $0).x }
+            return ([slider] + arrows).max() ?? slider
+        }
     }
 
     /// How wide the bar is, and how tall its arrows are.
@@ -86,24 +104,101 @@ struct ScrollBar {
             width: width,
             height: max(0, bounds.height - 2)
         )
+        if let art, art.isPacked {
+            return packedGeometry(bar: bar, art: art, position: position)
+        }
         let arrow = min(width, (bar.height / 3).rounded(.down))
         let up = Rectangle(x: bar.x, y: bar.y, width: bar.width, height: arrow)
         let down = Rectangle(x: bar.x, y: bar.y + bar.height - arrow, width: bar.width, height: arrow)
         let track = Rectangle(x: bar.x, y: bar.y + arrow, width: bar.width, height: max(0, bar.height - (2 * arrow)))
 
-        let shown = Float(max(1, position.shown))
-        let length = min(
-            track.height,
-            max(min(Self.minimumThumbLength, track.height), (track.height * shown / (Float(position.last) + shown)).rounded(.down))
-        )
-        let fraction = Float(min(max(position.first, 0), position.last)) / Float(position.last)
+        let length = Self.classicThumbLength(track: track, position: position)
         let thumb = Rectangle(
             x: track.x,
-            y: (track.y + ((track.height - length) * fraction)).rounded(.down),
+            y: Self.thumbY(length: length, track: track, position: position),
             width: track.width,
             height: length
         )
         return Geometry(bar: bar, up: up, down: down, track: track, thumb: thumb)
+    }
+
+    // Packed art: each part at its own size, centered across the bar, the arrows at its ends and
+    // the track between them. The thumb keeps its size and only moves.
+    private func packedGeometry(bar: Rectangle, art: Art, position: Position) -> Geometry {
+        let tallestArrow = (bar.height / 3).rounded(.down)
+        func centered(_ width: Float) -> Float {
+            bar.x + ((bar.width - width) / 2).rounded(.down)
+        }
+        func arrow(_ image: Art.Image?, atTop: Bool) -> Rectangle {
+            // A classic arrow spans the bar, as tall as the classic bar is wide.
+            let size = image.map(Self.stateSize(of:)) ?? Vector2(x: bar.width, y: Self.defaultWidth)
+            let width = min(size.x, bar.width)
+            let height = min(size.y, tallestArrow)
+            return Rectangle(x: centered(width), y: atTop ? bar.y : bar.y + bar.height - height, width: width, height: height)
+        }
+        let up = arrow(art.up, atTop: true)
+        let down = arrow(art.down, atTop: false)
+
+        let trackWidth = min(art.slider.map { Float($0.texture.width) } ?? Self.defaultWidth, bar.width)
+        let trackTop = up.y + up.height
+        let track = Rectangle(x: centered(trackWidth), y: trackTop, width: trackWidth, height: max(0, down.y - trackTop))
+
+        let thumbWidth: Float
+        let length: Float
+        if let slider = art.slider {
+            let source = Self.packedSources(of: slider).thumb
+            thumbWidth = min(source.width, track.width)
+            // A track shorter than the thumb shrinks it to fit.
+            length = min(source.height, track.height)
+        } else {
+            thumbWidth = track.width
+            length = Self.classicThumbLength(track: track, position: position)
+        }
+        let thumb = Rectangle(
+            x: centered(thumbWidth),
+            y: Self.thumbY(length: length, track: track, position: position),
+            width: thumbWidth,
+            height: length
+        )
+        return Geometry(bar: bar, up: up, down: down, track: track, thumb: thumb)
+    }
+
+    // The classic thumb's length: the share of the content that shows, at least 18 pixels.
+    private static func classicThumbLength(track: Rectangle, position: Position) -> Float {
+        let shown = Float(max(1, position.shown))
+        return min(
+            track.height,
+            max(min(minimumThumbLength, track.height), (track.height * shown / (Float(position.last) + shown)).rounded(.down))
+        )
+    }
+
+    // Where a thumb of `length` sits down the track, by how far the content is scrolled.
+    private static func thumbY(length: Float, track: Rectangle, position: Position) -> Float {
+        let fraction = Float(min(max(position.first, 0), position.last)) / Float(max(1, position.last))
+        return (track.y + ((track.height - length) * fraction)).rounded(.down)
+    }
+
+    /// The size of one state of an image: its width divided by its states, by its height.
+    static func stateSize(of image: Art.Image) -> Vector2 {
+        let source = source(of: image, state: .normal)
+        return Vector2(x: source.width, y: source.height)
+    }
+
+    /// Where a packed slider image keeps its track and thumb: the track in its top three-quarters
+    /// and the thumb in its bottom quarter, whose height is rounded down.
+    static func packedSources(of image: Art.Image) -> (track: Rectangle, thumb: Rectangle) {
+        let width = Float(image.texture.width)
+        let height = Float(image.texture.height)
+        let thumb = (height / 4).rounded(.down)
+        return (
+            Rectangle(x: 0, y: 0, width: width, height: height - thumb),
+            Rectangle(x: 0, y: height - thumb, width: width, height: thumb)
+        )
+    }
+
+    /// A packed track's caps: a third of its height, rounded down, at each end.
+    static func trackCap(of source: Rectangle) -> Float {
+        (source.height / 3).rounded(.down)
     }
 
     /// The part of the bar at `point`, or `nil` when the point is off the bar.
@@ -203,7 +298,12 @@ struct ScrollBar {
         let pointer = GetMousePosition()
         let isDown = IsMouseButtonDown(MouseButton.left)
 
-        if let track = art?.track {
+        let packed = art?.isPacked == true ? art?.slider.map { ($0, Self.packedSources(of: $0)) } : nil
+        if let (slider, sources) = packed {
+            for (from, to) in Self.slices(source: sources.track, box: geometry.track, cap: Self.trackCap(of: sources.track)) {
+                Self.drawImage(slider, in: to, source: from)
+            }
+        } else if let track = art?.track {
             Self.drawImage(track, in: geometry.track, source: Self.source(of: track, state: .normal))
         } else {
             let bar = geometry.bar
@@ -227,7 +327,9 @@ struct ScrollBar {
             }
         }
 
-        if let thumb = art?.thumb {
+        if let (slider, sources) = packed {
+            Self.drawImage(slider, in: geometry.thumb, source: sources.thumb)
+        } else if let thumb = art?.thumb {
             Self.drawThumb(thumb, in: geometry.thumb, cap: art?.thumbCap ?? 0)
         } else {
             Self.drawClassicThumb(in: geometry.thumb, theme: theme)
@@ -254,13 +356,14 @@ struct ScrollBar {
     /// its middle stretches. A thumb too short for both caps shrinks them evenly.
     static func drawThumb(_ image: Art.Image, in box: Rectangle, cap: Float) {
         let source = source(of: image, state: .normal)
-        for (from, to) in thumbSlices(source: source, box: box, cap: cap) {
+        for (from, to) in slices(source: source, box: box, cap: cap) {
             drawImage(image, in: to, source: from)
         }
     }
 
-    /// The thumb's slices as pairs of where they come from in the image and where they're drawn.
-    static func thumbSlices(source: Rectangle, box: Rectangle, cap: Float) -> [(from: Rectangle, to: Rectangle)] {
+    /// An image's three slices, its `cap`-pixel top and bottom and its stretched middle, as pairs of
+    /// where they come from in the image and where they're drawn. A thumb and a packed track use it.
+    static func slices(source: Rectangle, box: Rectangle, cap: Float) -> [(from: Rectangle, to: Rectangle)] {
         let sourceCap = min(max(cap, 0), source.height / 2)
         guard sourceCap > 0 else {
             return [(source, box)]

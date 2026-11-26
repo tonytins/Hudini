@@ -365,16 +365,20 @@ public final class UIView {
                 down: image(bar.down),
                 thumb: image(bar.thumb),
                 track: image(bar.track),
-                thumbCap: bar.thumbCap
+                thumbCap: bar.thumbCap,
+                isPacked: bar.slider != nil,
+                slider: image(bar.slider)
             )
+            // Packed art sets the bar's width itself, from the images that loaded.
+            let width = art.isPacked ? art.packedWidth : bar.width
             for list in lists.values {
-                list.useScrollBar(width: bar.width, art: art)
+                list.useScrollBar(width: width, art: art)
             }
             for area in textAreas.values {
-                area.useScrollBar(width: bar.width, art: art)
+                area.useScrollBar(width: width, art: art)
             }
             for grid in grids.values {
-                grid.useScrollBar(width: bar.width, art: art)
+                grid.useScrollBar(width: width, art: art)
             }
         }
         tooltips = script.controls.reduce(into: [:]) { result, control in
