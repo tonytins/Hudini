@@ -8,6 +8,7 @@ form layout.
 ## Features
 
 - Draggable and resizable windows with merged title bars and selectable toolbar items
+- Tabs that toolbar items switch, and a sidebar of panes, with no code of the game's
 - A window manager with stacking, modal windows that stack and dim what's behind
   them, minimizing, and a handler for each window
 - Bottom-left icon toolbar with host-owned selection and custom icon drawing
@@ -312,7 +313,9 @@ root, run it with `swift run --package-path Demo hudini-demo`, or skip the menu 
 - **CityLimits style:** a city map under a tool palette, an overview, and a status
   bar, with windows run by a `WindowManager`. The budget is a modal window that pauses
   the city, a confirm window stacks over it, and the city, demand, and help windows
-  stay open and minimize to icons. Each window is a small class with its own handler.
+  stay open and minimize to icons. The city window's City, Ordinances, and Neighbours
+  tabs switch from its toolbar by themselves. Each window is a small class with its
+  own handler.
 
 The demo hosts own all the game state and images, and they generate placeholder art
 because Hudini ships no game assets.

@@ -237,5 +237,5 @@ the same controls.
 - [x] Switch tabs when their toolbar items are pressed.
 - [x] Draw a sidebar of panes beside a window's content, and switch panes from its
   rows.
-- [ ] Show it in the CityLimits demo: the city panel's City, Ordinances, and
+- [x] Show it in the CityLimits demo: the city panel's City, Ordinances, and
   Neighbours tabs.

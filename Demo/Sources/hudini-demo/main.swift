@@ -20,7 +20,7 @@
 // - menu: the opening menu.
 // - The Sims demo: live, stats, options, stand, standwindow, movelot, and accent, which shows the
 //   options panel after its Accent Color button is pressed.
-// - The city demo: city, citybudget, and cityconfirm. See CityDemo.swift.
+// - The city demo: city, citybudget, cityconfirm, and cityordinances. See CityDemo.swift.
 // --pointer holds the pointer in place, and a screenshot then waits long enough to show a tooltip.
 // --font draws the interface in a font file, such as a .ttf. The demo's own lot art keeps raylib's
 // default font, since the theme only reaches Hudini's controls. The Sims demo's appearance gives it
@@ -396,7 +396,7 @@ while let argument = arguments.popFirst() {
     }
 }
 let simsScenes = ["live", "stats", "options", "stand", "standwindow", "movelot", "accent"]
-let cityScenes = ["city", "citybudget", "cityconfirm"]
+let cityScenes = ["city", "citybudget", "cityconfirm", "cityordinances"]
 if let sceneArgument {
     guard sceneArgument == "menu" || simsScenes.contains(sceneArgument) || cityScenes.contains(sceneArgument) else {
         fail("Unknown scene '\(sceneArgument)'.")

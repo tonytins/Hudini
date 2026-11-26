@@ -14,11 +14,13 @@
 //     which is how play and an editor could share a window without mode checks.
 //   - DemandWindow, HelpWindow, and CityPanelWindow stay open beside the map and minimize to a row
 //     of icons the host draws above the status bar. The help window resizes by its grip. The city
-//     panel's title is the city's name, edited in place, and its toolbar items are tabs. The demand
-//     window draws its chart into a region, through its frame's drawRegion.
+//     panel's title is the city's name, edited in place, and its toolbar items switch its tabs
+//     with no code of the demo's. The demand window draws its chart into a region, through its
+//     frame's drawRegion.
 //
-// Scenes for screenshots: city (windows open, help minimized), citybudget (the budget open), and
-// cityconfirm (a confirm stacked over the budget).
+// Scenes for screenshots: city (windows open, help minimized), citybudget (the budget open),
+// cityconfirm (a confirm stacked over the budget), and cityordinances (the city panel on its
+// Ordinances tab, with two passed).
 
 import Foundation
 import Hudini
@@ -467,12 +469,14 @@ final class HelpWindow {
     }
 }
 
-/// The city's name, edited in its title, with tabs for its stats and notes.
+/// The city's name, edited in its title, with tabs for its figures, its ordinances, and its
+/// neighbours, as CityLimits' city panel has. The document's tabs switch themselves, so the panel
+/// only fills in figures and toggles ordinances.
 @MainActor
 final class CityPanelWindow {
-    private static let statsControls = [
-        "foundedLabel", "founded", "populationLabel", "population",
-        "zonesLabel", "zones", "roadsLabel", "roads",
+    /// Each ordinance's button and what it costs a year.
+    private static let ordinances = [
+        ("curfew", 120), ("rationing", 80), ("clinics", 450), ("carpools", 200),
     ]
 
     let frame: WindowFrame
@@ -485,12 +489,12 @@ final class CityPanelWindow {
         frame.showsMinimizeButton = true
         self.city = city
         view.setText(city.name, named: "cityName")
-        showTab("statsTab")
+        showOrdinanceCost()
     }
 
     /// Whether the player is typing in the panel, so keys shouldn't reach the game.
     var isTyping: Bool {
-        frame.isEditingTitle || view.textArea(named: "notes")?.isFocused == true
+        frame.isEditingTitle
     }
 
     func open(in windows: WindowManager, at start: Vector2? = nil) {
@@ -502,8 +506,9 @@ final class CityPanelWindow {
                 } else {
                     city.name = name
                 }
-            case let .view(.pressed(control: tab)) where tab == "statsTab" || tab == "notesTab":
-                showTab(tab)
+            case let .view(.pressed(control: name)) where Self.ordinances.contains(where: { $0.0 == name }):
+                view.setSelected(!view.isSelected(named: name), named: name)
+                showOrdinanceCost()
             default:
                 handleCloseAndMinimize(event, of: frame, in: windows)
             }
@@ -517,14 +522,22 @@ final class CityPanelWindow {
         view.setText(grouped(city.count(.road)), named: "roads")
     }
 
-    private func showTab(_ tab: String) {
-        let showsStats = tab == "statsTab"
-        view.setSelected(showsStats, named: "statsTab")
-        view.setSelected(!showsStats, named: "notesTab")
-        for name in Self.statsControls {
-            view.setHidden(!showsStats, named: name)
+    /// Switches to the Ordinances tab with `passed` passed, as a scene shows it.
+    func showOrdinances(passing passed: [String]) {
+        view.setSelected(true, named: "ordinancesTab")
+        for name in passed {
+            view.setSelected(true, named: name)
         }
-        view.setHidden(showsStats, named: "notes")
+        showOrdinanceCost()
+    }
+
+    private func showOrdinanceCost() {
+        let passed = Self.ordinances.filter { view.isSelected(named: $0.0) }
+        let cost = passed.reduce(0) { $0 + $1.1 }
+        view.setText(
+            passed.isEmpty ? "No ordinances passed" : "\(passed.count) passed, costing $\(grouped(cost)) a year",
+            named: "ordinanceCost"
+        )
     }
 }
 
@@ -598,7 +611,7 @@ final class CityDemo {
     }
 
     /// Runs the demo until the player leaves or the window closes. A `scene` sets up what a
-    /// screenshot shows: city, citybudget, or cityconfirm.
+    /// screenshot shows: city, citybudget, cityconfirm, or cityordinances.
     func run(scene: String?, screenshot: String?) -> CityDemoEnding {
         SetWindowTitle("Hudini Demo - CityLimits Style")
         setUp(scene: scene)
@@ -629,6 +642,9 @@ final class CityDemo {
         case "cityconfirm":
             budget.open(in: windows)
             confirm.ask("Reset the Budget", "Put taxes back to 7%, and fund\nroads and parks in full?", in: windows) { _ in }
+        case "cityordinances":
+            windows.minimize(help.frame)
+            cityPanel.showOrdinances(passing: ["curfew", "clinics"])
         default:
             windows.minimize(help.frame)
         }

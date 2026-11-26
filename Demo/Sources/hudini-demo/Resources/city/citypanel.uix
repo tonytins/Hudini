@@ -1,24 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The city panel. Its title is the city's name, edited in place, and its toolbar items are tabs
-     that show the stats or the notes. -->
+<!-- The city panel. Its title is the city's name, edited in place, and its toolbar items switch
+     its tabs, as CityLimits' does: the city's figures, its ordinances, and its neighbours. The
+     tabs switch themselves; the game only toggles ordinances and fills in the figures. -->
 <UIScript version="1">
-  <Window width="300" height="180"/>
+  <Window width="420" height="180"/>
 
   <TitleField name="cityName" placeholder="Name your city"/>
-  <ToolbarItem name="statsTab" title="Stats"/>
-  <ToolbarItem name="notesTab" title="Notes"/>
+  <ToolbarItem name="cityTab" title="City" tab="city"/>
+  <ToolbarItem name="ordinancesTab" title="Ordinances" tab="ordinances"/>
+  <ToolbarItem name="neighboursTab" title="Neighbours" tab="neighbours"/>
 
   <Style name="label" textColor="accent"/>
   <Style name="figure" textColor="text"/>
+  <Style name="quiet" textColor="secondaryText"/>
+  <Style name="toggle" textColor="text" selectedTextColor="accent"/>
 
-  <Text name="foundedLabel" x="12" y="14" width="120" height="14" style="label" text="Founded"/>
-  <Text name="founded" x="140" y="14" width="148" height="14" style="figure"/>
-  <Text name="populationLabel" x="12" y="38" width="120" height="14" style="label" text="Population"/>
-  <Text name="population" x="140" y="38" width="148" height="14" style="figure"/>
-  <Text name="zonesLabel" x="12" y="62" width="120" height="14" style="label" text="Zoned tiles"/>
-  <Text name="zones" x="140" y="62" width="148" height="14" style="figure"/>
-  <Text name="roadsLabel" x="12" y="86" width="120" height="14" style="label" text="Road tiles"/>
-  <Text name="roads" x="140" y="86" width="148" height="14" style="figure"/>
+  <Tab name="city">
+    <Text name="foundedLabel" x="12" y="14" width="120" height="14" style="label" text="Founded"/>
+    <Text name="founded" x="140" y="14" width="268" height="14" style="figure"/>
+    <Text name="populationLabel" x="12" y="38" width="120" height="14" style="label" text="Population"/>
+    <Text name="population" x="140" y="38" width="268" height="14" style="figure"/>
+    <Text name="zonesLabel" x="12" y="62" width="120" height="14" style="label" text="Zoned tiles"/>
+    <Text name="zones" x="140" y="62" width="268" height="14" style="figure"/>
+    <Text name="roadsLabel" x="12" y="86" width="120" height="14" style="label" text="Road tiles"/>
+    <Text name="roads" x="140" y="86" width="268" height="14" style="figure"/>
+  </Tab>
 
-  <TextArea name="notes" x="8" y="8" width="284" height="164" placeholder="Notes about this city"/>
+  <Tab name="ordinances">
+    <Button name="curfew" x="12" y="12" width="190" height="26" style="toggle" text="Youth curfew"/>
+    <Button name="rationing" x="218" y="12" width="190" height="26" style="toggle" text="Water rationing"/>
+    <Button name="clinics" x="12" y="46" width="190" height="26" style="toggle" text="Free clinics"/>
+    <Button name="carpools" x="218" y="46" width="190" height="26" style="toggle" text="Carpool lanes"/>
+    <Text name="ordinanceCost" x="12" y="88" width="396" height="14" style="figure"/>
+    <Text name="ordinanceNote" x="12" y="150" width="396" height="14" style="quiet" text="Click an ordinance to pass or repeal it."/>
+  </Tab>
+
+  <Tab name="neighbours">
+    <Text name="northLabel" x="12" y="14" width="120" height="14" style="label" text="North"/>
+    <Text name="north" x="140" y="14" width="268" height="14" style="figure" text="Millbrook, 2,300"/>
+    <Text name="eastLabel" x="12" y="38" width="120" height="14" style="label" text="East"/>
+    <Text name="east" x="140" y="38" width="268" height="14" style="figure" text="Port Ash, 11,800"/>
+    <Text name="southLabel" x="12" y="62" width="120" height="14" style="label" text="South"/>
+    <Text name="south" x="140" y="62" width="268" height="14" style="figure" text="Cedar Falls, 640"/>
+    <Text name="westLabel" x="12" y="86" width="120" height="14" style="label" text="West"/>
+    <Text name="west" x="140" y="86" width="268" height="14" style="quiet" text="No neighbour yet"/>
+  </Tab>
 </UIScript>

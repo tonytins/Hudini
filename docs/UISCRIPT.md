@@ -61,9 +61,12 @@ for ignored in script.ignoredAttributes {
 
 See [`chatdialog.uix`](../Demo/Sources/hudini-demo/Resources/chatdialog.uix) and
 [`livepanel1024.uix`](../Demo/Sources/hudini-demo/Resources/livepanel1024.uix) for
-complete examples. VentureOS's tests read copies of the demo's documents, so every
+complete examples, and
+[`city/citypanel.uix`](../Demo/Sources/hudini-demo/Resources/city/citypanel.uix) for
+tabs. VentureOS's tests read copies of the demo's documents, so every
 document Hudini reads reads the same there, except one with tabs: VentureOS refuses
-`<Tab>` until it shows tabs. Leave a tabbed document out of those copies until then.
+`<Tab>` until it shows tabs. Leave a tabbed document, such as `city/citypanel.uix`,
+out of those copies until then.
 
 ## Using a document
 
